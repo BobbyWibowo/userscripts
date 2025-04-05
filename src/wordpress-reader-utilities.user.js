@@ -4,6 +4,7 @@
 // @version      1.0.4
 // @description  Common utilities for readers of WordPress-based sites
 // @author       Bobby Wibowo
+// @license      MIT
 // @run-at       document-end
 // @match        *://*
 // @grant        GM_addStyle
