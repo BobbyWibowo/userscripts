@@ -6,7 +6,7 @@
 // @author       Bobby Wibowo
 // @license      MIT
 // @run-at       document-end
-// @match        *://*
+// @match        *://*/*
 // @grant        GM_addStyle
 // ==/UserScript==
 

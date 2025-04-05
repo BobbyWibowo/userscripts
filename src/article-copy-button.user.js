@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Article Copy Button
 // @namespace    https://github.com/BobbyWibowo
-// @match        *://*
+// @match        *://*/*
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @version      1.1.6
