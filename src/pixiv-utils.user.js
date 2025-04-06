@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        window.onurlchange
 // @run-at       document-start
-// @version      1.5.0
+// @version      1.5.1
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -143,7 +143,7 @@
    * Controls: .sc-iasfms-4
    *
    * Expanded view's artist works bottom row:
-   * Image: .sc-1nhgff6-4 > div
+   * Image: .sc-1nhgff6-4 > div:has(a[href])
    *
    * Expanded view's related works grid:
    * Artist avatar: .sc-1rx6dmq-1
@@ -185,7 +185,7 @@
     SELECTORS_IMAGE_CONTROLS: '.sc-eacaaccb-9, .ppQNN, .sc-iasfms-4, .sc-xsxgxe-3, ._layout-thumbnail, .bookmark, .hSoPoc',
     SELECTORS_IMAGE_BOOKMARKED: '.bXjFLc, ._one-click-bookmark.on, .epoVSE',
     SELECTORS_EXPANDED_VIEW_CONTROLS: '.sc-181ts2x-0, .work-interactions',
-    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: '.sc-1nhgff6-4 > div',
+    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: '.sc-1nhgff6-4 > div:has(a[href])',
     SELECTORS_MULTI_VIEW: '[data-ga4-label="work_content"]:has(a[href])',
     SELECTORS_MULTI_VIEW_CONTROLS: '& > .w-full:last-child > .flex:first-child > .flex-row:first-child',
     SELECTORS_FOLLOW_BUTTON_CONTAINER: '.sc-gulj4d-2, .sc-k3uf3r-3, .sc-10gpz4q-3, .sc-f30yhg-3',
@@ -315,14 +315,25 @@
 
   /** INTERCEPT EARLY FOR CERTAIN ROUTES **/
 
+  const waitPageLoaded = () => {
+    return new Promise(resolve => {
+      if (document.readyState === 'complete' ||
+        document.readyState === 'loaded' ||
+        document.readyState === 'interactive') {
+        resolve();
+      } else {
+        document.addEventListener('DOMContentLoaded', resolve);
+      }
+    });
+  };
+
   const path = location.pathname;
 
   // Codes beyond this block will not execute for these routes (mainly for efficiency).
   if (path.startsWith('/bookmark_add.php') || path.startsWith('/novel/bookmark_add.php')) {
     if (CONFIG.DATE_CONVERSION) {
-      document.addEventListener('DOMContentLoaded', () => {
+      waitPageLoaded().then(() => {
         GM_addStyle(addPageDateStyle);
-
         const date = document.querySelector('.bookmark-detail-unit .meta');
         if (date) {
           // This page has the date display hardcoded to Japan time without an accompanying timestamp.
@@ -980,7 +991,7 @@
 
   /** SENTINEL */
 
-  document.addEventListener('DOMContentLoaded', () => {
+  waitPageLoaded().then(() => {
     isHome = Boolean(document.querySelector(CONFIG.SELECTORS_HOME));
 
     // Expanded View Controls
