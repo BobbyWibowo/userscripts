@@ -5,12 +5,15 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=dragontea.ink
 // @run-at       document-end
 // @grant        GM_getValue
-// @version      1.0.6
+// @version      1.1.0
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
+// @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
 // @noframes
 // ==/UserScript==
+
+/* global sentinel */
 
 (function () {
   'use strict';
@@ -52,61 +55,6 @@
   }
 
   /** UTILS **/
-
-  class FunctionQueue {
-    constructor () {
-      this.queue = [];
-      this.running = false;
-    }
-
-    async go () {
-      if (this.queue.length) {
-        this.running = true;
-        const _func = this.queue.shift();
-        await _func[0](..._func[1]);
-        this.go();
-      } else {
-        this.running = false;
-      }
-    }
-
-    add (func, ...args) {
-      this.queue.push([func, [...args]]);
-
-      if (!this.running) {
-        this.go();
-      }
-    }
-
-    clear () {
-      this.queue.length = 0;
-    }
-  };
-
-  const observerFactory = option => {
-    let options;
-    if (typeof option === 'function') {
-      options = {
-        callback: option,
-        node: document.getElementsByTagName('body')[0],
-        option: { childList: true, subtree: true }
-      };
-    } else {
-      options = $.extend({
-        callback: () => {},
-        node: document.getElementsByTagName('body')[0],
-        option: { childList: true, subtree: true }
-      }, option);
-    }
-    const MutationObserver = window.MutationObserver || window.WebKitMutationObserver || window.MozMutationObserver;
-
-    const observer = new MutationObserver((mutations, observer) => {
-      options.callback.call(this, mutations, observer);
-    });
-
-    observer.observe(options.node, options.option);
-    return observer;
-  };
 
   const traverseElement = (element, func) => {
     // Preserve <script> and <style> elements.
@@ -173,39 +121,9 @@
     return true;
   };
 
-  const triggerQueue = new FunctionQueue();
-
-  observerFactory((...args) => {
-    triggerQueue.add((mutations, observer) => {
-      for (let i = 0, len = mutations.length; i < len; i++) {
-        const mutation = mutations[i];
-
-        // Whether to change nodes.
-        if (mutation.type !== 'childList') {
-          continue;
-        }
-
-        let _article = 0;
-
-        if (mutation.target.matches(SELECTORS_ARTICLE)) {
-          if (doArticle(mutation.target)) {
-            _article++;
-          }
-        } else {
-          const articles = mutation.target.querySelectorAll(SELECTORS_ARTICLE);
-          for (const article of articles) {
-            if (doArticle(article)) {
-              _article++;
-            }
-          }
-        }
-
-        if (_article > 0) {
-          log(`Deciphered ${_article} article(s).`);
-        }
-      }
-    }, ...args);
+  sentinel.on(SELECTORS_ARTICLE, element => {
+    if (doArticle(element)) {
+      log('Deciphered article.');
+    }
   });
-
-  log('Mutation Observer initiated.');
 })();
