@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        unsafeWindow
 // @run-at       document-end
-// @version      1.4.7
+// @version      1.4.8
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -277,6 +277,13 @@
     } else {
       // For pages which have the date display hardcoded to Japan time.
       let dateText = element.innerText;
+
+      // For dates hard-coded to Japan locale.
+      const match = dateText.match(/^(\d{4})年(\d{2})月(\d{2})日 (\d{2}:\d{2})$/);
+      if (match) {
+        dateText = `${match[2]}-${match[3]}-${match[1]} ${match[4]}`;
+      }
+
       if (fixJapanTime) {
         dateText += ' UTC+9';
       }
@@ -301,8 +308,8 @@
 
   const path = location.pathname;
 
-  // Codes beyond this block will not execute for this route (mainly for efficiency).
-  if (path.startsWith('/bookmark_add.php')) {
+  // Codes beyond this block will not execute for these routes (mainly for efficiency).
+  if (path.startsWith('/bookmark_add.php') || path.startsWith('/novel/bookmark_add.php')) {
     if (CONFIG.DATE_CONVERSION) {
       GM_addStyle(addPageDateStyle);
 
@@ -311,7 +318,7 @@
       convertDate(date, true);
     }
 
-    log('/bookmark_add.php path detected. Excluding date conversion, script has terminated early.');
+    log('bookmark_add.php detected. Excluding date conversion, script has terminated early.');
     return;
   }
 
