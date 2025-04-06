@@ -4,12 +4,15 @@
 // @match        *://*/*
 // @grant        GM_addStyle
 // @grant        GM_getValue
-// @version      1.1.6
+// @version      1.2.0
 // @author       Bobby Wibowo
 // @license      MIT
 // @run-at       document-end
 // @description  09/02/2025, 16.57.34
+// @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
 // ==/UserScript==
+
+/* global sentinel */
 
 (function () {
   'use strict';
@@ -61,7 +64,7 @@
       whitelistedHosts: [
         'www.hoyolab.com'
       ],
-      mutationObserver: true, // this option is ignored without whitelistedHosts for performance
+      sentinel: true, // this option is ignored without whitelistedHosts for performance
       parentSelector: '.mhy-article-page',
       titleSelector: '.mhy-article-page__title h1',
       articleSelector: '.mhy-article-page__content'
@@ -70,7 +73,7 @@
       whitelistedHosts: [
         'www.reddit.com'
       ],
-      mutationObserver: true,
+      sentinel: true,
       parentSelector: 'shreddit-post',
       titleSelector: '[id^="post-title-"]',
       articleSelector: 'div[slot="text-body"], div[slot="expando-content"]'
@@ -79,7 +82,7 @@
       whitelistedHosts: [
         'old.reddit.com'
       ],
-      mutationObserver: true,
+      sentinel: true,
       parentSelector: 'div[id^="thing_"]',
       titleSelector: 'a.title',
       articleSelector: '.expando:not(.expando-uninitialized)'
@@ -240,9 +243,6 @@
   `;
 
   let globalStyleAdded = false;
-  const observedConfigs = [];
-  let observerInitiated = false;
-  let triggerQueue = null;
 
   function formatArticle ({ title, article, AIPromptPrefix = '' }) {
     const header = title ? title.innerText.trim() : null;
@@ -303,61 +303,6 @@
       </svg>
     </span>
   `;
-
-  class FunctionQueue {
-    constructor () {
-      this.queue = [];
-      this.running = false;
-    }
-
-    async go () {
-      if (this.queue.length) {
-        this.running = true;
-        const _func = this.queue.shift();
-        await _func[0](..._func[1]);
-        this.go();
-      } else {
-        this.running = false;
-      }
-    }
-
-    add (func, ...args) {
-      this.queue.push([func, [...args]]);
-
-      if (!this.running) {
-        this.go();
-      }
-    }
-
-    clear () {
-      this.queue.length = 0;
-    }
-  };
-
-  const observerFactory = option => {
-    let options;
-    if (typeof option === 'function') {
-      options = {
-        callback: option,
-        node: document.getElementsByTagName('body')[0],
-        option: { childList: true, subtree: true }
-      };
-    } else {
-      options = $.extend({
-        callback: () => {},
-        node: document.getElementsByTagName('body')[0],
-        option: { childList: true, subtree: true }
-      }, option);
-    }
-    const MutationObserver = window.MutationObserver || window.WebKitMutationObserver || window.MozMutationObserver;
-
-    const observer = new MutationObserver((mutations, observer) => {
-      options.callback.call(this, mutations, observer);
-    });
-
-    observer.observe(options.node, options.option);
-    return observer;
-  };
 
   const findArticles = (config, source = document.body) => {
     let parents = [];
@@ -430,47 +375,10 @@
     return _done;
   };
 
-  const initObserver = config => {
-    observedConfigs.push(config);
-
-    if (!observerInitiated) {
-      log('Initiating Mutation Observer for this host.');
-      observerInitiated = true;
-
-      triggerQueue = new FunctionQueue();
-
-      observerFactory((...args) => {
-        triggerQueue.add((mutations, observer) => {
-          for (let i = 0, len = mutations.length; i < len; i++) {
-            const mutation = mutations[i];
-
-            // Whether to change nodes.
-            if (mutation.type !== 'childList') {
-              continue;
-            }
-
-            let _observerDone = 0;
-
-            for (const config of observedConfigs) {
-              const done = findArticles(config, mutation.target);
-              if (done !== null) {
-                _observerDone += done;
-              }
-            }
-
-            if (_observerDone > 0) {
-              log(`Added ${_observerDone} copy button(s) via Mutation Observer.`);
-            }
-          }
-        }, ...args);
-      });
-    }
-  };
-
   let _rootDone = 0;
 
   for (const config of ARTICLES_CONFIG) {
-    let initMutationObsever = false;
+    let initSentinel = false;
 
     // Skip config if it's whitelisted for specific hosts yet it doesn't match current host.
     if (Array.isArray(config.whitelistedHosts)) {
@@ -491,17 +399,22 @@
 
       log(`Host whitelisted for parent selector: ${config.parentSelector}`);
 
-      if (config.mutationObserver) {
-        initMutationObsever = true;
+      if (config.sentinel) {
+        initSentinel = true;
       }
     }
 
-    if (!initMutationObsever && config.mutationObserver) {
-      log('Mutation Observer can only be used for config with whitelisted hosts.');
+    if (!initSentinel && config.sentinel) {
+      log('Sentinel can only be used for config with whitelisted hosts.');
     }
 
-    if (initMutationObsever) {
-      initObserver(config);
+    if (initSentinel) {
+      sentinel.on([
+        config.parentSelector,
+        config.articleSelector
+      ], element => {
+        findArticles(config, element);
+      });
     } else {
       const done = findArticles(config);
       if (done !== null) {
