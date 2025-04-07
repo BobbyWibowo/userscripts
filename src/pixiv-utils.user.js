@@ -237,7 +237,8 @@
       },
       // Mobile artist page's illustrations/bookmarks tab, following page, tags page
       {
-        selectorParent: '.v-nav-tabs + div:not(.header-buttons) > div > div:last-child, .nav-tab + div, .search-nav-config + div',
+        selectorParent: '.v-nav-tabs + div:not(.header-buttons) > div > div:last-child, ' +
+          '.nav-tab + div, .search-nav-config + div',
         selectorHeader: '.pager-view-nav',
         selectorImagesContainer: '.works-grid-list',
         sanityCheck: () => {
@@ -332,7 +333,7 @@
 
   /** GLOBAL UTILS **/
 
-  const addPageDateStyle = /* css */`
+  const addPageDateStyle = /*css*/`
   .bookmark-detail-unit .meta {
     display: block;
     font-size: 16px;
@@ -468,7 +469,7 @@
     return formatted;
   };
 
-  const mainStyle = /* css */`
+  const mainStyle = /*css*/`
   .flex:has(+ .pixiv_utils_edit_bookmark_container) {
     flex-grow: 1;
   }
@@ -585,7 +586,7 @@
   }
   `;
 
-  const mainDateStyle = /* css */`
+  const mainDateStyle = /*css*/`
   .dqHJfP {
     font-size: 14px !important;
     font-weight: bold;
@@ -595,7 +596,7 @@
 
   /** UTAGS INTEGRATION INIT **/
 
-  const mainUtagsStyle = /* css */`
+  const mainUtagsStyle = /*css*/`
   .pixiv_utils_blocked_image {
     display: flex;
     justify-content: center;
@@ -630,10 +631,9 @@
   `;
 
   const SELECTORS_UTAGS = CONFIG.UTAGS_BLOCKED_TAGS.map(s => `[data-utags_tag="${s}"]`).join(', ');
-
   log('SELECTORS_UTAGS =', SELECTORS_UTAGS);
 
-  const BLOCKED_IMAGE_HTML = `
+  const BLOCKED_IMAGE_HTML = /*html*/`
   <div radius="4" class="pixiv_utils_blocked_image">
     <svg viewBox="0 0 24 24" style="width: 48px; height: 48px;">
       <path d="M5.26763775,4 L9.38623853,11.4134814 L5,14.3684211 L5,18 L13.0454155,18 L14.1565266,20 L5,20
@@ -702,8 +702,7 @@
 
     if (options.attributes &&
       (!options.attributeFilter || options.attributeFilter.includes('pixiv_utils_observing'))) {
-      console.error('initElementObserver cannot be initiated without proper attributes filtering',
-        element);
+      console.error('initElementObserver cannot be initiated without proper attributes filtering', element);
       return false;
     }
 
@@ -801,7 +800,7 @@
 
     const div = document.createElement('div');
     div.className = 'pixiv_utils_image_artist_container';
-    div.innerHTML = /* html */`
+    div.innerHTML = /*html*/`
       <a class="pixiv_utils_image_artist" href="https://www.pixiv.net/users/${userId}">${userName}</a>
     `;
 
@@ -960,11 +959,11 @@
 
   const formatToggleBookmarkedButtonHtml = mode => {
     if (mode === 0) {
-      return /* html */`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL}<span>`;
+      return /*html*/`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL}<span>`;
     } else if (mode === 1) {
-      return /* html */`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED}<span>`;
+      return /*html*/`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED}<span>`;
     } else if (mode === 2) {
-      return /* html */`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED}<span>`;
+      return /*html*/`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED}<span>`;
     }
   };
 
@@ -1123,7 +1122,7 @@
 
     const multiView = element.closest(CONFIG.SELECTORS_MULTI_VIEW);
     if (multiView) {
-      // For multi view artwork, just hide the whole entry instead.
+      // For multi view artwork, always hide the whole entry instead.
       multiView.parentNode.style.display = 'none';
       logDebug('Removed multi view entry due to UTag', element);
       return true;
@@ -1202,7 +1201,11 @@
         doToggleBookmarkedSection(element, sectionConfig);
       });
 
-      const formattedSelector = formatChildSelector(sectionConfig.selectorParent, sectionConfig.selectorImagesContainer);
+      const formattedSelector = formatChildSelector(
+        sectionConfig.selectorParent,
+        sectionConfig.selectorImagesContainer
+      );
+
       sentinel.on(formattedSelector, element => {
         const parent = element.closest(sectionConfig.selectorParent);
         if (parent && !element.dataset.pixiv_utils_toggle_bookmarked_section) {
@@ -1263,7 +1266,8 @@
       event = event || window.event;
 
       // Ignore keybinds when currently focused to an input/textarea/editable element.
-      if (document.activeElement && (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable)) {
+      if (document.activeElement &&
+        (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable)) {
         return;
       }
 
