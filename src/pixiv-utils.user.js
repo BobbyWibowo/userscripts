@@ -678,7 +678,7 @@
 
     if (options.attributes &&
       (!options.attributeFilter || options.attributeFilter.includes('pixiv_utils_observing'))) {
-      console.error('initElementObserver cannot be initiated on this element with proper attributes filtering',
+      console.error('initElementObserver cannot be initiated without proper attributes filtering',
         element);
       return false;
     }
