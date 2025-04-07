@@ -815,19 +815,20 @@
     }
 
     // Init MutationObserver for mobile images.
-    if (!element.dataset.pixiv_utils_last_tx) {
-      initElementObserver(element, () => {
-        if (element.dataset.tx !== element.dataset.pixiv_utils_last_tx) {
-          options.forced = true;
-          doImage(element, options);
-        }
-      }, {
-        attributes: true,
-        attributeFilter: ['data-tx']
-      });
+    if (element.dataset.tx) {
+      if (!element.dataset.pixiv_utils_last_tx) {
+        initElementObserver(element, () => {
+          if (element.dataset.tx !== element.dataset.pixiv_utils_last_tx) {
+            options.forced = true;
+            doImage(element, options);
+          }
+        }, {
+          attributes: true,
+          attributeFilter: ['data-tx']
+        });
+      }
+      element.dataset.pixiv_utils_last_tx = element.dataset.tx;
     }
-
-    element.dataset.pixiv_utils_last_tx = element.dataset.tx;
 
     const oldImageArtist = element.querySelector('.pixiv_utils_image_artist_container');
     if (oldImageArtist) {
@@ -842,26 +843,32 @@
       await addImageArtist(element);
     }
 
-    // Wait if image controls is still being generated.
-    const imageControls = await waitFor(() => {
-      return element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
-    }, element);
+    const { id, isNovel } = findItemId(element);
+    if (id === false || id === null) {
+      return false;
+    }
+
+    let imageControls = null;
+    if (isNovel) {
+      imageControls = element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
+    } else {
+      // Only await image controls is still being generated if it's not a novel.
+      imageControls = await waitFor(() => {
+        return element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
+      }, element);
+    }
+
     if (!imageControls) {
       return false;
     }
 
-    const { id, isNovel } = findItemId(element);
-    if (id !== null) {
-      const oldEditBookmarkButton = imageControls.querySelector('.pixiv_utils_edit_bookmark_container');
-      if (oldEditBookmarkButton) {
-        oldEditBookmarkButton.remove();
-      }
-
-      imageControls.prepend(editBookmarkButton(id, isNovel));
-      return true;
+    const oldEditBookmarkButton = imageControls.querySelector('.pixiv_utils_edit_bookmark_container');
+    if (oldEditBookmarkButton) {
+      oldEditBookmarkButton.remove();
     }
 
-    return false;
+    imageControls.prepend(editBookmarkButton(id, isNovel));
+    return true;
   };
 
   const doMultiView = async (element, options = {}) => {
