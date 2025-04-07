@@ -666,6 +666,35 @@
     });
   };
 
+  const initElementObserver = (element, callback, options = {}) => {
+    if (!element || typeof callback !== 'function' || typeof options !== 'object' || !Object.keys(options).length) {
+      return false;
+    }
+
+    // Skip if already observing.
+    if (element.dataset.pixiv_utils_observing) {
+      return false;
+    }
+
+    if (options.attributes &&
+      (!options.attributeFilter || options.attributeFilter.includes('pixiv_utils_observing'))) {
+      console.error('initElementObserver cannot be initiated on this element with proper attributes filtering',
+        element);
+      return false;
+    }
+
+    // Mark as observing.
+    element.dataset.pixiv_utils_observing = true;
+
+    const MutationObserver = window.MutationObserver || window.WebKitMutationObserver || window.MozMutationObserver;
+    const observer = new MutationObserver((mutations, observer) => {
+      callback.call(this, mutations, observer);
+    });
+
+    observer.observe(element, options);
+    return observer;
+  };
+
   const editBookmarkButton = (id, isNovel = false) => {
     const buttonContainer = document.createElement('div');
     buttonContainer.className = 'pixiv_utils_edit_bookmark_container';
@@ -780,9 +809,29 @@
       }
     }
 
-    // Skip if edit bookmark button already inserted.
-    if (element.querySelector('.pixiv_utils_edit_bookmark')) {
+    // Skip if edit bookmark button already inserted, unless forced.
+    if (element.querySelector('.pixiv_utils_edit_bookmark') && !options.forced) {
       return false;
+    }
+
+    // Init MutationObserver for mobile images.
+    if (!element.dataset.pixiv_utils_last_tx) {
+      initElementObserver(element, () => {
+        if (element.dataset.tx !== element.dataset.pixiv_utils_last_tx) {
+          options.forced = true;
+          doImage(element, options);
+        }
+      }, {
+        attributes: true,
+        attributeFilter: ['data-tx']
+      });
+    }
+
+    element.dataset.pixiv_utils_last_tx = element.dataset.tx;
+
+    const oldImageArtist = element.querySelector('.pixiv_utils_image_artist_container');
+    if (oldImageArtist) {
+      oldImageArtist.remove();
     }
 
     // Add artist tag if necessary.
@@ -803,6 +852,11 @@
 
     const { id, isNovel } = findItemId(element);
     if (id !== null) {
+      const oldEditBookmarkButton = imageControls.querySelector('.pixiv_utils_edit_bookmark_container');
+      if (oldEditBookmarkButton) {
+        oldEditBookmarkButton.remove();
+      }
+
       imageControls.prepend(editBookmarkButton(id, isNovel));
       return true;
     }
