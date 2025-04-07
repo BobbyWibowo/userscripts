@@ -5,7 +5,8 @@ import userscripts from 'eslint-plugin-userscripts'
 const overrides = {}
 
 const userscriptOverrides = {
-  '@stylistic/semi': ['error', 'always']
+  '@stylistic/semi': ['error', 'always'],
+  '@stylistic/spaced-comment': 'off'
 }
 
 export default [
