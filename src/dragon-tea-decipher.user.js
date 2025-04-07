@@ -42,7 +42,8 @@
 
   /** CONFIG **/
 
-  const SELECTORS_ARTICLE = '.chapter-type-text .reading-content .text-left, .wp-manga-genre-novels .description-summary .summary__content';
+  const SELECTORS_ARTICLE = '.chapter-type-text .reading-content .text-left, ' +
+    '.wp-manga-genre-novels .description-summary .summary__content';
 
   const ENV = {
     MODE: GM_getValue('MODE', 'PROD')

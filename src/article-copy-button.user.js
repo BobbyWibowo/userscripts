@@ -99,7 +99,7 @@
     logDebug = log;
   }
 
-  const GLOBAL_STYLE = /* css */`
+  const GLOBAL_STYLE = /*css*/`
   .copy-article-button-container {
     display: flex;
     justify-content: center;
@@ -124,7 +124,7 @@
     --tooltip-padding-x: 7px;
     --tooltip-padding-y: 7px;
     --tooltip-offset: 8px;
-    /* --tooltip-transition-duration: 0.3s; */
+    /*--tooltip-transition-duration: 0.3s;*/
   }
 
   html[data-darkreader-scheme="dark"] .copy-article-button,
@@ -276,7 +276,7 @@
     }
   }
 
-  const BUTTON_INNER_TEMPLATE = /* html */`
+  const BUTTON_INNER_TEMPLATE = /*html*/`
     <span data-text-initial="Copy to clipboard" data-text-end="Copied" data-text-failed="Copy failed, open the console for details!" class="tooltip"></span>
     <span>
       <svg xml:space="preserve" style="enable-background:new 0 0 512 512" viewBox="0 0 6.35 6.35" y="0" x="0"
