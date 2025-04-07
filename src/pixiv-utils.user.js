@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        window.onurlchange
 // @run-at       document-start
-// @version      1.5.3
+// @version      1.5.4
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -47,9 +47,10 @@
 
   /** CONFIG **/
 
-  // It's recommended to edit these values through your userscript manager's storage/values editor.
-  // For Tampermonkey users, load Pixiv once after installing the userscript,
-  // to allow it to populate its storage with default values.
+  /* It's recommended to edit these values through your userscript manager's storage/values editor.
+   * Visit Pixiv once after installing the script to allow it to populate its storage with default values.
+   * Especially necessary for Tampermonkey to show the script's Storage tab when Advanced mode is turned on.
+   */
   const ENV_DEFAULTS = {
     MODE: 'PROD',
 
@@ -62,8 +63,6 @@
     TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED: 'Show bookmarked',
     TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED: 'Show not bookmarked',
 
-    // The following options have hard-coded preset values. Scroll further to find them.
-    // Specifiying custom values will extend instead of replacing them.
     SELECTORS_HOME: null,
     SELECTORS_IMAGE: null,
     SELECTORS_IMAGE_TITLE: null,
@@ -88,111 +87,113 @@
       hour: '2-digit',
       minute: '2-digit'
     },
-    // This has a hard-coded preset value. Specifiying a custom value will extend instead of replacing it.
     SELECTORS_DATE: null,
 
     REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME: false,
 
-    // This has a hard-coded preset value. Specifiying a custom value will extend instead of replacing it.
     SECTIONS_TOGGLE_BOOKMARKED: null,
 
     ENABLE_KEYBINDS: true,
 
     UTAGS_INTEGRATION: true,
-    // Hard-coded presets of "block" and "hide" tags. Specifying custom values will extend instead of replacing them.
     UTAGS_BLOCKED_TAGS: null,
-    // Instead of merely hiding them à la Pixiv's built-in tags mute.
+    // Instead of merely masking them à la Pixiv's built-in tags mute.
     UTAGS_REMOVE_BLOCKED: false
   };
 
-  const ENV = {};
-
-  // Store preset values.
-  for (const key of Object.keys(ENV_DEFAULTS)) {
-    const stored = GM_getValue(key);
-    if (stored === null || stored === undefined) {
-      ENV[key] = ENV_DEFAULTS[key];
-      GM_setValue(key, ENV_DEFAULTS[key]);
-    } else {
-      ENV[key] = stored;
-    }
-  }
-
-  /* DOCUMENTATION
-   * -------------
-   * For any section that does not have complete selectors, it's implied that they are already matched using selectors contained in sections that preceded it.
-   * NOTE: Figure out selectors that are more update-proof.
-   *
-   * Home's recommended works grid:
-   * Image: .sc-96f10c4f-0 > li
-   * Title: [data-ga4-label="title_link"]
-   * Artist avatar: [data-ga4-label="user_icon_link"]
-   * Artist name: [data-ga4-label="user_name_link"]
-   * Controls: .sc-eacaaccb-9
-   * Bookmarked: .bXjFLc
-   *
-   * Home's latest works grid:
-   * Image: li[data-ga4-label="thumbnail"]
-   *
-   * Discovery page's grid:
-   * Title: .gtm-illust-recommend-title
-   * Controls: .ppQNN
-   *
-   * Artist page's grid:
-   * Image: .sc-9y4be5-1 > li
-   * Controls: .sc-iasfms-4
-   *
-   * Expanded view's artist works bottom row:
-   * Image: .sc-1nhgff6-4 > div:has(a[href])
-   *
-   * Expanded view's related works grid:
-   * Artist avatar: .sc-1rx6dmq-1
-   * Artist name: .gtm-illust-recommend-user-name
-   *
-   * Artist page's featured works:
-   * Image: .sc-1sxj2bl-5 > li
-   * Controls: .sc-xsxgxe-3
-   *
-   * Bookmarks page's grid:
-   * Title: .sc-iasfms-6
-   * Artist name: .sc-1rx6dmq-2
-   *
-   * Tags page's grid:
-   * Image: .sc-l7cibp-1 > li
-   *
-   * Rankings page:
-   * Image: .ranking-item
-   * Title: .title
-   * Artist avatar: ._user-icon
-   * Artist name: .user-name
-   * Controls: ._layout-thumbnail
-   * Bookmarked: ._one-click-bookmark.on
-   *
-   * Newest by all page:
-   * Image: .sc-e6de33c8-0 > li
-   * Bookmarked: .epoVSE
-   *
-   * General mobile page:
-   * Image: .works-item-illust:has(.thumb:not([src^=data]))
-   * Controls: .bookmark, .hSoPoc
-   * Bookmarked: .works-bookmark-button svg path[fill="#FF4060"]
+  /* Hard-coded preset values.
+   * Specifying custom values will extend instead of replacing them.
    */
   const PRESETS = {
+    // Keys that starts with "SELECTORS_", and in array, will automatically be converted to single-line strings.
     SELECTORS_HOME: '[data-ga4-label="page_root"]',
-    SELECTORS_IMAGE: '.sc-96f10c4f-0 > li, li[data-ga4-label="thumbnail"], .sc-9y4be5-1 > li, .sc-1sxj2bl-5 > li, .sc-l7cibp-1 > li, .ranking-item, .sc-e6de33c8-0 > li, .works-item-illust:has(.thumb:not([src^=data]))',
-    SELECTORS_IMAGE_TITLE: '[data-ga4-label="title_link"], .gtm-illust-recommend-title, .sc-iasfms-6, .title',
-    SELECTORS_IMAGE_ARTIST_AVATAR: '[data-ga4-label="user_icon_link"], .sc-1rx6dmq-1, ._user-icon',
-    SELECTORS_IMAGE_ARTIST_NAME: '[data-ga4-label="user_name_link"], .gtm-illust-recommend-user-name, .sc-1rx6dmq-2, .user-name',
-    SELECTORS_IMAGE_CONTROLS: '.sc-eacaaccb-9, .ppQNN, .sc-iasfms-4, .sc-xsxgxe-3, ._layout-thumbnail, .bookmark, .hSoPoc',
-    SELECTORS_IMAGE_BOOKMARKED: '.bXjFLc, ._one-click-bookmark.on, .epoVSE, .works-bookmark-button svg path[fill="#FF4060"]',
-    SELECTORS_EXPANDED_VIEW_CONTROLS: '.sc-181ts2x-0, .work-interactions',
-    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: '.sc-1nhgff6-4 > div:has(a[href])',
-    SELECTORS_MULTI_VIEW: '[data-ga4-label="work_content"]:has(a[href])',
-    SELECTORS_MULTI_VIEW_CONTROLS: '& > .w-full:last-child > .flex:first-child > .flex-row:first-child',
-    SELECTORS_FOLLOW_BUTTON_CONTAINER: '.sc-gulj4d-2, .sc-k3uf3r-3, .sc-10gpz4q-3, .sc-f30yhg-3',
-    SELECTORS_FOLLOW_BUTTON: '[data-click-label="follow"]:not([disabled])',
-    SELECTORS_DATE: '.sc-5981ly-1, .times',
 
+    SELECTORS_IMAGE: [
+      '.sc-96f10c4f-0 > li', // home's recommended works grid
+      'li[data-ga4-label="thumbnail"]', // home's latest works grid
+      '.sc-9y4be5-1 > li', // artist page's grid
+      '.sc-1sxj2bl-5 > li', // artist page's featured works
+      '.sc-l7cibp-1 > li', // tags page's grid
+      '.ranking-item', // rankings page
+      '.sc-e6de33c8-0 > li', // "newest by all" page
+      '.dHJLGd > div', // novels page's ongoing contests
+      '.works-item-illust:has(.thumb:not([src^=data]))', // mobile
+      '.works-item:not(.works-item-illust)', // mobile (novel)
+      '.works-item-novel-editor-recommend' // mobile's novels page's editor's picks
+    ],
+
+    SELECTORS_IMAGE_TITLE: [
+      '[data-ga4-label="title_link"]', // home's recommended works grid
+      '.gtm-illust-recommend-title', // discovery page's grid
+      '.sc-iasfms-6', // bookmarks page's grid
+      '.title' // rankings page
+    ],
+
+    SELECTORS_IMAGE_ARTIST_AVATAR: [
+      '[data-ga4-label="user_icon_link"]', // home's recommended works grid
+      '.sc-1rx6dmq-1', // expanded view's related works grid
+      '._user-icon' // rankings page
+    ],
+
+    SELECTORS_IMAGE_ARTIST_NAME: [
+      '[data-ga4-label="user_name_link"]', // home's recommended works grid
+      '.gtm-illust-recommend-user-name', // expanded view's related works grid
+      '.sc-1rx6dmq-2', // bookmarks page's grid
+      '.user-name' // rankings page
+    ],
+
+    SELECTORS_IMAGE_CONTROLS: [
+      '.sc-eacaaccb-9', // home's recommended works grid
+      '.ppQNN', // discovery page's grid
+      '.sc-iasfms-4', // artist page's grid
+      '.sc-xsxgxe-3', // artist page's featured works
+      '._layout-thumbnail', // rankings page
+      '.byWzRq', // expanded view's artist bottom bar (novel)
+      '.jVTssb', // artist page's featured works (novel)
+      '.hFAmSK', // novels page
+      '.djUdtd > div:last-child', // novels page's editor's picks
+      '.gAyuNi', // novels page's ongoing contests
+      '.bookmark', // mobile
+      '.hSoPoc' // mobile
+    ],
+
+    SELECTORS_IMAGE_BOOKMARKED: [
+      '.bXjFLc', // home's recommended works grid
+      '._one-click-bookmark.on', // rankings page
+      '.epoVSE', // "newest by all" page
+      '.works-bookmark-button svg path[fill="#FF4060"]' // mobile
+    ],
+
+    SELECTORS_EXPANDED_VIEW_CONTROLS: [
+      '.sc-181ts2x-0', // desktop
+      '.work-interactions' // mobile
+    ],
+
+    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: '.sc-1nhgff6-4 > div:has(a[href])',
+
+    SELECTORS_MULTI_VIEW: '[data-ga4-label="work_content"]:has(a[href])',
+
+    SELECTORS_MULTI_VIEW_CONTROLS: '& > .w-full:last-child > .flex:first-child > .flex-row:first-child',
+
+    SELECTORS_FOLLOW_BUTTON_CONTAINER: [
+      '.gPrMCJ', // artist page's header
+      '.hZKJGk', // artist hover popup
+      '.btGTaP', // expanded view's artist bottom bar
+      '.sc-f30yhg-3', // expanded view's artist sidebar
+      '.user-details' // mobile's artist page
+    ],
+
+    SELECTORS_FOLLOW_BUTTON: [
+      '[data-click-label="follow"]:not([disabled])', // desktop
+      '.ui-button' // mobile
+    ],
+
+    SELECTORS_DATE: [
+      '.sc-5981ly-1', // desktop
+      '.times' // mobile
+    ],
+
+    // Selectors must be single-line strings.
     SECTIONS_TOGGLE_BOOKMARKED: [
       // Following page
       {
@@ -261,6 +262,19 @@
     UTAGS_BLOCKED_TAGS: ['block', 'hide']
   };
 
+  const ENV = {};
+
+  // Store default values.
+  for (const key of Object.keys(ENV_DEFAULTS)) {
+    const stored = GM_getValue(key);
+    if (stored === null || stored === undefined) {
+      ENV[key] = ENV_DEFAULTS[key];
+      GM_setValue(key, ENV_DEFAULTS[key]);
+    } else {
+      ENV[key] = stored;
+    }
+  }
+
   const queryCheck = selector => document.createDocumentFragment().querySelector(selector);
 
   const isSelectorValid = selector => {
@@ -277,7 +291,11 @@
   // Extend hard-coded preset values with user-defined custom values, if applicable.
   for (const key of Object.keys(ENV)) {
     if (key.startsWith('SELECTORS_')) {
-      CONFIG[key] = PRESETS[key] || '';
+      if (Array.isArray(PRESETS[key])) {
+        CONFIG[key] = PRESETS[key].join(', ');
+      } else {
+        CONFIG[key] = PRESETS[key] || '';
+      }
       if (ENV[key]) {
         CONFIG[key] += `, ${Array.isArray(ENV[key]) ? ENV[key].join(', ') : ENV[key]}`;
       }
@@ -453,6 +471,12 @@
   const mainStyle = /* css */`
   .flex:has(+ .pixiv_utils_edit_bookmark_container) {
     flex-grow: 1;
+  }
+
+  .byWzRq .pixiv_utils_edit_bookmark,
+  .hFAmSK .pixiv_utils_edit_bookmark,
+  .gAyuNi .pixiv_utils_edit_bookmark {
+    margin-top: -26px;
   }
 
   .pixiv_utils_edit_bookmark {
@@ -837,7 +861,7 @@
 
     // Add artist tag if necessary.
     if (!element.querySelector('a[href*="users/"]') &&
-      !element.closest('.user-badge') && // never in mobile expanded view's artist works bottom row
+      !element.closest('.user-badge') && // never in mobile expanded view's artist bottom bar
       (currentUrl.indexOf('users/') === -1 || // never in artist page (except bookmarks tab)
       (currentUrl.indexOf('users/') !== -1 && currentUrl.indexOf('/bookmarks') !== -1))) {
       await addImageArtist(element);
@@ -922,7 +946,7 @@
     if (id !== null) {
       element.append(editBookmarkButton(id, isNovel));
 
-      // Re-process expanded view's artist works bottom row.
+      // Re-process expanded view's artist bottom bar.
       const images = document.querySelectorAll(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE);
       for (const image of images) {
         await doImage(image);
@@ -1110,6 +1134,7 @@
       const followButton = followButtonContainer.querySelector(CONFIG.SELECTORS_FOLLOW_BUTTON);
       if (followButton) {
         // Cosmetic only. This will not disable Pixiv's built-in "F" keybind.
+        followButton.classList.add('disabled');
         followButton.disabled = true;
         // Return early since there will only be one follow button per container.
         return true;
