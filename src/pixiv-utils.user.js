@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        window.onurlchange
 // @run-at       document-start
-// @version      1.5.2
+// @version      1.5.3
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -191,7 +191,7 @@
     SELECTORS_MULTI_VIEW_CONTROLS: '& > .w-full:last-child > .flex:first-child > .flex-row:first-child',
     SELECTORS_FOLLOW_BUTTON_CONTAINER: '.sc-gulj4d-2, .sc-k3uf3r-3, .sc-10gpz4q-3, .sc-f30yhg-3',
     SELECTORS_FOLLOW_BUTTON: '[data-click-label="follow"]:not([disabled])',
-    SELECTORS_DATE: '.sc-5981ly-1',
+    SELECTORS_DATE: '.sc-5981ly-1, .times',
 
     SECTIONS_TOGGLE_BOOKMARKED: [
       // Following page
