@@ -157,7 +157,7 @@
    * Title: .sc-iasfms-6
    * Artist name: .sc-1rx6dmq-2
    *
-   * Tag page's grid:
+   * Tags page's grid:
    * Image: .sc-l7cibp-1 > li
    *
    * Rankings page:
@@ -175,6 +175,7 @@
    * General mobile page:
    * Image: .works-item-illust:has(.thumb:not([src^=data]))
    * Controls: .bookmark, .hSoPoc
+   * Bookmarked: .works-bookmark-button svg path[fill="#FF4060"]
    */
   const PRESETS = {
     SELECTORS_HOME: '[data-ga4-label="page_root"]',
@@ -183,7 +184,7 @@
     SELECTORS_IMAGE_ARTIST_AVATAR: '[data-ga4-label="user_icon_link"], .sc-1rx6dmq-1, ._user-icon',
     SELECTORS_IMAGE_ARTIST_NAME: '[data-ga4-label="user_name_link"], .gtm-illust-recommend-user-name, .sc-1rx6dmq-2, .user-name',
     SELECTORS_IMAGE_CONTROLS: '.sc-eacaaccb-9, .ppQNN, .sc-iasfms-4, .sc-xsxgxe-3, ._layout-thumbnail, .bookmark, .hSoPoc',
-    SELECTORS_IMAGE_BOOKMARKED: '.bXjFLc, ._one-click-bookmark.on, .epoVSE',
+    SELECTORS_IMAGE_BOOKMARKED: '.bXjFLc, ._one-click-bookmark.on, .epoVSE, .works-bookmark-button svg path[fill="#FF4060"]',
     SELECTORS_EXPANDED_VIEW_CONTROLS: '.sc-181ts2x-0, .work-interactions',
     SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: '.sc-1nhgff6-4 > div:has(a[href])',
     SELECTORS_MULTI_VIEW: '[data-ga4-label="work_content"]:has(a[href])',
@@ -193,7 +194,7 @@
     SELECTORS_DATE: '.sc-5981ly-1',
 
     SECTIONS_TOGGLE_BOOKMARKED: [
-      // Bookmarks page
+      // Following page
       {
         selectorParent: '.sc-jgyytr-0',
         selectorHeader: '.sc-s8zj3z-2',
@@ -203,9 +204,19 @@
       {
         selectorParent: '.sc-1xj6el2-3',
         selectorHeader: '.sc-1xj6el2-2',
-        selectorImagesContainer: '& > div:last-child'
+        selectorImagesContainer: '.sc-1xj6el2-2 ~ div:not([class])'
       },
-      // Tag page
+      // Artist page's bookmarks tab
+      {
+        selectorParent: '.buukZm',
+        selectorHeader: '.fElfQf',
+        selectorImagesContainer: '.fElfQf ~ div:not([class])',
+        sanityCheck: () => {
+          // Skip if in own profile.
+          return document.querySelector('.kHyYuA');
+        }
+      },
+      // Tags page
       {
         selectorParent: '.sc-jgyytr-0',
         selectorHeader: '.sc-7zddlj-0',
@@ -222,10 +233,43 @@
         selectorParent: '.sc-7b5ed552-0',
         selectorHeader: '.sc-f08ce4e3-2',
         selectorImagesContainer: '.sc-a7a11491-1'
+      },
+      // Mobile artist page's illustrations/bookmarks tab, following page, tags page
+      {
+        selectorParent: '.v-nav-tabs + div:not(.header-buttons) > div > div:last-child, .nav-tab + div, .search-nav-config + div',
+        selectorHeader: '.pager-view-nav',
+        selectorImagesContainer: '.works-grid-list',
+        sanityCheck: () => {
+          // Skip if in own profile.
+          return document.querySelector('.ui-button[href*="setting_profile.php"]');
+        }
+      },
+      // Mobile artist page's home tab
+      {
+        selectorParent: '.work-set > div',
+        selectorHeader: '.title-line > div:last-child',
+        selectorImagesContainer: '.works-grid-list'
+      },
+      // Mobile rankings page
+      {
+        selectorParent: '.ranking-page',
+        selectorHeader: '.header-buttons',
+        selectorImagesContainer: '.works-grid-list'
       }
     ],
 
     UTAGS_BLOCKED_TAGS: ['block', 'hide']
+  };
+
+  const queryCheck = selector => document.createDocumentFragment().querySelector(selector);
+
+  const isSelectorValid = selector => {
+    try {
+      queryCheck(selector);
+    } catch {
+      return false;
+    }
+    return true;
   };
 
   const CONFIG = {};
@@ -236,6 +280,10 @@
       CONFIG[key] = PRESETS[key] || '';
       if (ENV[key]) {
         CONFIG[key] += `, ${Array.isArray(ENV[key]) ? ENV[key].join(', ') : ENV[key]}`;
+      }
+      if (!isSelectorValid(CONFIG[key])) {
+        console.error(`${key} contains invalid selector =`, CONFIG[key]);
+        return;
       }
     } else if (Array.isArray(PRESETS[key])) {
       CONFIG[key] = PRESETS[key];
@@ -381,20 +429,22 @@
 
   /** MAIN STYLES **/
 
-  // To properly handle "&" CSS keyword, in context of also having to support user-defined custom values.
-  // Somewhat overkill, but I'm out of ideas.
+  const formatChildSelector = (parentSelector, childSelector) => {
+    let _childSelector = childSelector;
+    if (childSelector.startsWith('&')) {
+      _childSelector = childSelector.substring(1).trimStart();
+    }
+    return `${parentSelector} ${_childSelector}`;
+  };
+
   const _formatSelectorsMultiViewControls = () => {
     const multiViews = CONFIG.SELECTORS_MULTI_VIEW.split(', ');
     const multiViewsControls = CONFIG.SELECTORS_MULTI_VIEW_CONTROLS.split(', ');
 
     const formatted = [];
-    for (const x of multiViews) {
-      for (const y of multiViewsControls) {
-        let z = y;
-        if (y.startsWith('&')) {
-          z = y.substring(1);
-        }
-        formatted.push(`${x} ${z.trim()}`);
+    for (const parent of multiViews) {
+      for (const child of multiViewsControls) {
+        formatted.push(formatChildSelector(parent, child));
       }
     }
     return formatted;
@@ -420,6 +470,8 @@
     height: 20px;
     cursor: pointer;
     user-select: none;
+    position: relative;
+    z-index: 1;
   }
 
   ${CONFIG.SELECTORS_EXPANDED_VIEW_CONTROLS.split(', ').map(s => `${s} .pixiv_utils_edit_bookmark`).join(', ')},
@@ -447,6 +499,14 @@
   }
 
   .pixiv_utils_image_artist_container {
+    position: absolute;
+    padding: 5px;
+    bottom: 0;
+    left: 0;
+    max-width: calc(100% - 76px);
+  }
+
+  .pixiv_utils_image_artist {
     color: rgb(245, 245, 245);
     background: rgba(0, 0, 0, 0.5);
     display: inline-block;
@@ -457,13 +517,11 @@
     font-size: 14px;
     line-height: 20px;
     height: 20px;
-    position: absolute;
-    bottom: 6px;
-    left: 6px;
-  }
-
-  .pixiv_utils_image_artist_container a {
-    color: inherit;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    float: left;
+    width: 100%;
   }
 
   .sc-s8zj3z-3:has(+ .pixiv_utils_toggle_bookmarked_container),
@@ -577,9 +635,15 @@
     GM_addStyle(mainUtagsStyle);
   }
 
+  const uuidv4 = () => {
+    return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
+      (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> +c / 4).toString(16)
+    );
+  };
+
   const waitForIntervals = {};
 
-  const waitFor = (element = document, func) => {
+  const waitFor = (func, element = document) => {
     if (typeof func !== 'function') {
       return false;
     }
@@ -598,7 +662,7 @@
       };
       find();
       interval = setInterval(find, 100);
-      waitForIntervals[interval] = { element, func, resolve };
+      waitForIntervals[interval] = { func, element, resolve };
     });
   };
 
@@ -668,7 +732,7 @@
     let userName = null;
 
     if (element.__vue__) {
-      await waitFor(element, () => !element.__vue__._props.item.notLoaded);
+      await waitFor(() => !element.__vue__._props.item.notLoaded, element);
 
       userId = element.__vue__._props.item.user_id;
       userName = element.__vue__._props.item.author_details.user_name;
@@ -685,20 +749,20 @@
     const div = document.createElement('div');
     div.className = 'pixiv_utils_image_artist_container';
     div.innerHTML = /* html */`
-      <a href="https://www.pixiv.net/users/${userId}">${userName}</a>
+      <a class="pixiv_utils_image_artist" href="https://www.pixiv.net/users/${userId}">${userName}</a>
     `;
 
     element.append(div);
     return true;
   };
 
-  const doImage = async (element, isHome = false) => {
+  const doImage = async (element, options = {}) => {
     // Skip if invalid.
     if (!element.querySelector('a[href]')) {
       return false;
     }
 
-    if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && isHome) {
+    if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome) {
       if (findNovelUrl(element)) {
         element.style.display = 'none';
         logDebug('Removed novel recommendation from home', element);
@@ -721,17 +785,18 @@
       return false;
     }
 
-    // Add artist tag if necessary, but never in artist page, or mobile expanded view's artist works bottom row.
+    // Add artist tag if necessary.
     if (!element.querySelector('a[href*="users/"]') &&
-      currentUrl.indexOf('users/') === -1 &&
-      !element.closest('.user-badge')) {
+      !element.closest('.user-badge') && // never in mobile expanded view's artist works bottom row
+      (currentUrl.indexOf('users/') === -1 || // never in artist page (except bookmarks tab)
+      (currentUrl.indexOf('users/') !== -1 && currentUrl.indexOf('/bookmarks') !== -1))) {
       await addImageArtist(element);
     }
 
     // Wait if image controls is still being generated.
-    const imageControls = await waitFor(element, () => {
+    const imageControls = await waitFor(() => {
       return element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
-    });
+    }, element);
     if (!imageControls) {
       return false;
     }
@@ -745,8 +810,8 @@
     return false;
   };
 
-  const doMultiView = async (element, isHome = false) => {
-    if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && isHome) {
+  const doMultiView = async (element, options = {}) => {
+    if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome) {
       if (findNovelUrl(element)) {
         element.parentNode.style.display = 'none';
         logDebug('Removed novel recommendation from home', element);
@@ -868,21 +933,41 @@
     return true;
   };
 
-  const doToggleBookmarkedSection = (element, sectionConfig) => {
-    // Skip if already processed.
-    if (element.dataset.pixiv_utils_toggle_bookmarked_section) {
+  const doToggleBookmarkedSection = async (element, sectionConfig) => {
+    // Skip if this config has a sanity check function, and it passes.
+    if (typeof sectionConfig.sanityCheck === 'function' && sectionConfig.sanityCheck()) {
       return false;
     }
 
-    const header = element.querySelector(sectionConfig.selectorHeader);
     const imagesContainer = element.querySelector(sectionConfig.selectorImagesContainer);
+    if (!imagesContainer) {
+      return false;
+    }
 
-    if (!header || !imagesContainer) {
+    // Skip if already processed.
+    if (element.dataset.pixiv_utils_toggle_bookmarked_section) {
+      if (element.dataset.pixiv_utils_toggle_bookmarked_section ===
+        imagesContainer.dataset.pixiv_utils_toggle_bookmarked_section) {
+        return false;
+      }
+      logDebug('Refreshing toggle bookmarked section due to images container update', element);
+    }
+
+    const header = element.querySelector(sectionConfig.selectorHeader);
+    if (!header) {
       return false;
     }
 
     // Mark as processed.
-    element.dataset.pixiv_utils_toggle_bookmarked_section = true;
+    const uuid = element.dataset.pixiv_utils_toggle_bookmarked_section || uuidv4();
+    element.dataset.pixiv_utils_toggle_bookmarked_section =
+      imagesContainer.dataset.pixiv_utils_toggle_bookmarked_section = uuid;
+
+    // Clear old button if it's being refreshed.
+    const oldButtonContainer = document.querySelector('.pixiv_utils_toggle_bookmarked_container');
+    if (oldButtonContainer) {
+      oldButtonContainer.remove();
+    }
 
     const buttonContainer = document.createElement('div');
     buttonContainer.className = 'pixiv_utils_toggle_bookmarked_container';
@@ -943,7 +1028,7 @@
 
       // Empty the text instead of hiding it, so that the utags will still display properly to provide context.
       const artistLink = image.querySelector(CONFIG.SELECTORS_IMAGE_ARTIST_NAME +
-        ', .pixiv_utils_image_artist_container a');
+        ', .pixiv_utils_image_artist');
       if (artistLink) {
         artistLink.innerText = '';
       }
@@ -1004,23 +1089,39 @@
       CONFIG.SELECTORS_IMAGE,
       CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE
     ], element => {
-      doImage(element, isHome);
+      doImage(element, { isHome });
     });
 
     // Multi View Entries
     sentinel.on(CONFIG.SELECTORS_MULTI_VIEW, element => {
-      doMultiView(element, isHome);
+      doMultiView(element, { isHome });
     });
 
     // Toggle Bookmarked Sections
     for (const sectionConfig of CONFIG.SECTIONS_TOGGLE_BOOKMARKED) {
-      if (!sectionConfig.selectorParent || !sectionConfig.selectorHeader || !sectionConfig.selectorImagesContainer) {
-        log('Invalid "SECTIONS_TOGGLE_BOOKMARKED" config', sectionConfig);
+      let configValid = true;
+      for (const key of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
+        if (!sectionConfig[key] || !isSelectorValid(sectionConfig[key])) {
+          console.error(`SECTIONS_TOGGLE_BOOKMARKED contains invalid ${key} =`, sectionConfig[key]);
+          configValid = false;
+          break;
+        }
+      }
+
+      if (!configValid) {
         continue;
       }
 
       sentinel.on(sectionConfig.selectorParent, element => {
         doToggleBookmarkedSection(element, sectionConfig);
+      });
+
+      const formattedSelector = formatChildSelector(sectionConfig.selectorParent, sectionConfig.selectorImagesContainer);
+      sentinel.on(formattedSelector, element => {
+        const parent = element.closest(sectionConfig.selectorParent);
+        if (parent && !element.dataset.pixiv_utils_toggle_bookmarked_section) {
+          doToggleBookmarkedSection(parent, sectionConfig);
+        }
       });
     }
 
