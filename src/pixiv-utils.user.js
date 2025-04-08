@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        window.onurlchange
 // @run-at       document-start
-// @version      1.5.4
+// @version      1.5.5
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -860,7 +860,7 @@
 
     // Add artist tag if necessary.
     if (!element.querySelector('a[href*="users/"]') &&
-      !element.closest('.user-badge') && // never in mobile expanded view's artist bottom bar
+      !element.closest('.works-horizontal-list.grid') && // never in mobile expanded view's artist bottom bar
       (currentUrl.indexOf('users/') === -1 || // never in artist page (except bookmarks tab)
       (currentUrl.indexOf('users/') !== -1 && currentUrl.indexOf('/bookmarks') !== -1))) {
       await addImageArtist(element);
