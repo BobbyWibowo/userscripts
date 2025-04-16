@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        window.onurlchange
 // @run-at       document-start
-// @version      1.5.5
+// @version      1.5.6
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -109,13 +109,16 @@
     SELECTORS_HOME: '[data-ga4-label="page_root"]',
 
     SELECTORS_IMAGE: [
-      '.sc-96f10c4f-0 > li', // home's recommended works grid
       'li[data-ga4-label="thumbnail"]', // home's latest works grid
-      '.sc-9y4be5-1 > li', // artist page's grid
-      '.sc-1sxj2bl-5 > li', // artist page's featured works
-      '.sc-l7cibp-1 > li', // tags page's grid
+      '.sc-96f10c4f-0 > li', // home's recommended works grid
+      '.jELUak > li', // artist page's grid
+      '.iHrRmI > li', // artist page's featured works
+      '.ibaIoN > div:has(a[href])', // expanded view's recommended works after pop-in
+      '.iwHaa-d > li', // tags page's grid
+      '.jClpXN > li', // tags page's grid (novel)
       '.ranking-item', // rankings page
-      '.sc-e6de33c8-0 > li', // "newest by all" page
+      '._ranking-item', // rankings page (novel)
+      '.fhUcsb > li', // "newest by all" page
       '.dHJLGd > div', // novels page's ongoing contests
       '.works-item-illust:has(.thumb:not([src^=data]))', // mobile
       '.works-item:not(.works-item-illust)', // mobile (novel)
@@ -125,29 +128,33 @@
     SELECTORS_IMAGE_TITLE: [
       '[data-ga4-label="title_link"]', // home's recommended works grid
       '.gtm-illust-recommend-title', // discovery page's grid
-      '.sc-iasfms-6', // bookmarks page's grid
-      '.title' // rankings page
+      '.kmUlkw', // tags/bookmarks page's grid
+      '.title', // rankings page
     ],
 
     SELECTORS_IMAGE_ARTIST_AVATAR: [
       '[data-ga4-label="user_icon_link"]', // home's recommended works grid
       '.sc-1rx6dmq-1', // expanded view's related works grid
+      '.lbFgXO', // tags/bookmarks page's grid
       '._user-icon' // rankings page
     ],
 
     SELECTORS_IMAGE_ARTIST_NAME: [
       '[data-ga4-label="user_name_link"]', // home's recommended works grid
       '.gtm-illust-recommend-user-name', // expanded view's related works grid
-      '.sc-1rx6dmq-2', // bookmarks page's grid
-      '.user-name' // rankings page
+      '.QzTPT', // tags/bookmarks page's grid
+      '.user-name', // rankings page
     ],
 
     SELECTORS_IMAGE_CONTROLS: [
-      '.sc-eacaaccb-9', // home's recommended works grid
+      '.ldNztP', // home's latest/recommended works grid
       '.ppQNN', // discovery page's grid
-      '.sc-iasfms-4', // artist page's grid
-      '.sc-xsxgxe-3', // artist page's featured works
+      '.btqmcy', // artist page's grid
+      '.fRrNLv', // artist page's featured works
+      '.cgYJXZ', // tags page's grid (novel)
       '._layout-thumbnail', // rankings page
+      '.novel-right-contents', // rankings page (novel)
+      '.ZBDKi', // "newest by all" page
       '.byWzRq', // expanded view's artist bottom bar (novel)
       '.jVTssb', // artist page's featured works (novel)
       '.hFAmSK', // novels page
@@ -165,21 +172,21 @@
     ],
 
     SELECTORS_EXPANDED_VIEW_CONTROLS: [
-      '.sc-181ts2x-0', // desktop
+      '.inxZPA', // desktop
       '.work-interactions' // mobile
     ],
 
-    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: '.sc-1nhgff6-4 > div:has(a[href])',
+    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: '.eoaxji > div:has(a[href])',
 
     SELECTORS_MULTI_VIEW: '[data-ga4-label="work_content"]:has(a[href])',
 
     SELECTORS_MULTI_VIEW_CONTROLS: '& > .w-full:last-child > .flex:first-child > .flex-row:first-child',
 
     SELECTORS_FOLLOW_BUTTON_CONTAINER: [
-      '.gPrMCJ', // artist page's header
-      '.hZKJGk', // artist hover popup
-      '.btGTaP', // expanded view's artist bottom bar
-      '.sc-f30yhg-3', // expanded view's artist sidebar
+      '.XFDNu', // artist page's header
+      '.kIkMnj', // artist hover popup
+      '.gSkxA', // expanded view's artist bottom bar
+      '.cmowxU', // expanded view's artist sidebar
       '.user-details' // mobile's artist page
     ],
 
@@ -189,7 +196,7 @@
     ],
 
     SELECTORS_DATE: [
-      '.sc-5981ly-1', // desktop
+      '.dgDuKx', // desktop
       '.times' // mobile
     ],
 
@@ -371,7 +378,7 @@
     }
 
     const timestamp = String(date.getTime());
-    if (element.dataset.oldTimestamp && element.dataset.oldTimestamp === timestamp) {
+    if (element.dataset.oldTimestamp === timestamp) {
       return false;
     }
 
@@ -469,6 +476,12 @@
     return formatted;
   };
 
+  const _SELECTORS_IMAGE_CONTROLS = CONFIG.SELECTORS_IMAGE_CONTROLS.split(', ');
+
+  const _FILTERED_SELECTORS_IMAGE_CONTROLS = _SELECTORS_IMAGE_CONTROLS
+    .filter(s => !['._layout-thumbnail', '.novel-right-contents'].includes(s))
+    .join(', ');
+
   const mainStyle = /*css*/`
   .flex:has(+ .pixiv_utils_edit_bookmark_container) {
     flex-grow: 1;
@@ -476,7 +489,8 @@
 
   .byWzRq .pixiv_utils_edit_bookmark,
   .hFAmSK .pixiv_utils_edit_bookmark,
-  .gAyuNi .pixiv_utils_edit_bookmark {
+  .gAyuNi .pixiv_utils_edit_bookmark,
+  .cgYJXZ .pixiv_utils_edit_bookmark {
     margin-top: -26px;
   }
 
@@ -508,11 +522,16 @@
     margin-right: 7px;
   }
 
-  ._layout-thumbnail .pixiv_utils_edit_bookmark {
+  ._layout-thumbnail .pixiv_utils_edit_bookmark,
+  .novel-right-contents .pixiv_utils_edit_bookmark {
     position: absolute;
     right: calc(50% - 71px);
     bottom: 4px;
     z-index: 2;
+  }
+
+  .novel-right-contents .pixiv_utils_edit_bookmark {
+    right: 50px;
   }
 
   .ranking-item.muted .pixiv_utils_edit_bookmark {
@@ -580,7 +599,7 @@
     padding-left: 6px;
   }
 
-  ${CONFIG.SELECTORS_IMAGE_CONTROLS} {
+  ${_FILTERED_SELECTORS_IMAGE_CONTROLS} {
     display: flex;
     justify-content: flex-end;
   }
@@ -625,7 +644,7 @@
     display: none;
   }
 
-  ${CONFIG.SELECTORS_IMAGE_CONTROLS.split(', ').map(s => `[data-pixiv_utils_blocked] ${s}`).join(', ')} {
+  ${_SELECTORS_IMAGE_CONTROLS.map(s => `[data-pixiv_utils_blocked] ${s}`).join(', ')} {
     display: none;
   }
   `;
@@ -784,13 +803,13 @@
     let userName = null;
 
     if (element.__vue__) {
-      await waitFor(() => !element.__vue__._props.item.notLoaded, element);
+      await waitFor(() => !element.__vue__._props?.item?.notLoaded, element);
 
       userId = element.__vue__._props.item.user_id;
       userName = element.__vue__._props.item.author_details.user_name;
     } else {
       const reactPropsKey = Object.keys(element).find(k => k.startsWith('__reactProps'));
-      if (!reactPropsKey || !element[reactPropsKey].children.props.thumbnail) {
+      if (!reactPropsKey || !element[reactPropsKey].children?.props?.thumbnail) {
         return false;
       }
 
@@ -1147,13 +1166,13 @@
 
   window.addEventListener('detectnavigate', event => {
     const intervals = Object.keys(waitForIntervals);
-    if (intervals.length) {
-      logDebug(`Clearing ${intervals.length} pending waitFor interval(s).`);
-    }
     for (const interval of intervals) {
       clearInterval(interval);
       waitForIntervals[interval].resolve();
       delete waitForIntervals[interval];
+    }
+    if (intervals.length > 0) {
+      logDebug(`Cleared ${intervals.length} pending waitFor interval(s).`);
     }
 
     isHome = Boolean(document.querySelector(CONFIG.SELECTORS_HOME));
