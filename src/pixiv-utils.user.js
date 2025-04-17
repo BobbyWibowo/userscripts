@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        window.onurlchange
 // @run-at       document-start
-// @version      1.5.6
+// @version      1.5.7
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -122,7 +122,8 @@
       '.dHJLGd > div', // novels page's ongoing contests
       '.works-item-illust:has(.thumb:not([src^=data]))', // mobile
       '.works-item:not(.works-item-illust)', // mobile (novel)
-      '.works-item-novel-editor-recommend' // mobile's novels page's editor's picks
+      '.works-item-novel-editor-recommend', // mobile's novels page's editor's picks
+      '.stacclist > li.illust' // mobile's feed page
     ],
 
     SELECTORS_IMAGE_TITLE: [
@@ -130,6 +131,7 @@
       '.gtm-illust-recommend-title', // discovery page's grid
       '.kmUlkw', // tags/bookmarks page's grid
       '.title', // rankings page
+      '.illust-info > a[class*="c-text"]' // mobile list view
     ],
 
     SELECTORS_IMAGE_ARTIST_AVATAR: [
@@ -144,6 +146,7 @@
       '.gtm-illust-recommend-user-name', // expanded view's related works grid
       '.QzTPT', // tags/bookmarks page's grid
       '.user-name', // rankings page
+      '.illust-author' // mobile list view
     ],
 
     SELECTORS_IMAGE_CONTROLS: [
@@ -160,8 +163,9 @@
       '.hFAmSK', // novels page
       '.djUdtd > div:last-child', // novels page's editor's picks
       '.gAyuNi', // novels page's ongoing contests
+      '.imgoverlay', // mobile's feed page
       '.bookmark', // mobile
-      '.hSoPoc' // mobile
+      '.hSoPoc', // mobile
     ],
 
     SELECTORS_IMAGE_BOOKMARKED: [
@@ -523,8 +527,9 @@
   }
 
   ._layout-thumbnail .pixiv_utils_edit_bookmark,
-  .novel-right-contents .pixiv_utils_edit_bookmark {
-    position: absolute;
+  .novel-right-contents .pixiv_utils_edit_bookmark,
+  .imgoverlay .pixiv_utils_edit_bookmark {
+    position: absolute !important;
     right: calc(50% - 71px);
     bottom: 4px;
     z-index: 2;
@@ -532,6 +537,11 @@
 
   .novel-right-contents .pixiv_utils_edit_bookmark {
     right: 50px;
+  }
+
+  .imgoverlay .pixiv_utils_edit_bookmark {
+    right: 40px;
+    bottom: 15px;
   }
 
   .ranking-item.muted .pixiv_utils_edit_bookmark {
@@ -636,6 +646,8 @@
     color: rgb(133, 133, 133) !important;
   }
 
+  [data-pixiv_utils_blocked] .series-title,
+  [data-pixiv_utils_blocked] .tag-container,
   .ranking-item[data-pixiv_utils_blocked] ._illust-series-title-text {
     display: none;
   }
@@ -759,8 +771,12 @@
     return buttonContainer;
   };
 
-  const findUrl = element => {
+  const findArtworkUrl = element => {
     return element.querySelector('a[href*="artworks/"]');
+  };
+
+  const findIllustUrl = element => {
+    return element.querySelector('a[href*="illust_id="]');
   };
 
   const findNovelUrl = element => {
@@ -771,16 +787,21 @@
     let id = null;
     let isNovel = false;
 
-    let link = findUrl(element);
-    if (link) {
-      const match = link.href.match(/artworks\/(\d+)/);
-      id = match ? match[1] : null;
-    } else {
-      link = findNovelUrl(element);
+    const methods = [
+      { func: findArtworkUrl, regex: /artworks\/(\d+)/ },
+      { func: findIllustUrl, regex: /illust_id=(\d+)/ },
+      { func: findNovelUrl, regex: /novel\/show\.php\?id=(\d+)/, novel: true }
+    ];
+
+    for (const method of methods) {
+      const link = method.func(element);
       if (link) {
-        const match = link.href.match(/novel\/show\.php\?id=(\d+)/);
-        id = match ? match[1] : null;
-        isNovel = true;
+        const match = link.href.match(method.regex);
+        if (match) {
+          id = match[1];
+          isNovel = Boolean(method.novel);
+          break;
+        }
       }
     }
 
@@ -809,12 +830,23 @@
       userName = element.__vue__._props.item.author_details.user_name;
     } else {
       const reactPropsKey = Object.keys(element).find(k => k.startsWith('__reactProps'));
-      if (!reactPropsKey || !element[reactPropsKey].children?.props?.thumbnail) {
+      if (!reactPropsKey) {
         return false;
       }
 
-      userId = element[reactPropsKey].children.props.thumbnail.userId;
-      userName = element[reactPropsKey].children.props.thumbnail.userName;
+      let _key = null;
+      ['thumbnail', 'rawThumbnail'].forEach(key => {
+        if (element[reactPropsKey].children?.props?.[key]) {
+          _key = key;
+        }
+      });
+
+      if (!_key) {
+        return false;
+      }
+
+      userId = element[reactPropsKey].children.props[_key].userId;
+      userName = element[reactPropsKey].children.props[_key].userName;
     }
 
     const div = document.createElement('div');
@@ -860,16 +892,20 @@
     if (element.dataset.tx) {
       if (!element.dataset.pixiv_utils_last_tx) {
         initElementObserver(element, () => {
-          if (element.dataset.tx !== element.dataset.pixiv_utils_last_tx) {
+          const lastGrid = element.dataset.pixiv_utils_last_grid === 'true';
+          if (element.dataset.tx !== element.dataset.pixiv_utils_last_tx ||
+            element.classList.contains('grid') !== lastGrid) {
             options.forced = true;
             doImage(element, options);
           }
         }, {
           attributes: true,
-          attributeFilter: ['data-tx']
+          // Monitor class tag to also detect list/grid view change.
+          attributeFilter: ['class', 'data-tx']
         });
       }
       element.dataset.pixiv_utils_last_tx = element.dataset.tx;
+      element.dataset.pixiv_utils_last_grid = element.classList.contains('grid');
     }
 
     const oldImageArtist = element.querySelector('.pixiv_utils_image_artist_container');
@@ -877,8 +913,22 @@
       oldImageArtist.remove();
     }
 
+    // Re-process UTags if necessary.
+    const utags = element.querySelectorAll(SELECTORS_UTAGS);
+    if (utags.length && !element.dataset.pixiv_utils_blocked) {
+      for (const utag of utags) {
+        doUtags(utag);
+      }
+    }
+
+    let hasVisibleArtistTag = false;
+    const artistTag = element.querySelector('a[href*="users/"]');
+    if (artistTag) {
+      hasVisibleArtistTag = artistTag.offsetParent !== null;
+    }
+
     // Add artist tag if necessary.
-    if (!element.querySelector('a[href*="users/"]') &&
+    if (!hasVisibleArtistTag &&
       !element.closest('.works-horizontal-list.grid') && // never in mobile expanded view's artist bottom bar
       (currentUrl.indexOf('users/') === -1 || // never in artist page (except bookmarks tab)
       (currentUrl.indexOf('users/') !== -1 && currentUrl.indexOf('/bookmarks') !== -1))) {
