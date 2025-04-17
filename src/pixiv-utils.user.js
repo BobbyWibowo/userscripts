@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        window.onurlchange
 // @run-at       document-start
-// @version      1.5.8
+// @version      1.5.9
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -234,7 +234,7 @@
         selectorHeader: '.dlidhK',
         selectorImagesContainer: '.fxjfKC'
       },
-      // FIXME Newest by all page
+      // FIXME "Newest by all" page
       {
         selectorParent: '.sc-7b5ed552-0',
         selectorHeader: '.sc-f08ce4e3-2',
@@ -248,12 +248,13 @@
       },
       // Mobile artist page's illustrations/bookmarks tab, following page, tags page
       {
-        selectorParent: '.v-nav-tabs + div:not(.header-buttons) > div > div:last-child, ' +
-          '.nav-tab + div, .search-nav-config + div',
+        selectorParent: '.v-nav-tabs + div:not(.header-buttons), ' +
+          '.nav-tab + div, ' +
+          '.search-nav-config + div',
         selectorHeader: '.pager-view-nav',
         selectorImagesContainer: '.works-grid-list',
         sanityCheck: () => {
-          // Skip if in own profile.
+          // Skip if in own profile (intended for bookmarks page).
           return document.querySelector('.ui-button[href*="setting_profile.php"]');
         }
       },
@@ -460,11 +461,18 @@
   /** MAIN STYLES **/
 
   const formatChildSelector = (parentSelector, childSelector) => {
-    let _childSelector = childSelector;
+    let child = childSelector;
     if (childSelector.startsWith('&')) {
-      _childSelector = childSelector.substring(1).trimStart();
+      child = childSelector.substring(1).trimStart();
     }
-    return `${parentSelector} ${_childSelector}`;
+
+    const formatted = [];
+    const parents = parentSelector.split(', ');
+    for (const parent of parents) {
+      formatted.push(`${parent} ${child}`);
+    }
+
+    return formatted.join(', ');
   };
 
   const _formatSelectorsMultiViewControls = () => {
@@ -477,6 +485,7 @@
         formatted.push(formatChildSelector(parent, child));
       }
     }
+
     return formatted;
   };
 
@@ -489,6 +498,10 @@
   const mainStyle = /*css*/`
   .flex:has(+ .pixiv_utils_edit_bookmark_container) {
     flex-grow: 1;
+  }
+
+  .ranking-item.muted .pixiv_utils_edit_bookmark_container {
+    display: none;
   }
 
   .byWzRq .pixiv_utils_edit_bookmark,
@@ -544,12 +557,8 @@
     bottom: 15px;
   }
 
-  .ranking-item.muted .pixiv_utils_edit_bookmark {
-    display: none;
-  }
-
   *:has(> .pixiv_utils_image_artist_container) {
-    position: relative;
+    position: relative !important;
   }
 
   .pixiv_utils_image_artist_container {
@@ -563,7 +572,6 @@
   .pixiv_utils_image_artist {
     color: rgb(245, 245, 245);
     background: rgba(0, 0, 0, 0.5);
-    display: inline-block;
     box-sizing: border-box;
     padding: 0px 8px;
     border-radius: 10px;
@@ -625,38 +633,79 @@
   /** UTAGS INTEGRATION INIT **/
 
   const mainUtagsStyle = /*css*/`
+  :not(#higher_specificity) *:has(+ .pixiv_utils_blocked_image_container) {
+    display: none !important;
+  }
+
   .pixiv_utils_blocked_image {
     display: flex;
     justify-content: center;
     align-items: center;
     width: 100%;
-    height: 100%;
-    border-radius: 4px;
     color: rgb(92, 92, 92);
-    min-width: 96px;
-    min-height: 96px;
+    min-width: 93px;
+    aspect-ratio: 1 / 1;
   }
 
   .pixiv_utils_blocked_image svg {
     fill: currentcolor;
   }
 
-  ${CONFIG.SELECTORS_IMAGE_TITLE.split(', ').map(s => `[data-pixiv_utils_blocked] ${s}`).join(', ')} {
-    color: rgb(133, 133, 133) !important;
+  .ranking-item .pixiv_utils_blocked_image {
+    max-width: 150px;
+    margin: 0 auto;
+    border: 1px solid rgb(242, 242, 242);
+  }
+
+  /* Pixiv's built-in tags mute. */
+  .ranking-item.muted .work img {
+    filter: brightness(50%);
+  }
+
+  .ranking-item.muted .muted-thumbnail .negative {
+    position: relative;
+    z-index: 1;
+    color: rgb(92, 92, 92);
+  }
+
+  /* Only use black background on desktop layout. */
+  body > div:not(#wrapper) .pixiv_utils_blocked_image,
+  body > div:not(#wrapper) .ranking-item.muted .work img {
+    background: rgb(0, 0, 0);
   }
 
   [data-pixiv_utils_blocked] .series-title,
   [data-pixiv_utils_blocked] .tag-container,
-  .ranking-item[data-pixiv_utils_blocked] ._illust-series-title-text {
-    display: none;
+  [data-pixiv_utils_blocked] .show-more-creator-works-button,
+  [data-pixiv_utils_blocked] .pqkmS, /* desktop: show more creator works button */
+  [data-pixiv_utils_blocked] ._illust-series-title-text {
+    display: none !important;
+  }
+
+  ${CONFIG.SELECTORS_IMAGE_TITLE.split(', ').map(s => `[data-pixiv_utils_blocked] ${s}`).join(', ')} {
+    display: none !important;
   }
 
   ${CONFIG.SELECTORS_IMAGE_ARTIST_AVATAR.split(', ').map(s => `[data-pixiv_utils_blocked] ${s}`).join(', ')} {
-    display: none;
+    display: none !important;
+  }
+
+  ${CONFIG.SELECTORS_IMAGE_ARTIST_NAME.split(', ').map(s => `[data-pixiv_utils_blocked] ${s}`).join(', ')} {
+    display: none !important;
   }
 
   ${_SELECTORS_IMAGE_CONTROLS.map(s => `[data-pixiv_utils_blocked] ${s}`).join(', ')} {
-    display: none;
+    display: none !important;
+  }
+
+  [data-pixiv_utils_blocked] .pixiv_utils_image_artist_container {
+    max-width: calc(100% - 10px);
+  }
+
+  [data-pixiv_utils_blocked] .pixiv_utils_image_artist {
+    background: none;
+    padding: 0;
+    width: 0;
   }
   `;
 
@@ -782,29 +831,31 @@
     return element.querySelector('a[href*="novel/show.php?id="]');
   };
 
-  const findItemId = element => {
-    let id = null;
-    let isNovel = false;
-
+  const findItemData = element => {
     const methods = [
       { func: findArtworkUrl, regex: /artworks\/(\d+)/ },
       { func: findIllustUrl, regex: /illust_id=(\d+)/ },
       { func: findNovelUrl, regex: /novel\/show\.php\?id=(\d+)/, novel: true }
     ];
 
+    const result = {
+      id: null,
+      novel: false
+    };
+
     for (const method of methods) {
-      const link = method.func(element);
-      if (link) {
-        const match = link.href.match(method.regex);
+      result.link = method.func(element);
+      if (result.link) {
+        const match = result.link.href.match(method.regex);
         if (match) {
-          id = match[1];
-          isNovel = Boolean(method.novel);
-          break;
+          result.id = match[1];
+          result.novel = Boolean(method.novel);
         }
+        break;
       }
     }
 
-    return { id, isNovel };
+    return result;
   };
 
   // Toggle Bookmarked Modes.
@@ -907,17 +958,18 @@
       element.dataset.pixiv_utils_last_grid = element.classList.contains('grid');
     }
 
+    // Reset blocked status if necessary.
+    if (options.forced && element.dataset.pixiv_utils_blocked) {
+      delete element.dataset.pixiv_utils_blocked;
+      const blockedThumb = element.querySelector('.pixiv_utils_blocked_image_container');
+      if (blockedThumb) {
+        blockedThumb.remove();
+      }
+    }
+
     const oldImageArtist = element.querySelector('.pixiv_utils_image_artist_container');
     if (oldImageArtist) {
       oldImageArtist.remove();
-    }
-
-    // Re-process UTags if necessary.
-    const utags = element.querySelectorAll(SELECTORS_UTAGS);
-    if (utags.length && !element.dataset.pixiv_utils_blocked) {
-      for (const utag of utags) {
-        doUtags(utag);
-      }
     }
 
     let hasVisibleArtistTag = false;
@@ -934,13 +986,13 @@
       await addImageArtist(element);
     }
 
-    const { id, isNovel } = findItemId(element);
-    if (id === false || id === null) {
+    const data = findItemData(element);
+    if (data.id === null) {
       return false;
     }
 
     let imageControls = null;
-    if (isNovel) {
+    if (data.novel) {
       imageControls = element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
     } else {
       // Only await image controls is still being generated if it's not a novel.
@@ -958,7 +1010,7 @@
       oldEditBookmarkButton.remove();
     }
 
-    imageControls.prepend(editBookmarkButton(id, isNovel));
+    imageControls.prepend(editBookmarkButton(data.id, data.novel));
     return true;
   };
 
@@ -981,9 +1033,9 @@
       return false;
     }
 
-    const { id, isNovel } = findItemId(element);
-    if (id !== null) {
-      multiViewControls.lastChild.before(editBookmarkButton(id, isNovel));
+    const data = findItemData(element);
+    if (data.id !== null) {
+      multiViewControls.lastChild.before(editBookmarkButton(data.id, data.novel));
       return true;
     }
 
@@ -1146,11 +1198,20 @@
     return true;
   };
 
-  const doUtags = element => {
-    const image = element.closest(CONFIG.SELECTORS_IMAGE);
+  const doUtags = async element => {
+    let image = element.closest(CONFIG.SELECTORS_IMAGE);
+
+    // For mobile images, re-attempt query with some patience.
+    if (!image) {
+      image = element.closest('.works-item-illust');
+      if (image) {
+        await waitFor(() => image.querySelector('.thumb:not([src^=data])'), image);
+      }
+    }
+
     if (image) {
-      const imageLink = image.querySelector('a[href*="artworks/"], a[href*="novel/"]');
-      if (!imageLink) {
+      const data = findItemData(image);
+      if (!data.link) {
         return false;
       }
 
@@ -1166,23 +1227,19 @@
         return true;
       }
 
-      imageLink.innerHTML = BLOCKED_IMAGE_HTML;
+      const blockedThumb = document.createElement('a');
+      blockedThumb.className = 'pixiv_utils_blocked_image_container';
+      blockedThumb.href = data.link.href;
+      blockedThumb.innerHTML = BLOCKED_IMAGE_HTML;
 
-      const imageTitle = image.querySelector(CONFIG.SELECTORS_IMAGE_TITLE);
-      if (imageTitle) {
-        if (element.dataset.utags_tag === 'hide') {
-          imageTitle.innerText = 'Hidden';
-        } else {
-          // "block" tag and custom tags
-          imageTitle.innerText = 'Blocked';
-        }
-      }
+      data.link.after(blockedThumb);
 
-      // Empty the text instead of hiding it, so that the utags will still display properly to provide context.
-      const artistLink = image.querySelector(CONFIG.SELECTORS_IMAGE_ARTIST_NAME +
-        ', .pixiv_utils_image_artist');
-      if (artistLink) {
-        artistLink.innerText = '';
+      // Tooltip.
+      if (element.dataset.utags_tag === 'hide') {
+        image.title = 'Hidden';
+      } else {
+        // "block" tag and custom tags.
+        image.title = 'Blocked';
       }
 
       return true;
