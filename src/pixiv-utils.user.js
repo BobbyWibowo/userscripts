@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        window.onurlchange
 // @run-at       document-start
-// @version      1.5.7
+// @version      1.5.8
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -116,10 +116,10 @@
       '.ibaIoN > div:has(a[href])', // expanded view's recommended works after pop-in
       '.iwHaa-d > li', // tags page's grid
       '.jClpXN > li', // tags page's grid (novel)
-      '.ranking-item', // rankings page
-      '._ranking-item', // rankings page (novel)
       '.fhUcsb > li', // "newest by all" page
       '.dHJLGd > div', // novels page's ongoing contests
+      '.ranking-item', // rankings page
+      '._ranking-item', // rankings page (novel)
       '.works-item-illust:has(.thumb:not([src^=data]))', // mobile
       '.works-item:not(.works-item-illust)', // mobile (novel)
       '.works-item-novel-editor-recommend', // mobile's novels page's editor's picks
@@ -155,23 +155,23 @@
       '.btqmcy', // artist page's grid
       '.fRrNLv', // artist page's featured works
       '.cgYJXZ', // tags page's grid (novel)
-      '._layout-thumbnail', // rankings page
-      '.novel-right-contents', // rankings page (novel)
       '.ZBDKi', // "newest by all" page
       '.byWzRq', // expanded view's artist bottom bar (novel)
       '.jVTssb', // artist page's featured works (novel)
       '.hFAmSK', // novels page
       '.djUdtd > div:last-child', // novels page's editor's picks
       '.gAyuNi', // novels page's ongoing contests
+      '._layout-thumbnail', // rankings page
+      '.novel-right-contents', // rankings page (novel)
       '.imgoverlay', // mobile's feed page
       '.bookmark', // mobile
-      '.hSoPoc', // mobile
+      '.hSoPoc' // mobile
     ],
 
     SELECTORS_IMAGE_BOOKMARKED: [
-      '.bXjFLc', // home's recommended works grid
+      '.epoVSE', // desktop
+      '.wQCIS', // "newest by all" page
       '._one-click-bookmark.on', // rankings page
-      '.epoVSE', // "newest by all" page
       '.works-bookmark-button svg path[fill="#FF4060"]' // mobile
     ],
 
@@ -208,43 +208,43 @@
     SECTIONS_TOGGLE_BOOKMARKED: [
       // Following page
       {
-        selectorParent: '.sc-jgyytr-0',
-        selectorHeader: '.sc-s8zj3z-2',
-        selectorImagesContainer: '.sc-s8zj3z-4'
+        selectorParent: '.icUpwV',
+        selectorHeader: '.fHQERN',
+        selectorImagesContainer: '.fJdNho'
       },
       // Artist page
       {
-        selectorParent: '.sc-1xj6el2-3',
-        selectorHeader: '.sc-1xj6el2-2',
-        selectorImagesContainer: '.sc-1xj6el2-2 ~ div:not([class])'
+        selectorParent: '.gqvfWY:not(.bYCbxa)',
+        selectorHeader: '.rXWMQ',
+        selectorImagesContainer: '.rXWMQ ~ div:not([class])'
       },
       // Artist page's bookmarks tab
       {
-        selectorParent: '.buukZm',
-        selectorHeader: '.fElfQf',
-        selectorImagesContainer: '.fElfQf ~ div:not([class])',
+        selectorParent: '.gqvfWY.bYCbxa',
+        selectorHeader: '.cfUrtF',
+        selectorImagesContainer: '.cfUrtF ~ div:not([class])',
         sanityCheck: () => {
           // Skip if in own profile.
-          return document.querySelector('.kHyYuA');
+          return document.querySelector('a[href*="settings/profile"]');
         }
       },
       // Tags page
       {
-        selectorParent: '.sc-jgyytr-0',
-        selectorHeader: '.sc-7zddlj-0',
-        selectorImagesContainer: '.sc-l7cibp-0'
+        selectorParent: '.icUpwV',
+        selectorHeader: '.dlidhK',
+        selectorImagesContainer: '.fxjfKC'
+      },
+      // FIXME Newest by all page
+      {
+        selectorParent: '.sc-7b5ed552-0',
+        selectorHeader: '.sc-f08ce4e3-2',
+        selectorImagesContainer: '.sc-a7a11491-1'
       },
       // Rankings page
       {
         selectorParent: '#wrapper ._unit',
         selectorHeader: '.ranking-menu',
         selectorImagesContainer: '.ranking-items-container'
-      },
-      // Newest by all page
-      {
-        selectorParent: '.sc-7b5ed552-0',
-        selectorHeader: '.sc-f08ce4e3-2',
-        selectorImagesContainer: '.sc-a7a11491-1'
       },
       // Mobile artist page's illustrations/bookmarks tab, following page, tags page
       {
@@ -578,8 +578,7 @@
     width: 100%;
   }
 
-  .sc-s8zj3z-3:has(+ .pixiv_utils_toggle_bookmarked_container),
-  .sc-7c5ab71e-2:has(+ .pixiv_utils_toggle_bookmarked_container) {
+  .bXtqby:has(+ .pixiv_utils_toggle_bookmarked_container) {
     flex-grow: 1;
     justify-content: flex-end;
   }
@@ -1117,7 +1116,7 @@
       imagesContainer.dataset.pixiv_utils_toggle_bookmarked_section = uuid;
 
     // Clear old button if it's being refreshed.
-    const oldButtonContainer = document.querySelector('.pixiv_utils_toggle_bookmarked_container');
+    const oldButtonContainer = element.querySelector('.pixiv_utils_toggle_bookmarked_container');
     if (oldButtonContainer) {
       oldButtonContainer.remove();
     }
