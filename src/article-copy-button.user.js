@@ -4,7 +4,7 @@
 // @match        *://*/*
 // @grant        GM_addStyle
 // @grant        GM_getValue
-// @version      1.2.0
+// @version      1.2.1
 // @author       Bobby Wibowo
 // @license      MIT
 // @run-at       document-end
@@ -244,37 +244,43 @@
 
   let globalStyleAdded = false;
 
-  function formatArticle ({ title, article, AIPromptPrefix = '' }) {
-    const header = title ? title.innerText.trim() : null;
-    const body = article.innerText.trim();
+  const formatArticle = options => {
+    if (typeof options !== 'object' || !(options.article instanceof Node)) {
+      return false;
+    }
 
-    const formatted = (header ? `${header}\n\n` : '') + body;
+    let formatted = options.article.innerText.trim();
 
-    return AIPromptPrefix + formatted;
-  }
+    if (options.title instanceof Node) {
+      const title = options.title.innerText.trim();
+      if (title) {
+        formatted = `${title}\n\n${formatted}`;
+      }
+    }
 
-  function handleCopyError ({ event, title, article, error = new Error() }) {
+    if (options.AIPromptPrefix) {
+      formatted = options.AIPromptPrefix + formatted;
+    }
+
+    return formatted;
+  };
+
+  const handleCopyError = (event, error = new Error()) => {
     log('Could not copy: ', error);
     event.element.classList.add('copy-failed');
-  }
+  };
 
-  function copyTextToClipboard ({ event, title, article, text }) {
-    navigator.clipboard.writeText(text).then(function () {
-      log('Article copied to clipboard.\n\n' + text);
-    }).catch(function (error) {
-      handleCopyError({ event, title, article, error });
-    });
-  }
-
-  function handleArticleCopyClick ({ event, title, article, AIPromptPrefix }) {
+  const handleArticleCopyClick = async (event, options = {}) => {
     event.stopPropagation();
     try {
-      const text = formatArticle({ title, article, AIPromptPrefix });
-      copyTextToClipboard({ event, title, article, text });
+      const text = formatArticle(options);
+      await navigator.clipboard.writeText(text);
+      log(`Article copied to clipboard.\n\n ${text}`);
     } catch (error) {
-      handleCopyError({ event, title, article, error });
+      error._options = options;
+      handleCopyError(event, error);
     }
-  }
+  };
 
   const BUTTON_INNER_TEMPLATE = /*html*/`
     <span data-text-initial="Copy to clipboard" data-text-end="Copied" data-text-failed="Copy failed, open the console for details!" class="tooltip"></span>
@@ -304,6 +310,21 @@
     </span>
   `;
 
+  const generateCopyButton = (title, article, AIPromptPrefix = null) => {
+    const element = document.createElement('button');
+    element.className = 'copy-article-button';
+    element.innerHTML = BUTTON_INNER_TEMPLATE;
+
+    if (AIPromptPrefix) {
+      element.querySelector(':first-child').dataset.textInitial += ' (with AI prompt prefix)';
+    }
+
+    const options = { title, article, AIPromptPrefix };
+    element.addEventListener('click', event => handleArticleCopyClick(event, options));
+
+    return element;
+  };
+
   const findArticles = (config, source = document.body) => {
     let parents = [];
 
@@ -329,7 +350,6 @@
     logDebug(`Found ${parents.length} element(s) matching parent selector: ${config.parentSelector}`);
 
     let _done = 0;
-
     for (const parent of parents) {
       const article = parent.querySelector(config.articleSelector);
       if (!article) {
@@ -343,29 +363,19 @@
 
       logDebug(`Found element matching article selector: ${config.articleSelector}`);
 
+      if (!globalStyleAdded) {
+        GM_addStyle(GLOBAL_STYLE);
+        globalStyleAdded = true;
+      }
+
       const title = parent.querySelector(config.titleSelector);
 
       const copyButtonContainer = document.createElement('div');
       copyButtonContainer.className = 'copy-article-button-container';
 
-      const copyButton = document.createElement('button');
-      copyButton.className = 'copy-article-button';
-      copyButton.innerHTML = BUTTON_INNER_TEMPLATE;
-      copyButton.addEventListener('click', event => handleArticleCopyClick({ event, title, article }));
-      copyButtonContainer.appendChild(copyButton);
-
+      copyButtonContainer.appendChild(generateCopyButton(title, article));
       if (config.AIPromptPrefix) {
-        const copyButtonAI = document.createElement('button');
-        copyButtonAI.className = 'copy-article-button';
-        copyButtonAI.innerHTML = BUTTON_INNER_TEMPLATE;
-        copyButtonAI.querySelector(':first-child').dataset.textInitial += ' (with AI prompt prefix)';
-        copyButtonAI.addEventListener('click', event => handleArticleCopyClick({ event, title, article, AIPromptPrefix: config.AIPromptPrefix }));
-        copyButtonContainer.appendChild(copyButtonAI);
-      }
-
-      if (!globalStyleAdded) {
-        GM_addStyle(GLOBAL_STYLE);
-        globalStyleAdded = true;
+        copyButtonContainer.appendChild(generateCopyButton(title, article, config.AIPromptPrefix));
       }
 
       article.insertAdjacentElement('afterbegin', copyButtonContainer);
