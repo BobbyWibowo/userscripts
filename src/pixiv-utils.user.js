@@ -288,7 +288,8 @@
     }
   }
 
-  const queryCheck = selector => document.createDocumentFragment().querySelector(selector);
+  const _DOCUMENT_FRAGMENT = document.createDocumentFragment();
+  const queryCheck = selector => _DOCUMENT_FRAGMENT.querySelector(selector);
 
   const isSelectorValid = selector => {
     try {
