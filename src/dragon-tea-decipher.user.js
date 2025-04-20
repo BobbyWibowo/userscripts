@@ -68,6 +68,8 @@
       if (child.nodeType === 1) {
         traverseElement(child, func);
       } else if (child.nodeType === 3) {
+        // Only do function on Text nodes.
+        // https://developer.mozilla.org/en-US/docs/Web/API/Text
         func(child);
       }
       child = child.previousSibling;
@@ -111,6 +113,7 @@
     let _children = 0;
 
     traverseElement(element, child => {
+      // https://developer.mozilla.org/en-US/docs/Web/API/CharacterData/data
       child.data = enAtbash(child.data);
       _children++;
     });
