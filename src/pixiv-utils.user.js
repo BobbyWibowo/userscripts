@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        window.onurlchange
 // @run-at       document-start
-// @version      1.5.9
+// @version      1.5.10
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -157,6 +157,7 @@
       '.cgYJXZ', // tags page's grid (novel)
       '.ZBDKi', // "newest by all" page
       '.byWzRq', // expanded view's artist bottom bar (novel)
+      '.Yzjmx', // artist page's grid (novel)
       '.jVTssb', // artist page's featured works (novel)
       '.hFAmSK', // novels page
       '.djUdtd > div:last-child', // novels page's editor's picks
@@ -508,7 +509,8 @@
   .byWzRq .pixiv_utils_edit_bookmark,
   .hFAmSK .pixiv_utils_edit_bookmark,
   .gAyuNi .pixiv_utils_edit_bookmark,
-  .cgYJXZ .pixiv_utils_edit_bookmark {
+  .cgYJXZ .pixiv_utils_edit_bookmark,
+  .Yzjmx .pixiv_utils_edit_bookmark {
     margin-top: -26px;
   }
 
