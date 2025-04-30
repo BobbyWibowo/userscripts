@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        window.onurlchange
 // @run-at       document-start
-// @version      1.5.10
+// @version      1.5.11
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -202,6 +202,7 @@
 
     SELECTORS_DATE: [
       '.dgDuKx', // desktop
+      '.kzGSfF', // desktop "updated on" popup
       '.times' // mobile
     ],
 
@@ -359,6 +360,12 @@
   `;
 
   const convertDate = (element, fixJapanTime = false) => {
+    // Support "updated on" popups
+    const updatedOnRegexes = [
+      /(^Image updated on )(.*)$/i // EN
+    ];
+
+    let prefix = '';
     let date;
 
     const attr = element.getAttribute('datetime');
@@ -367,6 +374,15 @@
     } else {
       // For pages which have the date display hardcoded to Japan time.
       let dateText = element.innerText;
+
+      for (const regex of updatedOnRegexes) {
+        const _match = dateText.match(regex);
+        if (_match) {
+          dateText = _match[2];
+          prefix = _match[1];
+          break;
+        }
+      }
 
       // For dates hard-coded to Japan locale.
       const match = dateText.match(/^(\d{4})年(\d{2})月(\d{2})日 (\d{2}:\d{2})$/);
@@ -377,6 +393,7 @@
       if (fixJapanTime) {
         dateText += ' UTC+9';
       }
+
       date = new Date(dateText);
     }
 
@@ -390,7 +407,7 @@
     }
 
     element.dataset.oldTimestamp = timestamp;
-    element.innerText = date.toLocaleString(CONFIG.DATE_CONVERSION_LOCALES, CONFIG.DATE_CONVERSION_OPTIONS);
+    element.innerText = prefix + date.toLocaleString(CONFIG.DATE_CONVERSION_LOCALES, CONFIG.DATE_CONVERSION_OPTIONS);
     return true;
   };
 
@@ -877,7 +894,10 @@
     let userName = null;
 
     if (element.__vue__) {
-      await waitFor(() => !element.__vue__._props?.item?.notLoaded, element);
+      const awaited = await waitFor(() => !element.__vue__._props?.item?.notLoaded, element);
+      if (!awaited) {
+        return false;
+      }
 
       userId = element.__vue__._props.item.user_id;
       userName = element.__vue__._props.item.author_details.user_name;
@@ -1204,11 +1224,18 @@
   const doUtags = async element => {
     let image = element.closest(CONFIG.SELECTORS_IMAGE);
 
-    // For mobile images, re-attempt query with some patience.
-    if (!image) {
+    let mobile = false;
+    if (image) {
+      mobile = image.matches('.works-item-illust');
+    } else {
+      // For mobile images, re-attempt query with some patience.
       image = element.closest('.works-item-illust');
       if (image) {
-        await waitFor(() => image.querySelector('.thumb:not([src^=data])'), image);
+        mobile = true;
+        const awaited = await waitFor(() => image.querySelector('.thumb:not([src^=data])'), image);
+        if (!awaited) {
+          return false;
+        }
       }
     }
 
@@ -1225,7 +1252,8 @@
 
       image.dataset.pixiv_utils_blocked = true;
 
-      if (CONFIG.UTAGS_REMOVE_BLOCKED) {
+      // For mobile, never remove blocked, as it does not behave well with Pixiv's in-place navigation.
+      if (CONFIG.UTAGS_REMOVE_BLOCKED && !mobile) {
         image.style.display = 'none';
         return true;
       }
