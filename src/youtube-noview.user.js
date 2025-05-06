@@ -6,7 +6,7 @@
 // @run-at       document-start
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @version      1.0.3
+// @version      1.0.4
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  06/05/2025 04:44:00 PM
@@ -53,8 +53,6 @@
     VIEWS_THRESHOLD: 999,
     VIEWS_THRESHOLD_NEW: 499,
 
-    REGEX_NO_VIEWS: null,
-
     SELECTORS_ALLOWED_PAGES: null,
     SELECTORS_VIDEO: null
   };
@@ -63,10 +61,6 @@
    * Specifying custom values will extend instead of replacing them.
    */
   const PRESETS = {
-    REGEX_NO_VIEWS: [
-      /^No /i // EN locale: "No views"
-    ],
-
     // Keys that starts with "SELECTORS_", and in array, will automatically be converted to single-line strings.
     SELECTORS_ALLOWED_PAGES: [
       'ytd-browse[page-subtype="home"]:not([hidden])',
@@ -157,6 +151,11 @@
   };
 
   let isPageAllowed = false;
+
+  window.addEventListener('yt-navigate-start', event => {
+    isPageAllowed = false;
+  });
+
   window.addEventListener('yt-page-data-updated', event => {
     isPageAllowed = Boolean(document.querySelector(CONFIG.SELECTORS_ALLOWED_PAGES));
     if (isPageAllowed) {
@@ -184,18 +183,14 @@
       return false;
     }
 
-    for (const regex of CONFIG.REGEX_NO_VIEWS) {
-      if (regex.test(views)) {
-        views = 0;
-      } else {
-        views = views.replace(/[.,]/, ''); // remove separator
-        const match = views.match(/(\d*)/);
-        if (!match || !match[1]) {
-          logDebug('Unable to parse views string', views, element);
-          return false;
-        }
-        views = Number(match[1]);
-      }
+    views = views.replace(/[.,]/, ''); // remove separator
+
+    const match = views.match(/(\d*)/);
+    if (match && match[1]) {
+      views = Number(match[1]);
+    } else {
+      // To support any locales, assume all views string without numbers are only used for 0 views.
+      views = 0;
     }
 
     let thresholdUnmet = null;
