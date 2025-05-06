@@ -154,7 +154,7 @@
 
   /** MAIN **/
 
-  const doVideo = (element, options = {}) => {
+  const doVideo = (element) => {
     if (pageType !== 'home' && pageType !== 'watch') {
       return false;
     }
