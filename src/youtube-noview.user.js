@@ -6,7 +6,7 @@
 // @run-at       document-start
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @version      1.0.4
+// @version      1.0.5
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  06/05/2025 04:44:00 PM
@@ -53,7 +53,7 @@
     VIEWS_THRESHOLD: 999,
     VIEWS_THRESHOLD_NEW: 499,
 
-    SELECTORS_ALLOWED_PAGES: null,
+    SELECTORS_ALLOWED_PAGE: null,
     SELECTORS_VIDEO: null
   };
 
@@ -62,9 +62,9 @@
    */
   const PRESETS = {
     // Keys that starts with "SELECTORS_", and in array, will automatically be converted to single-line strings.
-    SELECTORS_ALLOWED_PAGES: [
-      'ytd-browse[page-subtype="home"]:not([hidden])',
-      'ytd-watch-flexy:not([hidden])'
+    SELECTORS_ALLOWED_PAGE: [
+      'ytd-browse[page-subtype="home"]:not([hidden])', // home
+      'ytd-watch-flexy:not([hidden])' // watch page
     ],
     SELECTORS_VIDEO: [
       'ytd-compact-video-renderer:has(#dismissible ytd-thumbnail:not([hidden]) img[src])',
@@ -157,7 +157,7 @@
   });
 
   window.addEventListener('yt-page-data-updated', event => {
-    isPageAllowed = Boolean(document.querySelector(CONFIG.SELECTORS_ALLOWED_PAGES));
+    isPageAllowed = Boolean(document.querySelector(CONFIG.SELECTORS_ALLOWED_PAGE));
     if (isPageAllowed) {
       logDebug('Page allowed, waiting for videos\u2026');
     } else {
