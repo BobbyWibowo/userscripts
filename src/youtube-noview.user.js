@@ -6,7 +6,7 @@
 // @run-at       document-start
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @version      1.0.2
+// @version      1.0.3
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  06/05/2025 04:44:00 PM
@@ -51,11 +51,11 @@
     MODE: 'PROD',
 
     VIEWS_THRESHOLD: 999,
-    VIEWS_THRESHOLD_NEW: 99,
+    VIEWS_THRESHOLD_NEW: 499,
 
-    SELECTORS_HOME: null,
-    SELECTORS_WATCH_PAGE: null,
+    REGEX_NO_VIEWS: null,
 
+    SELECTORS_ALLOWED_PAGES: null,
     SELECTORS_VIDEO: null
   };
 
@@ -63,13 +63,18 @@
    * Specifying custom values will extend instead of replacing them.
    */
   const PRESETS = {
-    // Keys that starts with "SELECTORS_", and in array, will automatically be converted to single-line strings.
-    SELECTORS_HOME: 'ytd-browse[page-subtype="home"]',
-    SELECTORS_WATCH_PAGE: 'ytd-watch-flexy',
+    REGEX_NO_VIEWS: [
+      /^No /i // EN locale: "No views"
+    ],
 
+    // Keys that starts with "SELECTORS_", and in array, will automatically be converted to single-line strings.
+    SELECTORS_ALLOWED_PAGES: [
+      'ytd-browse[page-subtype="home"]:not([hidden])',
+      'ytd-watch-flexy:not([hidden])'
+    ],
     SELECTORS_VIDEO: [
-      'ytd-compact-video-renderer:has(#dismissible ytd-video-meta-block)',
-      'ytd-rich-item-renderer:has(#dismissible ytd-video-meta-block)'
+      'ytd-compact-video-renderer:has(#dismissible ytd-thumbnail:not([hidden]) img[src])',
+      'ytd-rich-item-renderer:has(#dismissible ytd-thumbnail:not([hidden]) img[src])'
     ]
   };
 
@@ -115,6 +120,12 @@
         console.error(`${key} contains invalid selector =`, CONFIG[key]);
         return;
       }
+    } else if (Array.isArray(PRESETS[key])) {
+      CONFIG[key] = PRESETS[key];
+      if (ENV[key]) {
+        const customValues = Array.isArray(ENV[key]) ? ENV[key] : ENV[key].split(',').map(s => s.trim());
+        CONFIG[key].push(...customValues);
+      }
     } else {
       CONFIG[key] = PRESETS[key] || null;
       if (ENV[key] !== null) {
@@ -145,17 +156,20 @@
     });
   };
 
-  let pageType = null;
-
-  window.addEventListener('yt-navigate-start', event => {
-    pageType = null;
-    logDebug('Page type cleared.');
+  let isPageAllowed = false;
+  window.addEventListener('yt-page-data-updated', event => {
+    isPageAllowed = Boolean(document.querySelector(CONFIG.SELECTORS_ALLOWED_PAGES));
+    if (isPageAllowed) {
+      logDebug('Page allowed, waiting for videos\u2026');
+    } else {
+      logDebug('Page not allowed.');
+    }
   });
 
   /** MAIN **/
 
   const doVideo = (element) => {
-    if (pageType !== 'home' && pageType !== 'watch') {
+    if (!isPageAllowed) {
       return false;
     }
 
@@ -166,45 +180,49 @@
 
     let views = dismissible.__dataHost?.__data?.data?.viewCountText?.simpleText;
     if (!views) {
+      logDebug('Unable to access views data', element);
       return false;
     }
 
-    views = views.replace(/[.,]/, ''); // remove separator
-
-    const match = views.match(/(\d*)/);
-    if (!match || !match[1]) {
-      return false;
+    for (const regex of CONFIG.REGEX_NO_VIEWS) {
+      if (regex.test(views)) {
+        views = 0;
+      } else {
+        views = views.replace(/[.,]/, ''); // remove separator
+        const match = views.match(/(\d*)/);
+        if (!match || !match[1]) {
+          logDebug('Unable to parse views string', views, element);
+          return false;
+        }
+        views = Number(match[1]);
+      }
     }
 
-    views = Number(match[1]);
+    let thresholdUnmet = null;
 
     const isNew = Boolean(dismissible.querySelector('.badge[aria-label="New"]'));
     if (isNew) {
       if (views <= CONFIG.VIEWS_THRESHOLD_NEW) {
-        log(`Hid video (${views} <= ${CONFIG.VIEWS_THRESHOLD_NEW})`, element);
-        element.style.display = 'none';
+        thresholdUnmet = CONFIG.VIEWS_THRESHOLD_NEW;
       }
     } else {
       if (views <= CONFIG.VIEWS_THRESHOLD) {
-        log(`Hid video (${views} <= ${CONFIG.VIEWS_THRESHOLD})`, element);
-        element.style.display = 'none';
+        thresholdUnmet = CONFIG.VIEWS_THRESHOLD;
       }
     }
+
+    if (thresholdUnmet === null) {
+      return false;
+    }
+
+    log(`Hid video (${views} <= ${thresholdUnmet})`, element);
+    element.style.display = 'none';
+    return true;
   };
 
   /** SENTINEL */
 
   waitPageLoaded().then(() => {
-    sentinel.on(CONFIG.SELECTORS_HOME, element => {
-      pageType = 'home';
-      logDebug(`Page type updated to "${pageType}".`);
-    });
-
-    sentinel.on(CONFIG.SELECTORS_WATCH_PAGE, element => {
-      pageType = 'watch';
-      logDebug(`Page type updated to "${pageType}".`);
-    });
-
     sentinel.on(CONFIG.SELECTORS_VIDEO, element => {
       doVideo(element);
     });
