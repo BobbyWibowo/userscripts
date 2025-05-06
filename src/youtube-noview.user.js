@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @match        *://www.youtube.com/watch*
+// @match        *://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @run-at       document-start
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @version      1.0.0
+// @version      1.0.1
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  06/05/2025 04:44:00 PM
@@ -53,6 +53,9 @@
     VIEWS_THRESHOLD: 999,
     VIEWS_THRESHOLD_NEW: 99,
 
+    SELECTORS_HOME: null,
+    SELECTORS_WATCH_PAGE: null,
+
     SELECTORS_VIDEO: null
   };
 
@@ -60,7 +63,14 @@
    * Specifying custom values will extend instead of replacing them.
    */
   const PRESETS = {
-    SELECTORS_VIDEO: 'ytd-compact-video-renderer:has(ytd-video-meta-block)'
+    // Keys that starts with "SELECTORS_", and in array, will automatically be converted to single-line strings.
+    SELECTORS_HOME: 'ytd-browse[page-subtype="home"]',
+    SELECTORS_WATCH_PAGE: 'ytd-watch-flexy',
+
+    SELECTORS_VIDEO: [
+      'ytd-compact-video-renderer:has(#dismissible ytd-video-meta-block)',
+      'ytd-rich-item-renderer:has(#dismissible ytd-video-meta-block)'
+    ]
   };
 
   const ENV = {};
@@ -121,7 +131,7 @@
     }
   }
 
-  /** MAIN **/
+  /** UTILS **/
 
   const waitPageLoaded = () => {
     return new Promise(resolve => {
@@ -135,7 +145,20 @@
     });
   };
 
-  const doVideo = element => {
+  let pageType = null;
+
+  window.addEventListener('yt-navigate-start', event => {
+    pageType = null;
+    logDebug('Page type cleared.');
+  });
+
+  /** MAIN **/
+
+  const doVideo = (element, options = {}) => {
+    if (pageType !== 'home' && pageType !== 'watch') {
+      return false;
+    }
+
     const dismissible = element.querySelector('#dismissible');
     if (!dismissible) {
       return false;
@@ -158,18 +181,30 @@
     const isNew = Boolean(dismissible.querySelector('.badge[aria-label="New"]'));
     if (isNew) {
       if (views <= CONFIG.VIEWS_THRESHOLD_NEW) {
-        log(`Hid video (${views} <= ${CONFIG.VIEWS_THRESHOLD_NEW})`, dismissible.parentNode);
-        dismissible.parentNode.style.display = 'none';
+        log(`Hid video (${views} <= ${CONFIG.VIEWS_THRESHOLD_NEW})`, element);
+        element.style.display = 'none';
       }
     } else {
       if (views <= CONFIG.VIEWS_THRESHOLD) {
-        log(`Hid video (${views} <= ${CONFIG.VIEWS_THRESHOLD})`, dismissible.parentNode);
-        dismissible.parentNode.style.display = 'none';
+        log(`Hid video (${views} <= ${CONFIG.VIEWS_THRESHOLD})`, element);
+        element.style.display = 'none';
       }
     }
   };
 
+  /** SENTINEL */
+
   waitPageLoaded().then(() => {
+    sentinel.on(CONFIG.SELECTORS_HOME, element => {
+      pageType = 'home';
+      logDebug(`Page type updated to "${pageType}".`);
+    });
+
+    sentinel.on(CONFIG.SELECTORS_WATCH_PAGE, element => {
+      pageType = 'watch';
+      logDebug(`Page type updated to "${pageType}".`);
+    });
+
     sentinel.on(CONFIG.SELECTORS_VIDEO, element => {
       doVideo(element);
     });
