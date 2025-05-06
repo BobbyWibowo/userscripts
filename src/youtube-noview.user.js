@@ -6,7 +6,7 @@
 // @run-at       document-start
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @version      1.0.1
+// @version      1.0.2
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  06/05/2025 04:44:00 PM
@@ -171,7 +171,7 @@
 
     views = views.replace(/[.,]/, ''); // remove separator
 
-    const match = views.match(/^(\d*)/);
+    const match = views.match(/(\d*)/);
     if (!match || !match[1]) {
       return false;
     }
