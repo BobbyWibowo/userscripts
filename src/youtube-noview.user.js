@@ -4,9 +4,10 @@
 // @match        *://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @run-at       document-start
+// @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @version      1.0.5
+// @version      1.1.0
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  06/05/2025 04:44:00 PM
@@ -53,6 +54,10 @@
     VIEWS_THRESHOLD: 999,
     VIEWS_THRESHOLD_NEW: 499,
 
+    ALLOWED_CHANNEL_IDS: [],
+
+    DISABLE_STYLES: false,
+
     SELECTORS_ALLOWED_PAGE: null,
     SELECTORS_VIDEO: null
   };
@@ -61,6 +66,9 @@
    * Specifying custom values will extend instead of replacing them.
    */
   const PRESETS = {
+    // To ensure any custom values will be inserted into array, or combined together if also an array.
+    ALLOWED_CHANNEL_IDS: [],
+
     // Keys that starts with "SELECTORS_", and in array, will automatically be converted to single-line strings.
     SELECTORS_ALLOWED_PAGE: [
       'ytd-browse[page-subtype="home"]:not([hidden])', // home
@@ -136,6 +144,16 @@
     }
   }
 
+  /** STYLES **/
+
+  if (!CONFIG.DISABLE_STYLES) {
+    GM_addStyle(/*css*/`
+      [data-noview_allowed_channel] #metadata-line span:nth-child(1 of .inline-metadata-item) {
+        font-style: italic;
+      }
+    `);
+  }
+
   /** UTILS **/
 
   const waitPageLoaded = () => {
@@ -175,6 +193,21 @@
     const dismissible = element.querySelector('#dismissible');
     if (!dismissible) {
       return false;
+    }
+
+    if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
+      const channelId = dismissible.__dataHost?.__data?.data?.owner?.navigationEndpoint?.browseEndpoint?.browseId ||
+        dismissible.__dataHost?.__data?.data?.longBylineText?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId;
+      if (!channelId) {
+        logDebug('Unable to access owner data', element);
+        return false;
+      }
+
+      if (CONFIG.ALLOWED_CHANNEL_IDS.includes(channelId)) {
+        logDebug(`Ignoring video from an allowed channel (${channelId})`, element);
+        element.dataset.noview_allowed_channel = true;
+        return false;
+      }
     }
 
     let views = dismissible.__dataHost?.__data?.data?.viewCountText?.simpleText;
