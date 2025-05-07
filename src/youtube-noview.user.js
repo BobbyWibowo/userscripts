@@ -7,7 +7,7 @@
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @version      1.1.0
+// @version      1.1.1
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  06/05/2025 04:44:00 PM
@@ -196,6 +196,8 @@
     }
 
     if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
+      delete element.dataset.noview_allowed_channel;
+
       const channelId = dismissible.__dataHost?.__data?.data?.owner?.navigationEndpoint?.browseEndpoint?.browseId ||
         dismissible.__dataHost?.__data?.data?.longBylineText?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId;
       if (!channelId) {
