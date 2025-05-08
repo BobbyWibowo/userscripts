@@ -7,7 +7,7 @@
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @version      1.1.1
+// @version      1.1.2
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  06/05/2025 04:44:00 PM
@@ -75,8 +75,8 @@
       'ytd-watch-flexy:not([hidden])' // watch page
     ],
     SELECTORS_VIDEO: [
-      'ytd-compact-video-renderer:has(#dismissible ytd-thumbnail:not([hidden]) img[src])',
-      'ytd-rich-item-renderer:has(#dismissible ytd-thumbnail:not([hidden]) img[src])'
+      'ytd-compact-video-renderer:has(#dismissible ytd-thumbnail img[src])',
+      'ytd-rich-item-renderer:has(#dismissible ytd-thumbnail img[src])'
     ]
   };
 
@@ -146,6 +146,13 @@
 
   /** STYLES **/
 
+  // Styling that must always be enabled for the script's core functionalities.
+  GM_addStyle(/*css*/`
+    [data-noview_threshold_unmet] {
+      display: none;
+    }
+  `);
+
   if (!CONFIG.DISABLE_STYLES) {
     GM_addStyle(/*css*/`
       [data-noview_allowed_channel] #metadata-line span:nth-child(1 of .inline-metadata-item) {
@@ -185,7 +192,17 @@
 
   /** MAIN **/
 
-  const doVideo = (element) => {
+  const handleVideoUpdate = event => {
+    const video = event.target.closest(CONFIG.SELECTORS_VIDEO);
+    if (video?.dataset.noview_threshold_unmet) {
+      logDebug(`Resetting old statuses (${video.dataset.noview_views} <= ${video.dataset.noview_threshold_unmet})`,
+        video);
+      delete video.dataset.noview_threshold_unmet;
+      delete video.dataset.noview_views;
+    }
+  };
+
+  const doVideo = element => {
     if (!isPageAllowed) {
       return false;
     }
@@ -194,6 +211,9 @@
     if (!dismissible) {
       return false;
     }
+
+    // Listen to this event to handle dynamic update (during page navigation).
+    element.addEventListener('yt-enable-lockup-interaction', handleVideoUpdate);
 
     if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
       delete element.dataset.noview_allowed_channel;
@@ -207,7 +227,7 @@
 
       if (CONFIG.ALLOWED_CHANNEL_IDS.includes(channelId)) {
         logDebug(`Ignoring video from an allowed channel (${channelId})`, element);
-        element.dataset.noview_allowed_channel = true;
+        element.dataset.noview_allowed_channel = channelId;
         return false;
       }
     }
@@ -246,7 +266,8 @@
     }
 
     log(`Hid video (${views} <= ${thresholdUnmet})`, element);
-    element.style.display = 'none';
+    element.dataset.noview_threshold_unmet = thresholdUnmet;
+    element.dataset.noview_views = views; // for context with inspect element
     return true;
   };
 
