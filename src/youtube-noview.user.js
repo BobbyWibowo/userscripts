@@ -155,7 +155,7 @@
 
   if (!CONFIG.DISABLE_STYLES) {
     GM_addStyle(/*css*/`
-      [data-noview_allowed_channel] #metadata-line span:nth-last-child(2 of .inline-metadata-item) { {
+      [data-noview_allowed_channel] #metadata-line span:nth-last-child(2 of .inline-metadata-item) {
         font-style: italic;
       }
     `);
