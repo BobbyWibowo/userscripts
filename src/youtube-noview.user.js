@@ -7,7 +7,7 @@
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @version      1.1.2
+// @version      1.1.3
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  06/05/2025 04:44:00 PM
@@ -220,15 +220,14 @@
 
       const channelId = dismissible.__dataHost?.__data?.data?.owner?.navigationEndpoint?.browseEndpoint?.browseId ||
         dismissible.__dataHost?.__data?.data?.longBylineText?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId;
-      if (!channelId) {
+      if (channelId) {
+        if (CONFIG.ALLOWED_CHANNEL_IDS.includes(channelId)) {
+          logDebug(`Ignoring video from an allowed channel (${channelId})`, element);
+          element.dataset.noview_allowed_channel = channelId;
+          return false;
+        }
+      } else {
         logDebug('Unable to access owner data', element);
-        return false;
-      }
-
-      if (CONFIG.ALLOWED_CHANNEL_IDS.includes(channelId)) {
-        logDebug(`Ignoring video from an allowed channel (${channelId})`, element);
-        element.dataset.noview_allowed_channel = channelId;
-        return false;
       }
     }
 
