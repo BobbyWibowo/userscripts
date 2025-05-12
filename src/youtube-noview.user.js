@@ -7,7 +7,7 @@
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @version      1.1.3
+// @version      1.1.4
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  06/05/2025 04:44:00 PM
@@ -237,14 +237,15 @@
       return false;
     }
 
-    views = views.replace(/[.,]/, ''); // remove separator
+    const digits = views
+      .replace(/[.,]/, '')
+      .match(/\d/g);
 
-    const match = views.match(/(\d*)/);
-    if (match && match[1]) {
-      views = Number(match[1]);
-    } else {
-      // To support any locales, assume all views string without numbers are only used for 0 views.
+    // To support any locales, assume all views string without numbers are only used for 0 views.
+    if (digits === null) {
       views = 0;
+    } else {
+      views = Number(digits.join(''));
     }
 
     let thresholdUnmet = null;
