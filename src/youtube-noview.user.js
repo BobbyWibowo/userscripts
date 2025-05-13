@@ -237,12 +237,9 @@
       return false;
     }
 
-    const digits = views
-      .replace(/[.,]/, '')
-      .match(/\d/g);
-
-    // To support any locales, assume all views string without numbers are only used for 0 views.
+    const digits = views.match(/\d/g);
     if (digits === null) {
+      // To support any locales, assume all views string without numbers are only used for 0 views.
       views = 0;
     } else {
       views = Number(digits.join(''));
