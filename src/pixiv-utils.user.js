@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        window.onurlchange
 // @run-at       document-start
-// @version      1.5.11
+// @version      1.5.12
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -995,6 +995,25 @@
       oldImageArtist.remove();
     }
 
+    const data = findItemData(element);
+    if (data.id === null) {
+      return false;
+    }
+
+    let imageControls = null;
+    if (data.novel) {
+      imageControls = element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
+    } else {
+      // If it's not a novel, assume image controls may be delayed due to still being generated.
+      imageControls = await waitFor(() => {
+        return element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
+      }, element);
+    }
+
+    if (!imageControls) {
+      return false;
+    }
+
     let hasVisibleArtistTag = false;
     const artistTag = element.querySelector('a[href*="users/"]');
     if (artistTag) {
@@ -1007,25 +1026,6 @@
       (currentUrl.indexOf('users/') === -1 || // never in artist page (except bookmarks tab)
       (currentUrl.indexOf('users/') !== -1 && currentUrl.indexOf('/bookmarks') !== -1))) {
       await addImageArtist(element);
-    }
-
-    const data = findItemData(element);
-    if (data.id === null) {
-      return false;
-    }
-
-    let imageControls = null;
-    if (data.novel) {
-      imageControls = element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
-    } else {
-      // Only await image controls is still being generated if it's not a novel.
-      imageControls = await waitFor(() => {
-        return element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
-      }, element);
-    }
-
-    if (!imageControls) {
-      return false;
     }
 
     const oldEditBookmarkButton = imageControls.querySelector('.pixiv_utils_edit_bookmark_container');
