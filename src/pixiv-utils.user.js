@@ -117,14 +117,14 @@
       '.iwHaa-d > li', // tags page's grid
       '.jClpXN > li', // tags page's grid (novel)
       '.fhUcsb > li', // "newest by all" page
+      '.buGhFj > li', // requests page
       '.dHJLGd > div', // novels page's ongoing contests
       '.ranking-item', // rankings page
       '._ranking-item', // rankings page (novel)
       '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
       '.works-item:not(.works-item-illust):has(.thumb:not([src^="data"]))', // mobile (novel)
       '.works-item-novel-editor-recommend:has(.cover:not([style^="data"]))', // mobile's novels page's editor's picks
-      '.stacclist > li.illust', // mobile's feed page
-      '.buGhFj > li' // mobile's requests page
+      '.stacclist > li.illust' // mobile's feed page
     ],
 
     SELECTORS_IMAGE_TITLE: [
