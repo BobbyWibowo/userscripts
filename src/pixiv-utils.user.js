@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        window.onurlchange
 // @run-at       document-start
-// @version      1.5.12
+// @version      1.5.13
 // @author       Bobby Wibowo
 // @license      MIT
 // @description  7/2/2024, 8:37:14 PM
@@ -120,10 +120,11 @@
       '.dHJLGd > div', // novels page's ongoing contests
       '.ranking-item', // rankings page
       '._ranking-item', // rankings page (novel)
-      '.works-item-illust:has(.thumb:not([src^=data]))', // mobile
-      '.works-item:not(.works-item-illust)', // mobile (novel)
-      '.works-item-novel-editor-recommend', // mobile's novels page's editor's picks
-      '.stacclist > li.illust' // mobile's feed page
+      '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
+      '.works-item:not(.works-item-illust):has(.thumb:not([src^="data"]))', // mobile (novel)
+      '.works-item-novel-editor-recommend:has(.cover:not([style^="data"]))', // mobile's novels page's editor's picks
+      '.stacclist > li.illust', // mobile's feed page
+      '.buGhFj > li' // mobile's requests page
     ],
 
     SELECTORS_IMAGE_TITLE: [
@@ -236,11 +237,11 @@
         selectorHeader: '.dlidhK',
         selectorImagesContainer: '.fxjfKC'
       },
-      // FIXME "Newest by all" page
+      // "Newest by all" page
       {
-        selectorParent: '.sc-7b5ed552-0',
-        selectorHeader: '.sc-f08ce4e3-2',
-        selectorImagesContainer: '.sc-a7a11491-1'
+        selectorParent: '.YXoqY',
+        selectorHeader: '.cwGkEl',
+        selectorImagesContainer: '.hairtM '
       },
       // Rankings page
       {
@@ -606,7 +607,8 @@
     width: 100%;
   }
 
-  .bXtqby:has(+ .pixiv_utils_toggle_bookmarked_container) {
+  .bXtqby:has(+ .pixiv_utils_toggle_bookmarked_container),
+  .eEVUIK:has(+ .pixiv_utils_toggle_bookmarked_container) {
     flex-grow: 1;
     justify-content: flex-end;
   }
@@ -1014,15 +1016,16 @@
       return false;
     }
 
-    let hasVisibleArtistTag = false;
     const artistTag = element.querySelector('a[href*="users/"]');
-    if (artistTag) {
+    let hasVisibleArtistTag = Boolean(artistTag);
+    if (hasVisibleArtistTag && element.parentOffset !== null) {
+      // If the image itself is visible, but its built-in artist tag is not.
       hasVisibleArtistTag = artistTag.offsetParent !== null;
     }
 
     // Add artist tag if necessary.
     if (!hasVisibleArtistTag &&
-      !element.closest('.works-horizontal-list.grid') && // never in mobile expanded view's artist bottom bar
+      !element.closest('.user-badge .works-horizontal-list') && // never in mobile expanded view's artist bottom bar
       (currentUrl.indexOf('users/') === -1 || // never in artist page (except bookmarks tab)
       (currentUrl.indexOf('users/') !== -1 && currentUrl.indexOf('/bookmarks') !== -1))) {
       await addImageArtist(element);
