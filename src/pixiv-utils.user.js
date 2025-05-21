@@ -1,19 +1,19 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
+// @version      1.5.14
+// @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, novel recommendations removal, UTags integration, and more!
+// @author       Bobby Wibowo
+// @license      MIT
 // @match        *://www.pixiv.net/*
 // @exclude      *://www.pixiv.net/setting*
 // @exclude      *://www.pixiv.net/manage*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=pixiv.net
+// @run-at       document-start
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        window.onurlchange
-// @run-at       document-start
-// @version      1.5.13
-// @author       Bobby Wibowo
-// @license      MIT
-// @description  7/2/2024, 8:37:14 PM
 // @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
 // @noframes
 // ==/UserScript==
