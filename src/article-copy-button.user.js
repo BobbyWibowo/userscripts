@@ -1,14 +1,15 @@
 // ==UserScript==
 // @name         Article Copy Button
 // @namespace    https://github.com/BobbyWibowo
-// @match        *://*/*
-// @grant        GM_addStyle
-// @grant        GM_getValue
-// @version      1.2.1
+// @version      1.3.0
+// @description  Add copy buttons to some sites. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
+// @match        *://*/*
 // @run-at       document-end
-// @description  09/02/2025, 16.57.34
+// @grant        GM_addStyle
+// @grant        GM_getValue
+// @grant        GM_setValue
 // @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
 // ==/UserScript==
 
@@ -39,65 +40,125 @@
     }
   };
 
-  const ARTICLES_CONFIG = [
-    {
-      whitelistedHosts: [
-        'quanben-xiaoshuo.com'
-      ],
-      parentSelector: '.wrapper .box',
-      titleSelector: '.title',
-      articleSelector: '#articlebody',
-      AIPromptPrefix: 'Display the translation of this web novel chapter, retaining all original text without any loss in translation, and incorporating the remembered glossary:\n\n'
-    },
-    {
-      parentSelector: '.wp-manga-page',
-      titleSelector: '.breadcrumb .active',
-      articleSelector: '.reading-content div[class*="text-"]',
-      AIPromptPrefix: 'Improve readability of this web novel chapter, without any loss:\n\n'
-    },
-    {
-      parentSelector: '#chapter',
-      titleSelector: '.chapter-title',
-      articleSelector: '.chapter-c'
-    },
-    {
-      whitelistedHosts: [
-        'www.hoyolab.com'
-      ],
-      sentinel: true, // this option is ignored without whitelistedHosts for performance
-      parentSelector: '.mhy-article-page',
-      titleSelector: '.mhy-article-page__title h1',
-      articleSelector: '.mhy-article-page__content'
-    },
-    {
-      whitelistedHosts: [
-        'www.reddit.com'
-      ],
-      sentinel: true,
-      parentSelector: 'shreddit-post',
-      titleSelector: '[id^="post-title-"]',
-      articleSelector: 'div[slot="text-body"], div[slot="expando-content"]'
-    },
-    {
-      whitelistedHosts: [
-        'old.reddit.com'
-      ],
-      sentinel: true,
-      parentSelector: 'div[id^="thing_"]',
-      titleSelector: 'a.title',
-      articleSelector: '.expando:not(.expando-uninitialized)'
-    }
-  ];
+  /** CONFIG **/
 
-  const ENV = {
-    MODE: GM_getValue('MODE', 'PROD')
+  /* It's recommended to edit these values through your userscript manager's storage/values editor.
+   * Visit YouTube once after installing the script to allow it to populate its storage with default values.
+   * Especially necessary for Tampermonkey to show the script's Storage tab when Advanced mode is turned on.
+   */
+  const ENV_DEFAULTS = {
+    MODE: 'PROD',
+
+    ARTICLES_CONFIG: []
   };
 
-  let logDebug = () => {};
-  if (ENV.MODE !== 'PROD') {
-    log('MODE =', ENV.MODE);
-    logDebug = log;
+  /* Hard-coded preset values.
+   * Specifying custom values will extend instead of replacing them.
+   */
+  const PRESETS = {
+    ARTICLES_CONFIG: [
+      {
+        whitelistedHosts: [
+          'quanben-xiaoshuo.com'
+        ],
+        parentSelector: '.wrapper .box',
+        titleSelector: '.title',
+        articleSelector: '#articlebody',
+        AIPromptPrefix: 'Display the translation of this web novel chapter, retaining all original text without any loss in translation, and incorporating the remembered glossary:\n\n'
+      },
+      {
+        parentSelector: '.wp-manga-page',
+        titleSelector: '.breadcrumb .active',
+        articleSelector: '.reading-content div[class*="text-"]',
+        AIPromptPrefix: 'Improve readability of this web novel chapter, without any loss:\n\n'
+      },
+      {
+        parentSelector: '#chapter',
+        titleSelector: '.chapter-title',
+        articleSelector: '.chapter-c'
+      },
+      {
+        whitelistedHosts: [
+          'www.hoyolab.com'
+        ],
+        sentinel: true, // this option is ignored without whitelistedHosts for performance
+        parentSelector: '.mhy-article-page',
+        titleSelector: '.mhy-article-page__title h1',
+        articleSelector: '.mhy-article-page__content'
+      },
+      {
+        whitelistedHosts: [
+          'www.reddit.com'
+        ],
+        sentinel: true,
+        parentSelector: 'shreddit-post',
+        titleSelector: '[id^="post-title-"]',
+        articleSelector: 'div[slot="text-body"], div[slot="expando-content"]'
+      },
+      {
+        whitelistedHosts: [
+          'old.reddit.com'
+        ],
+        sentinel: true,
+        parentSelector: 'div[id^="thing_"]',
+        titleSelector: 'a.title',
+        articleSelector: '.expando:not(.expando-uninitialized)'
+      }
+    ]
+  };
+
+  const ENV = {};
+
+  // Store default values.
+  for (const key of Object.keys(ENV_DEFAULTS)) {
+    const stored = GM_getValue(key);
+    if (stored === null || stored === undefined) {
+      ENV[key] = ENV_DEFAULTS[key];
+      GM_setValue(key, ENV_DEFAULTS[key]);
+    } else {
+      ENV[key] = stored;
+    }
   }
+
+  const _DOCUMENT_FRAGMENT = document.createDocumentFragment();
+  const queryCheck = selector => _DOCUMENT_FRAGMENT.querySelector(selector);
+
+  const isSelectorValid = selector => {
+    try {
+      queryCheck(selector);
+    } catch {
+      return false;
+    }
+    return true;
+  };
+
+  const CONFIG = {};
+
+  // Extend hard-coded preset values with user-defined custom values, if applicable.
+  for (const key of Object.keys(ENV)) {
+    if (Array.isArray(PRESETS[key])) {
+      CONFIG[key] = PRESETS[key];
+      if (ENV[key]) {
+        const customValues = Array.isArray(ENV[key]) ? ENV[key] : ENV[key].split(',').map(s => s.trim());
+        CONFIG[key].push(...customValues);
+      }
+    } else {
+      CONFIG[key] = PRESETS[key] || null;
+      if (ENV[key] !== null) {
+        CONFIG[key] = ENV[key];
+      }
+    }
+  }
+
+  let logDebug = () => {};
+  if (CONFIG.MODE !== 'PROD') {
+    logDebug = log;
+    for (const key of Object.keys(CONFIG)) {
+      logDebug(`${key} =`, CONFIG[key]);
+    }
+  }
+
+  /** STYLES **/
 
   const GLOBAL_STYLE = /*css*/`
   .copy-article-button-container {
@@ -387,7 +448,26 @@
 
   let _rootDone = 0;
 
-  for (const config of ARTICLES_CONFIG) {
+  for (const config of CONFIG.ARTICLES_CONFIG) {
+    let incomplete = false;
+
+    ['parentSelector', 'articleSelector'].forEach(key => {
+      if (!config[key]) {
+        console.error(`Missing ${key} = `, config);
+        incomplete = true;
+      } else if (!isSelectorValid(config[key])) {
+        console.error(`${key} contains invalid selector = `, config[key]);
+      }
+    });
+
+    if (incomplete) {
+      continue;
+    }
+
+    if (config.titleSelector && !isSelectorValid(config.titleSelector)) {
+      log('titleSelector contains invalid selector (ignored) = ', config.titleSelector);
+    }
+
     let initSentinel = false;
 
     // Skip config if it's whitelisted for specific hosts yet it doesn't match current host.
