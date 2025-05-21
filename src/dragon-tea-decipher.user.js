@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         Dragon Tea Decipher
 // @namespace    https://github.com/BobbyWibowo
+// @version      1.1.1
+// @description  Decipher Atbash cipher on Dragon Tea website, to facilitate customizing display font.
+// @author       Bobby Wibowo
+// @license      MIT
 // @match        *://dragontea.ink/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=dragontea.ink
 // @run-at       document-end
 // @grant        GM_getValue
-// @version      1.1.0
-// @author       Bobby Wibowo
-// @license      MIT
-// @description  7/2/2024, 8:37:14 PM
 // @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
 // @noframes
 // ==/UserScript==
