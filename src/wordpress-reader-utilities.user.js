@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         WordPress Reader Utilities
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.0.4
-// @description  Common utilities for readers of WordPress-based sites
+// @version      1.0.5
+// @description  Common utilities for readers of WordPress-based sites.
 // @author       Bobby Wibowo
 // @license      MIT
-// @run-at       document-end
 // @match        *://*/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=wordpress.org
+// @run-at       document-end
 // @grant        GM_addStyle
 // ==/UserScript==
 
