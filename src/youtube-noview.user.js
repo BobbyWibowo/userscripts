@@ -1,16 +1,16 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
+// @version      1.1.6
+// @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
+// @author       Bobby Wibowo
+// @license      MIT
 // @match        *://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @run-at       document-start
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @version      1.1.5
-// @author       Bobby Wibowo
-// @license      MIT
-// @description  06/05/2025 04:44:00 PM
 // @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
 // @noframes
 // ==/UserScript==
