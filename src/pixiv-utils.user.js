@@ -76,6 +76,7 @@
     SELECTORS_MULTI_VIEW_CONTROLS: null,
     SELECTORS_FOLLOW_BUTTON_CONTAINER: null,
     SELECTORS_FOLLOW_BUTTON: null,
+    SELECTORS_RECOMMENDED_USER_CONTAINER: null,
 
     DATE_CONVERSION: true,
     DATE_CONVERSION_LOCALES: 'en-GB',
@@ -199,6 +200,11 @@
     SELECTORS_FOLLOW_BUTTON: [
       '[data-click-label="follow"]:not([disabled])', // desktop
       '.ui-button' // mobile
+    ],
+
+    SELECTORS_RECOMMENDED_USER_CONTAINER: [
+      // home's recommended users sidebar
+      '.hSNbaL > .grid > :nth-child(2) .flex-col.gap-8:first-child .flex-row.items-center:not(.mr-auto)'
     ],
 
     SELECTORS_DATE: [
@@ -446,6 +452,8 @@
   }
 
   /** MAIN UTILS */
+
+  const SELECTORS_IMAGE_MOBILE = '.works-item-illust';
 
   let currentUrl = new URL(window.location.href, window.location.origin).href;
   const notify = (method, url) => {
@@ -773,7 +781,7 @@
       return false;
     }
 
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       let interval = null;
       const find = () => {
         const result = func(element);
@@ -909,19 +917,17 @@
         return false;
       }
 
-      let _key = null;
-      ['thumbnail', 'rawThumbnail'].forEach(key => {
+      for (const key of ['thumbnail', 'rawThumbnail']) {
         if (element[reactPropsKey].children?.props?.[key]) {
-          _key = key;
+          userId = element[reactPropsKey].children.props[key].userId;
+          userName = element[reactPropsKey].children.props[key].userName;
+          break;
         }
-      });
-
-      if (!_key) {
-        return false;
       }
+    }
 
-      userId = element[reactPropsKey].children.props[_key].userId;
-      userName = element[reactPropsKey].children.props[_key].userName;
+    if (!userId || !userName) {
+        return false;
     }
 
     const div = document.createElement('div');
@@ -943,7 +949,7 @@
     if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome) {
       if (findNovelUrl(element)) {
         element.style.display = 'none';
-        logDebug('Removed novel recommendation from home', element);
+        logDebug('Novel recommendation removed from home', element);
         return true;
       }
     }
@@ -985,6 +991,7 @@
 
     // Reset blocked status if necessary.
     if (options.forced && element.dataset.pixiv_utils_blocked) {
+      delete element.title;
       delete element.dataset.pixiv_utils_blocked;
       const blockedThumb = element.querySelector('.pixiv_utils_blocked_image_container');
       if (blockedThumb) {
@@ -1044,7 +1051,7 @@
     if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome) {
       if (findNovelUrl(element)) {
         element.parentNode.style.display = 'none';
-        logDebug('Removed novel recommendation from home', element);
+        logDebug('Novel recommendation removed from home', element);
         return true;
       }
     }
@@ -1068,12 +1075,7 @@
     return false;
   };
 
-  const doExpandedViewControls = async element => {
-    // Skip if edit bookmark button already inserted.
-    if (element.querySelector('.pixiv_utils_edit_bookmark')) {
-      return false;
-    }
-
+  const getExpandedViewLocationData = () => {
     let id = null;
     let isNovel = false;
 
@@ -1087,6 +1089,17 @@
         isNovel = true;
       }
     }
+
+    return { id, isNovel };
+  };
+
+  const doExpandedViewControls = async element => {
+    // Skip if edit bookmark button already inserted.
+    if (element.querySelector('.pixiv_utils_edit_bookmark')) {
+      return false;
+    }
+
+    const { id, isNovel } = getExpandedViewLocationData();
 
     if (id !== null) {
       element.append(editBookmarkButton(id, isNovel));
@@ -1224,15 +1237,49 @@
     return true;
   };
 
+  const setImageBlocked = (element, options = {}) => {
+    const data = findItemData(element);
+    if (!data.link) {
+      return false;
+    }
+
+    // Skip if already blocked.
+    if (element.dataset.pixiv_utils_blocked) {
+      return false;
+    }
+
+    element.dataset.pixiv_utils_blocked = true;
+
+    // For mobile, never remove blocked, as it does not behave well with Pixiv's in-place navigation.
+    if (options.remove && !options.mobile) {
+      element.style.display = 'none';
+      return true;
+    }
+
+    const blockedThumb = document.createElement('a');
+    blockedThumb.className = 'pixiv_utils_blocked_image_container';
+    blockedThumb.href = data.link.href;
+    blockedThumb.innerHTML = BLOCKED_IMAGE_HTML;
+
+    data.link.after(blockedThumb);
+
+    // Tooltip.
+    if (options.hint) {
+      element.title = options.hint;
+    }
+
+    return true;
+  };
+
   const doUtags = async element => {
     let image = element.closest(CONFIG.SELECTORS_IMAGE);
 
     let mobile = false;
     if (image) {
-      mobile = image.matches('.works-item-illust');
+      mobile = image.matches(SELECTORS_IMAGE_MOBILE);
     } else {
       // For mobile images, re-attempt query with some patience.
-      image = element.closest('.works-item-illust');
+      image = element.closest(SELECTORS_IMAGE_MOBILE);
       if (image) {
         mobile = true;
         const awaited = await waitFor(() => image.querySelector('.thumb:not([src^=data])'), image);
@@ -1242,48 +1289,34 @@
       }
     }
 
+    const utag = element.dataset.utags_tag;
+
     if (image) {
-      const data = findItemData(image);
-      if (!data.link) {
-        return false;
+      const status = setImageBlocked(image, {
+        mobile,
+        remove: CONFIG.UTAGS_REMOVE_BLOCKED,
+        hint: `UTag: ${utag}`
+      });
+
+      if (status) {
+        logDebug(`Image blocked (UTag: ${utag})`, image);
       }
 
-      // Skip if already blocked.
-      if (image.dataset.pixiv_utils_blocked) {
-        return false;
-      }
-
-      image.dataset.pixiv_utils_blocked = true;
-
-      // For mobile, never remove blocked, as it does not behave well with Pixiv's in-place navigation.
-      if (CONFIG.UTAGS_REMOVE_BLOCKED && !mobile) {
-        image.style.display = 'none';
-        return true;
-      }
-
-      const blockedThumb = document.createElement('a');
-      blockedThumb.className = 'pixiv_utils_blocked_image_container';
-      blockedThumb.href = data.link.href;
-      blockedThumb.innerHTML = BLOCKED_IMAGE_HTML;
-
-      data.link.after(blockedThumb);
-
-      // Tooltip.
-      if (element.dataset.utags_tag === 'hide') {
-        image.title = 'Hidden';
-      } else {
-        // "block" tag and custom tags.
-        image.title = 'Blocked';
-      }
-
-      return true;
+      return status;
     }
 
     const multiView = element.closest(CONFIG.SELECTORS_MULTI_VIEW);
     if (multiView) {
       // For multi view artwork, always hide the whole entry instead.
       multiView.parentNode.style.display = 'none';
-      logDebug('Removed multi view entry due to UTag', element);
+      logDebug(`Multi view entry removed (UTag: ${utag})`, multiView);
+      return true;
+    }
+
+    const recommendedUserContainer = element.closest(CONFIG.SELECTORS_RECOMMENDED_USER_CONTAINER);
+    if (recommendedUserContainer) {
+      recommendedUserContainer.style.display = 'none';
+      logDebug(`Recommended user removed (UTag: ${utag})`, recommendedUserContainer);
       return true;
     }
 
@@ -1294,6 +1327,7 @@
         // Cosmetic only. This will not disable Pixiv's built-in "F" keybind.
         followButton.classList.add('disabled');
         followButton.disabled = true;
+        logDebug(`Follow button disabled (UTag: ${utag})`, followButtonContainer);
         // Return early since there will only be one follow button per container.
         return true;
       }
@@ -1392,7 +1426,7 @@
           // Debug first pending interval.
           logDebug('waitFor', waitForIntervals[intervals[0]].element);
         }
-      }, 1000);
+      }, 2500);
     }
   });
 
