@@ -64,6 +64,7 @@
     TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED: 'Show not bookmarked',
 
     SELECTORS_HOME: null,
+    SELECTORS_OWN_PROFILE: null,
     SELECTORS_IMAGE: null,
     SELECTORS_IMAGE_TITLE: null,
     SELECTORS_IMAGE_ARTIST_AVATAR: null,
@@ -114,6 +115,11 @@
   const PRESETS = {
     // Keys that starts with "SELECTORS_", and in array, will automatically be converted to single-line strings.
     SELECTORS_HOME: '[data-ga4-label="page_root"]',
+
+    SELECTORS_OWN_PROFILE: [
+      'a[href*="settings/profile"]', // desktop
+      '.ui-button[href*="setting_profile.php"]' // mobile
+    ],
 
     SELECTORS_IMAGE: [
       'li[data-ga4-label="thumbnail"]', // home's latest works grid
@@ -1193,11 +1199,17 @@
       }
     }
 
-    if (PIXIV_BLOCKED_TAGS_VALIDATED) {
+    // Only block images if not in own profile.
+    if (PIXIV_BLOCKED_TAGS_VALIDATED && !options.isOwnProfile) {
       const blocked = await doBlockImage(element);
       if (blocked) {
         return true;
       }
+    }
+
+    // Exit early if in own profile, and not in bookmarks tab.
+    if (options.isOwnProfile && currentUrl.indexOf('/bookmarks') === -1) {
+      return false;
     }
 
     const oldImageArtist = element.querySelector('.pixiv_utils_image_artist_container');
@@ -1574,6 +1586,13 @@
   };
 
   let isHome = false;
+  let isOwnProfile = false;
+
+  const determinePageType = () => {
+    isHome = Boolean(document.querySelector(CONFIG.SELECTORS_HOME));
+    isOwnProfile = Boolean(document.querySelector(CONFIG.SELECTORS_OWN_PROFILE));
+    logDebug(`isHome: ${isHome}, isOwnProfile: ${isOwnProfile}`);
+  };
 
   window.addEventListener('detectnavigate', event => {
     const intervals = Object.keys(waitForIntervals);
@@ -1586,13 +1605,25 @@
       logDebug(`Cleared ${intervals.length} pending waitFor interval(s).`);
     }
 
-    isHome = Boolean(document.querySelector(CONFIG.SELECTORS_HOME));
+    // Reset page type.
+    isHome = isOwnProfile = false;
   });
 
   /** SENTINEL */
 
   waitPageLoaded().then(() => {
-    isHome = Boolean(document.querySelector(CONFIG.SELECTORS_HOME));
+    // Immediately attempt to determine page type.
+    determinePageType();
+
+    sentinel.on(CONFIG.SELECTORS_HOME, () => {
+      isHome = true;
+      logDebug(`isHome: ${isHome}`);
+    });
+
+    sentinel.on(CONFIG.SELECTORS_OWN_PROFILE, () => {
+      isOwnProfile = true;
+      logDebug(`isOwnProfile: ${isOwnProfile}`);
+    });
 
     // Expanded View Controls
     sentinel.on(CONFIG.SELECTORS_EXPANDED_VIEW_CONTROLS, element => {
@@ -1604,7 +1635,7 @@
       CONFIG.SELECTORS_IMAGE,
       CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE
     ], element => {
-      doImage(element, { isHome });
+      doImage(element, { isHome, isOwnProfile });
     });
 
     // Multi View Entries
