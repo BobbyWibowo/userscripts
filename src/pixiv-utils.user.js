@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.4
+// @version      1.6.5
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -1239,7 +1239,7 @@
 
     const artistTag = element.querySelector('a[href*="users/"]');
     let hasVisibleArtistTag = Boolean(artistTag);
-    if (hasVisibleArtistTag && element.parentOffset !== null) {
+    if (hasVisibleArtistTag && element.offsetParent !== null) {
       // If the image itself is visible, but its built-in artist tag is not.
       hasVisibleArtistTag = artistTag.offsetParent !== null;
     }
