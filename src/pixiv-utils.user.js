@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.5
+// @version      1.6.6
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -975,7 +975,7 @@
       let step = 0;
       const traverseChild = obj => {
         if (!obj || !obj.memoizedProps) {
-          return null;
+          return;
         }
 
         step++;
@@ -986,7 +986,7 @@
         } else if (props.content?.access?.tgs) {
           tags = props.content.access.tgs;
         } else {
-          for (const key of ['thumbnail', 'rawThumbnail']) {
+          for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
             if (props[key]) {
               ai = props[key].aiType === 2;
               tags = props[key].tags;
@@ -1120,7 +1120,7 @@
         return false;
       }
 
-      for (const key of ['thumbnail', 'rawThumbnail']) {
+      for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
         if (element[reactPropsKey].children?.props?.[key]) {
           userId = element[reactPropsKey].children.props[key].userId;
           userName = element[reactPropsKey].children.props[key].userName;
