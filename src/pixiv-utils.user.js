@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.5.14
-// @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, novel recommendations removal, UTags integration, and more!
+// @version      1.6.0
+// @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, novel recommendations removal, block by tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
 // @match        *://www.pixiv.net/*
@@ -70,6 +70,7 @@
     SELECTORS_IMAGE_ARTIST_NAME: null,
     SELECTORS_IMAGE_CONTROLS: null,
     SELECTORS_IMAGE_BOOKMARKED: null,
+    SELECTORS_EXPANDED_VIEW_IMAGE: null,
     SELECTORS_EXPANDED_VIEW_CONTROLS: null,
     SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: null,
     SELECTORS_MULTI_VIEW: null,
@@ -95,6 +96,11 @@
     SECTIONS_TOGGLE_BOOKMARKED: null,
 
     ENABLE_KEYBINDS: true,
+
+    PIXIV_BLOCK_AI: false,
+    PIXIV_BLOCKED_TAGS: null,
+    // Instead of merely masking them à la Pixiv's built-in tags mute.
+    PIXIV_REMOVE_BLOCKED: false,
 
     UTAGS_INTEGRATION: true,
     UTAGS_BLOCKED_TAGS: null,
@@ -176,6 +182,11 @@
       '.wQCIS', // "newest by all" page
       '._one-click-bookmark.on', // rankings page
       '.works-bookmark-button svg path[fill="#FF4060"]' // mobile
+    ],
+
+    SELECTORS_EXPANDED_VIEW_IMAGE: [
+      '.cxsjmo', // desktop
+      '.illust-details-view' // mobile
     ],
 
     SELECTORS_EXPANDED_VIEW_CONTROLS: [
@@ -281,6 +292,9 @@
       }
     ],
 
+    // To ensure any custom values will be inserted into array, or combined together if also an array.
+    PIXIV_BLOCKED_TAGS: [],
+
     UTAGS_BLOCKED_TAGS: ['block', 'hide']
   };
 
@@ -344,7 +358,17 @@
   let logKeys = Object.keys(CONFIG);
   if (CONFIG.MODE === 'PROD') {
     // In PROD mode, only print some.
-    logKeys = ['DATE_CONVERSION', 'REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME', 'ENABLE_KEYBINDS', 'UTAGS_INTEGRATION'];
+    logKeys = [
+      'DATE_CONVERSION',
+      'REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME',
+      'ENABLE_KEYBINDS',
+      'PIXIV_BLOCK_AI',
+      'PIXIV_BLOCK_TAGS',
+      'PIXIV_REMOVE_BLOCKED',
+      'UTAGS_INTEGRATION',
+      'UTAGS_BLOCKED_TAGS',
+      'UTAGS_REMOVE_BLOCKED'
+    ];
   } else {
     logDebug = log;
   }
@@ -455,6 +479,21 @@
 
   const SELECTORS_IMAGE_MOBILE = '.works-item-illust';
 
+  const PIXIV_BLOCKED_TAGS_STRING = [];
+  const PIXIV_BLOCKED_TAGS_REGEXP = [];
+
+  for (const tag of CONFIG.PIXIV_BLOCKED_TAGS) {
+    if (typeof tag === 'string') {
+      PIXIV_BLOCKED_TAGS_STRING.push(String(tag));
+    } else if (Array.isArray(tag)) {
+      PIXIV_BLOCKED_TAGS_REGEXP.push(new RegExp(tag[0], tag[1] || ''));
+    }
+  }
+
+  logDebug('PIXIV_BLOCKED_TAGS_STRING = ', PIXIV_BLOCKED_TAGS_STRING);
+  logDebug('PIXIV_BLOCKED_TAGS_REGEXP = ', PIXIV_BLOCKED_TAGS_REGEXP);
+  const PIXIV_BLOCKED_TAGS_VALIDATED = PIXIV_BLOCKED_TAGS_STRING.length || PIXIV_BLOCKED_TAGS_REGEXP.length;
+
   let currentUrl = new URL(window.location.href, window.location.origin).href;
   const notify = (method, url) => {
     const newUrl = new URL(url || window.location.href, window.location.origin).href;
@@ -532,11 +571,7 @@
     display: none;
   }
 
-  .byWzRq .pixiv_utils_edit_bookmark,
-  .hFAmSK .pixiv_utils_edit_bookmark,
-  .gAyuNi .pixiv_utils_edit_bookmark,
-  .cgYJXZ .pixiv_utils_edit_bookmark,
-  .Yzjmx .pixiv_utils_edit_bookmark {
+  :is(.byWzRq, .hFAmSK, .gAyuNi, .cgYJXZ, .Yzjmx) .pixiv_utils_edit_bookmark {
     margin-top: -26px;
   }
 
@@ -559,8 +594,8 @@
     z-index: 1;
   }
 
-  ${CONFIG.SELECTORS_EXPANDED_VIEW_CONTROLS.split(', ').map(s => `${s} .pixiv_utils_edit_bookmark`).join(', ')},
-  ${_formatSelectorsMultiViewControls().map(s => `${s} .pixiv_utils_edit_bookmark`).join(', ')} {
+  :is(${CONFIG.SELECTORS_EXPANDED_VIEW_CONTROLS}) .pixiv_utils_edit_bookmark,
+  :is(${_formatSelectorsMultiViewControls().join(', ')}) .pixiv_utils_edit_bookmark {
     font-size: 12px;
     height: 24px;
     line-height: 24px;
@@ -568,9 +603,7 @@
     margin-right: 7px;
   }
 
-  ._layout-thumbnail .pixiv_utils_edit_bookmark,
-  .novel-right-contents .pixiv_utils_edit_bookmark,
-  .imgoverlay .pixiv_utils_edit_bookmark {
+  :is(._layout-thumbnail, .novel-right-contents, .imgoverlay) .pixiv_utils_edit_bookmark {
     position: absolute !important;
     right: calc(50% - 71px);
     bottom: 4px;
@@ -615,8 +648,7 @@
     width: 100%;
   }
 
-  .bXtqby:has(+ .pixiv_utils_toggle_bookmarked_container),
-  .eEVUIK:has(+ .pixiv_utils_toggle_bookmarked_container) {
+  :is(.bXtqby, .eEVUIK):has(+ .pixiv_utils_toggle_bookmarked_container) {
     flex-grow: 1;
     justify-content: flex-end;
   }
@@ -649,6 +681,14 @@
   ${_FILTERED_SELECTORS_IMAGE_CONTROLS} {
     display: flex;
     justify-content: flex-end;
+  }
+
+  [data-pixiv_utils_expanded_view_blocked] :is([role="presentation"], .work-main-image) :is(img, canvas) {
+    filter: blur(32px);
+  }
+
+  [data-pixiv_utils_expanded_view_blocked] :is([role="presentation"], .work-main-image):hover :is(img, canvas) {
+    filter: unset;
   }
   `;
 
@@ -704,27 +744,25 @@
     background: rgb(0, 0, 0);
   }
 
-  [data-pixiv_utils_blocked] .series-title,
-  [data-pixiv_utils_blocked] .tag-container,
-  [data-pixiv_utils_blocked] .show-more-creator-works-button,
+  [data-pixiv_utils_blocked] :is(.series-title, .tag-container, .show-more-creator-works-button),
   [data-pixiv_utils_blocked] .pqkmS, /* desktop: show more creator works button */
   [data-pixiv_utils_blocked] ._illust-series-title-text {
     display: none !important;
   }
 
-  ${CONFIG.SELECTORS_IMAGE_TITLE.split(', ').map(s => `[data-pixiv_utils_blocked] ${s}`).join(', ')} {
+  [data-pixiv_utils_blocked] :is(${CONFIG.SELECTORS_IMAGE_TITLE}) {
     display: none !important;
   }
 
-  ${CONFIG.SELECTORS_IMAGE_ARTIST_AVATAR.split(', ').map(s => `[data-pixiv_utils_blocked] ${s}`).join(', ')} {
+  [data-pixiv_utils_blocked] :is(${CONFIG.SELECTORS_IMAGE_ARTIST_AVATAR}) {
     display: none !important;
   }
 
-  ${CONFIG.SELECTORS_IMAGE_ARTIST_NAME.split(', ').map(s => `[data-pixiv_utils_blocked] ${s}`).join(', ')} {
+  [data-pixiv_utils_blocked] :is(${CONFIG.SELECTORS_IMAGE_ARTIST_NAME}) {
     display: none !important;
   }
 
-  ${_SELECTORS_IMAGE_CONTROLS.map(s => `[data-pixiv_utils_blocked] ${s}`).join(', ')} {
+  [data-pixiv_utils_blocked] :is(${_SELECTORS_IMAGE_CONTROLS}) {
     display: none !important;
   }
 
@@ -899,6 +937,162 @@
     return element.querySelector(CONFIG.SELECTORS_IMAGE_BOOKMARKED) !== null;
   };
 
+  const getImagePixivData = async element => {
+    let ai = false;
+    let tags = null;
+
+    if (element.__vue__) {
+      for (const key of ['item', 'illustDetails']) {
+        const data = element.__vue__._props?.[key];
+        if (!data) {
+          continue;
+        }
+
+        if (key === 'item') {
+          const awaited = await waitFor(() => !data.notLoaded, element);
+          if (!awaited) {
+            return false;
+          }
+        }
+
+        ai = data.ai_type === 2;
+        tags = data.tags;
+      }
+    } else {
+      const reactFiberKey = Object.keys(element).find(k => k.startsWith('__reactFiber'));
+      if (!reactFiberKey) {
+        return false;
+      }
+
+      const MAX_STEPS = 2;
+
+      let step = 0;
+      const traverseChild = obj => {
+        if (!obj || !obj.memoizedProps) {
+          return null;
+        }
+
+        step++;
+        const props = obj.memoizedProps;
+        if (props.tags) {
+          ai = props.aiType === 2;
+          tags = props.tags;
+        } else if (props.content?.access?.tgs) {
+          tags = props.content.access.tgs;
+        } else {
+          for (const key of ['thumbnail', 'rawThumbnail']) {
+            if (props[key]) {
+              ai = props[key].aiType === 2;
+              tags = props[key].tags;
+              break;
+            }
+          }
+        }
+
+        if (tags === null && step < MAX_STEPS) {
+          traverseChild(obj.child);
+        }
+      };
+
+      traverseChild(element[reactFiberKey].child);
+    }
+
+    if (!tags) {
+      tags = [];
+    }
+
+    // Re-map extended tags data.
+    tags = tags.map(tag => typeof tag !== 'string' ? tag.name : tag);
+
+    return { ai, tags };
+  };
+
+  const isImageBlockedByData = data => {
+    const blockedAI = CONFIG.PIXIV_BLOCK_AI && data.ai;
+    const blockedTags = [];
+
+    for (const tag of data.tags) {
+      if (PIXIV_BLOCKED_TAGS_STRING.includes(tag) || PIXIV_BLOCKED_TAGS_REGEXP.some(t => t.test(tag))) {
+        blockedTags.push(tag);
+      }
+    }
+
+    if (!blockedAI && !blockedTags.length) {
+      return false;
+    }
+
+    let hint = '';
+    if (CONFIG.PIXIV_BLOCK_AI) {
+      hint = `AI-generated: ${blockedAI}`;
+    }
+
+    const blockedTagsStr = blockedTags.join(', ');
+    if (blockedTagsStr) {
+      hint += `\nTags: ${blockedTagsStr}`;
+      hint = hint.trim();
+    }
+
+    return { hint };
+  };
+
+  const setImageBlocked = (element, options = {}) => {
+    const data = findItemData(element);
+    if (!data.link) {
+      return false;
+    }
+
+    // Skip if already blocked.
+    if (element.dataset.pixiv_utils_blocked) {
+      return false;
+    }
+
+    element.dataset.pixiv_utils_blocked = true;
+
+    // For mobile, never remove blocked, as it does not behave well with Pixiv's in-place navigation.
+    if (options.remove && !options.mobile) {
+      element.style.display = 'none';
+      return true;
+    }
+
+    const blockedThumb = document.createElement('a');
+    blockedThumb.className = 'pixiv_utils_blocked_image_container';
+    blockedThumb.href = data.link.href;
+    blockedThumb.innerHTML = BLOCKED_IMAGE_HTML;
+
+    data.link.after(blockedThumb);
+
+    // Tooltip.
+    if (options.hint) {
+      element.title = options.hint;
+    }
+
+    return true;
+  };
+
+  const doBlockImage = async element => {
+    const data = await getImagePixivData(element);
+    if (!data.tags?.length) {
+      return false;
+    }
+
+    const blocked = isImageBlockedByData(data);
+    if (!blocked) {
+      return false;
+    }
+
+    const status = setImageBlocked(element, {
+      mobile: element.matches(SELECTORS_IMAGE_MOBILE),
+      remove: CONFIG.PIXIV_REMOVE_BLOCKED,
+      hint: blocked.hint
+    });
+
+    if (status) {
+      logDebug(`Image blocked (${blocked.hint.replace('\n', ', ')})`, element);
+    }
+
+    return status;
+  };
+
   const addImageArtist = async element => {
     let userId = null;
     let userName = null;
@@ -927,7 +1121,7 @@
     }
 
     if (!userId || !userName) {
-        return false;
+      return false;
     }
 
     const div = document.createElement('div');
@@ -970,7 +1164,7 @@
     }
 
     // Init MutationObserver for mobile images.
-    if (element.dataset.tx) {
+    if (element.__vue__) {
       if (!element.dataset.pixiv_utils_last_tx) {
         initElementObserver(element, () => {
           const lastGrid = element.dataset.pixiv_utils_last_grid === 'true';
@@ -996,6 +1190,13 @@
       const blockedThumb = element.querySelector('.pixiv_utils_blocked_image_container');
       if (blockedThumb) {
         blockedThumb.remove();
+      }
+    }
+
+    if (PIXIV_BLOCKED_TAGS_VALIDATED) {
+      const blocked = await doBlockImage(element);
+      if (blocked) {
+        return true;
       }
     }
 
@@ -1047,7 +1248,36 @@
     return true;
   };
 
+  const doBlockMultiView = async element => {
+    const target = element.querySelector('div[data-ga4-label="thumbnail_link"]');
+    if (!target) {
+      return false;
+    }
+
+    const data = await getImagePixivData(target);
+    if (!data.tags?.length) {
+      return false;
+    }
+
+    const blocked = isImageBlockedByData(data);
+    if (!blocked) {
+      return false;
+    }
+
+    // For multi view artwork, always hide the whole entry instead.
+    element.parentNode.style.display = 'none';
+    logDebug(`Multi view entry removed (${blocked.hint})`, element);
+    return true;
+  };
+
   const doMultiView = async (element, options = {}) => {
+    if (PIXIV_BLOCKED_TAGS_VALIDATED) {
+      const blocked = await doBlockMultiView(element);
+      if (blocked) {
+        return true;
+      }
+    }
+
     if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome) {
       if (findNovelUrl(element)) {
         element.parentNode.style.display = 'none';
@@ -1075,7 +1305,59 @@
     return false;
   };
 
-  const getExpandedViewLocationData = () => {
+  const doBlockExpandedView = async element => {
+    const image = element.closest(CONFIG.SELECTORS_EXPANDED_VIEW_IMAGE);
+    if (!image) {
+      return false;
+    }
+
+    // Reset blocked status if necessary.
+    delete image.dataset.pixiv_utils_expanded_view_blocked;
+
+    // Init MutationObserver for mobile expanded view.
+    if (image.__vue__) {
+      const target = image.querySelector('.work-main-image a');
+      if (!image.dataset.pixiv_utils_last_id) {
+        initElementObserver(target, () => {
+          const data = findItemData(image);
+          if (data.id !== image.dataset.pixiv_utils_last_id) {
+            doBlockExpandedView(image);
+          }
+        }, {
+          attributes: true,
+          attributeFilter: ['href']
+        });
+      }
+      const data = findItemData(image);
+      image.dataset.pixiv_utils_last_id = data.id;
+    }
+
+    const data = await getImagePixivData(image);
+    if (!data.tags?.length) {
+      return false;
+    }
+
+    const blocked = isImageBlockedByData(data);
+    if (!blocked) {
+      return false;
+    }
+
+    image.dataset.pixiv_utils_expanded_view_blocked = true;
+
+    logDebug(`Expanded view blocked (${blocked.hint})`, image);
+    return true;
+  };
+
+  const doExpandedViewControls = async element => {
+    if (PIXIV_BLOCKED_TAGS_VALIDATED) {
+      await doBlockExpandedView(element);
+    }
+
+    // Skip if edit bookmark button already inserted.
+    if (element.querySelector('.pixiv_utils_edit_bookmark')) {
+      return false;
+    }
+
     let id = null;
     let isNovel = false;
 
@@ -1089,17 +1371,6 @@
         isNovel = true;
       }
     }
-
-    return { id, isNovel };
-  };
-
-  const doExpandedViewControls = async element => {
-    // Skip if edit bookmark button already inserted.
-    if (element.querySelector('.pixiv_utils_edit_bookmark')) {
-      return false;
-    }
-
-    const { id, isNovel } = getExpandedViewLocationData();
 
     if (id !== null) {
       element.append(editBookmarkButton(id, isNovel));
@@ -1143,7 +1414,7 @@
     let images = Array.from(imagesContainer.querySelectorAll(CONFIG.SELECTORS_IMAGE));
 
     // Do not process blocked images if they are already forcefully hidden.
-    if (CONFIG.UTAGS_REMOVE_BLOCKED) {
+    if (CONFIG.PIXIV_REMOVE_BLOCKED || CONFIG.UTAGS_REMOVE_BLOCKED) {
       images = images.filter(image => !image.dataset.pixiv_utils_blocked);
     }
 
@@ -1237,40 +1508,6 @@
     return true;
   };
 
-  const setImageBlocked = (element, options = {}) => {
-    const data = findItemData(element);
-    if (!data.link) {
-      return false;
-    }
-
-    // Skip if already blocked.
-    if (element.dataset.pixiv_utils_blocked) {
-      return false;
-    }
-
-    element.dataset.pixiv_utils_blocked = true;
-
-    // For mobile, never remove blocked, as it does not behave well with Pixiv's in-place navigation.
-    if (options.remove && !options.mobile) {
-      element.style.display = 'none';
-      return true;
-    }
-
-    const blockedThumb = document.createElement('a');
-    blockedThumb.className = 'pixiv_utils_blocked_image_container';
-    blockedThumb.href = data.link.href;
-    blockedThumb.innerHTML = BLOCKED_IMAGE_HTML;
-
-    data.link.after(blockedThumb);
-
-    // Tooltip.
-    if (options.hint) {
-      element.title = options.hint;
-    }
-
-    return true;
-  };
-
   const doUtags = async element => {
     let image = element.closest(CONFIG.SELECTORS_IMAGE);
 
@@ -1282,7 +1519,7 @@
       image = element.closest(SELECTORS_IMAGE_MOBILE);
       if (image) {
         mobile = true;
-        const awaited = await waitFor(() => image.querySelector('.thumb:not([src^=data])'), image);
+        const awaited = await waitFor(() => image.querySelector('.thumb:not([src^="data"])'), image);
         if (!awaited) {
           return false;
         }
