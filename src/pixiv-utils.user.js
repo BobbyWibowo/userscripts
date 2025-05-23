@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.7
+// @version      1.6.8
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -227,7 +227,8 @@
     SELECTORS_DATE: [
       '.dgDuKx', // desktop
       '.kzGSfF', // desktop "updated on" popup
-      '.times' // mobile
+      '.times', // mobile
+      '.reupload-info .tooltip-text' // mobile "updated on" popup
     ],
 
     // Selectors must be single-line strings.
@@ -386,7 +387,11 @@
   /** GLOBAL UTILS **/
 
   const addPageDateStyle = /*css*/`
-  .bookmark-detail-unit .meta {
+  .bookmark-detail-unit .meta:not([data-pixiv_utils_duplicate_date]) {
+    display: none !important;
+  }
+
+  .bookmark-detail-unit .meta[data-pixiv_utils_duplicate_date] {
     display: block;
     font-size: 16px;
     font-weight: bold;
@@ -404,13 +409,23 @@
 
     let prefix = '';
     let date;
+    let dateHasHMS = true;
+
+    let duplicateDate = element.nextElementSibling;
+    if (!duplicateDate || !duplicateDate.dataset.pixiv_utils_duplicate_date) {
+      duplicateDate = element.cloneNode(true);
+      duplicateDate.dataset.pixiv_utils_duplicate_date = true;
+      element.after(duplicateDate);
+    }
 
     const attr = element.getAttribute('datetime');
     if (attr) {
       date = new Date(attr);
     } else {
-      // For pages which have the date display hardcoded to Japan time.
-      let dateText = element.innerText;
+      let dateText = element.innerText.trim();
+      if (!dateText.includes(':')) {
+        dateHasHMS = false;
+      }
 
       for (const regex of updatedOnRegexes) {
         const _match = dateText.match(regex);
@@ -427,6 +442,7 @@
         dateText = `${match[2]}-${match[3]}-${match[1]} ${match[4]}`;
       }
 
+      // For pages which have the date display hardcoded to Japan time.
       if (fixJapanTime) {
         dateText += ' UTC+9';
       }
@@ -438,13 +454,27 @@
       return false;
     }
 
-    const timestamp = String(date.getTime());
-    if (element.dataset.oldTimestamp === timestamp) {
+    const timestamp = date.getTime();
+    if (Number.isNaN(timestamp) || duplicateDate.dataset.pixiv_utils_date_timestamp === String(timestamp)) {
       return false;
     }
 
-    element.dataset.oldTimestamp = timestamp;
-    element.innerText = prefix + date.toLocaleString(CONFIG.DATE_CONVERSION_LOCALES, CONFIG.DATE_CONVERSION_OPTIONS);
+    if (prefix) {
+      duplicateDate.dataset.pixiv_utils_date_prefix = prefix;
+    }
+
+    let dateConversionOptions = CONFIG.DATE_CONVERSION_OPTIONS;
+    if (!dateHasHMS) {
+      dateConversionOptions = Object.assign({}, dateConversionOptions);
+      delete dateConversionOptions.hour12;
+      delete dateConversionOptions.hourCycle;
+      delete dateConversionOptions.hour;
+      delete dateConversionOptions.minute;
+      delete dateConversionOptions.second;
+    }
+
+    duplicateDate.dataset.pixiv_utils_date_timestamp = timestamp;
+    duplicateDate.innerHTML = prefix + date.toLocaleString(CONFIG.DATE_CONVERSION_LOCALES, dateConversionOptions);
     return true;
   };
 
@@ -771,10 +801,16 @@
   }
   `;
 
+  const SELECTORS_DATE_ORIGINAL = `:is(${CONFIG.SELECTORS_DATE}):not([data-pixiv_utils_duplicate_date])`;
+
   const mainDateStyle = /*css*/`
-  .dqHJfP {
+  ${SELECTORS_DATE_ORIGINAL} {
+    display: none !important;
+  }
+
+  :is(${CONFIG.SELECTORS_DATE})[data-pixiv_utils_duplicate_date]:not([data-pixiv_utils_date_prefix]) {
     font-size: 14px !important;
-    font-weight: bold;
+    font-weight: bold !important;
     color: rgb(214, 214, 214) !important;
   }
   `;
@@ -899,8 +935,13 @@
     return element.querySelector('a[href*="novel/show.php?id="]');
   };
 
-  const findItemData = element => {
+  const findIllustImg = element => {
+    return element.querySelector('img[src*="_p0"]');
+  };
+
+  const findItemData = (element, tryImg = false) => {
     const methods = [
+      { func: findIllustImg, regex: /\/(\d+)_p0/, img: true },
       { func: findArtworkUrl, regex: /artworks\/(\d+)/ },
       { func: findIllustUrl, regex: /illust_id=(\d+)/ },
       { func: findNovelUrl, regex: /novel\/show\.php\?id=(\d+)/, novel: true }
@@ -912,13 +953,27 @@
     };
 
     for (const method of methods) {
-      result.link = method.func(element);
-      if (result.link) {
-        const match = result.link.href.match(method.regex);
+      if (method.img && !tryImg) {
+        continue;
+      }
+
+      const found = method.func(element);
+      if (found) {
+        let value = '';
+        if (method.img) {
+          value = found.src;
+          result.img = found;
+        } else {
+          value = found.href;
+          result.link = found;
+        }
+
+        const match = value.match(method.regex);
         if (match) {
           result.id = match[1];
           result.novel = Boolean(method.novel);
         }
+
         break;
       }
     }
@@ -1169,7 +1224,7 @@
       return false;
     }
 
-    // Init MutationObserver for mobile images.
+    // Init MutationObserver for dynamic images.
     if (element.__vue__) {
       if (!element.dataset.pixiv_utils_last_tx) {
         initElementObserver(element, () => {
@@ -1314,24 +1369,6 @@
     // Reset blocked status if necessary.
     delete element.dataset.pixiv_utils_expanded_view_blocked;
 
-    // Init MutationObserver for mobile expanded view.
-    if (element.__vue__) {
-      const target = element.querySelector('.work-main-image a');
-      if (!element.dataset.pixiv_utils_last_id) {
-        initElementObserver(target, () => {
-          const data = findItemData(element);
-          if (data.id !== element.dataset.pixiv_utils_last_id) {
-            doBlockExpandedView(element);
-          }
-        }, {
-          attributes: true,
-          attributeFilter: ['href']
-        });
-      }
-      const data = findItemData(element);
-      element.dataset.pixiv_utils_last_id = data.id;
-    }
-
     const pixivData = await getImagePixivData(element);
     if (!pixivData.tags?.length) {
       return false;
@@ -1348,7 +1385,7 @@
     return true;
   };
 
-  const doExpandedViewControls = async element => {
+  const doExpandedViewControls = async (element, options = {}) => {
     const image = element.closest(CONFIG.SELECTORS_EXPANDED_VIEW_IMAGE);
     if (!image) {
       return false;
@@ -1358,15 +1395,38 @@
       await doBlockExpandedView(image);
     }
 
-    // Skip if edit bookmark button already inserted.
-    if (element.querySelector('.pixiv_utils_edit_bookmark')) {
+    // Init MutationObserver for dynamic expanded view.
+    if (image.__vue__) {
+      const target = image.querySelector('.work-main-image');
+      if (!image.dataset.pixiv_utils_last_id) {
+        initElementObserver(target, mutations => {
+          const data = findItemData(image, true);
+          if (data.id !== image.dataset.pixiv_utils_last_id) {
+            options.forced = true;
+            doExpandedViewControls(image, options);
+          }
+        }, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeFilter: ['href', 'src']
+        });
+      }
+      const data = findItemData(image, true);
+      image.dataset.pixiv_utils_last_id = data.id;
+    }
+
+    // Skip if edit bookmark button already inserted, unless forced.
+    if (element.querySelector('.pixiv_utils_edit_bookmark') && !options.forced) {
       return false;
     }
 
     // Re-attempt to convert date.
-    const dates = image.querySelectorAll(CONFIG.SELECTORS_DATE);
-    for (const date of dates) {
-      convertDate(date);
+    if (CONFIG.DATE_CONVERSION) {
+      const dates = image.querySelectorAll(SELECTORS_DATE_ORIGINAL);
+      for (const date of dates) {
+        convertDate(date);
+      }
     }
 
     let id = null;
@@ -1681,9 +1741,17 @@
     }
 
     // Dates
-    sentinel.on(CONFIG.SELECTORS_DATE, element => {
-      convertDate(element);
-    });
+    if (CONFIG.DATE_CONVERSION) {
+      sentinel.on([
+        `:has(> :is(${CONFIG.SELECTORS_DATE})):not(:has(> [data-pixiv_utils_duplicate_date]))`,
+        `.reupload-info:has(${SELECTORS_DATE_ORIGINAL})`
+      ], element => {
+        const date = element.querySelector(SELECTORS_DATE_ORIGINAL);
+        if (date) {
+          convertDate(date);
+        }
+      });
+    }
 
     // UTags Integration
     if (CONFIG.UTAGS_INTEGRATION) {
