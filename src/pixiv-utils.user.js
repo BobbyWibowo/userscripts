@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.6
+// @version      1.6.7
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -689,26 +689,6 @@
     justify-content: flex-end;
   }
 
-  [data-pixiv_utils_expanded_view_blocked] :is([role="presentation"], .work-main-image) :is(img, canvas) {
-    filter: blur(32px);
-  }
-
-  [data-pixiv_utils_expanded_view_blocked] :is([role="presentation"], .work-main-image):hover :is(img, canvas) {
-    filter: unset;
-  }
-  `;
-
-  const mainDateStyle = /*css*/`
-  .dqHJfP {
-    font-size: 14px !important;
-    font-weight: bold;
-    color: rgb(214, 214, 214) !important;
-  }
-  `;
-
-  /** UTAGS INTEGRATION INIT **/
-
-  const mainUtagsStyle = /*css*/`
   :not(#higher_specificity) *:has(+ .pixiv_utils_blocked_image_container) {
     display: none !important;
   }
@@ -781,7 +761,25 @@
     padding: 0;
     width: 0;
   }
+
+  [data-pixiv_utils_expanded_view_blocked] :is([role="presentation"], .work-main-image) :is(img, canvas) {
+    filter: blur(32px);
+  }
+
+  [data-pixiv_utils_expanded_view_blocked] :is([role="presentation"], .work-main-image):hover :is(img, canvas) {
+    filter: unset;
+  }
   `;
+
+  const mainDateStyle = /*css*/`
+  .dqHJfP {
+    font-size: 14px !important;
+    font-weight: bold;
+    color: rgb(214, 214, 214) !important;
+  }
+  `;
+
+  /** UTAGS INTEGRATION INIT **/
 
   const SELECTORS_UTAGS = CONFIG.UTAGS_BLOCKED_TAGS.map(s => `[data-utags_tag="${s}"]`).join(', ');
   log('SELECTORS_UTAGS =', SELECTORS_UTAGS);
@@ -806,10 +804,6 @@
 
   if (CONFIG.DATE_CONVERSION) {
     GM_addStyle(mainDateStyle);
-  }
-
-  if (CONFIG.UTAGS_INTEGRATION) {
-    GM_addStyle(mainUtagsStyle);
   }
 
   const uuidv4 = () => {
