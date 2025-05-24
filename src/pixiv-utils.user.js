@@ -1027,15 +1027,12 @@
         const MAX_STEPS = 2;
 
         let step = 0;
-        const traverseChild = (obj, skipStep = false) => {
+        const traverseChild = obj => {
           if (!obj || !obj.memoizedProps) {
             return;
           }
 
-          if (!skipStep) {
-            step++;
-          }
-
+          step++;
           const props = obj.memoizedProps;
           if (props.tags) {
             data.title = props.title;
