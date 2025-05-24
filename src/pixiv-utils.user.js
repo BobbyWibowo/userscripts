@@ -1088,7 +1088,11 @@
       title += `\nBlocked by:\n${options.blockHint}`;
     }
 
-    element.title = title.trim();
+    title = title.trim();
+
+    if (title.length) {
+      element.title = title.trim();
+    }
   };
 
   const isImageBlockedByData = data => {
