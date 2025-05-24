@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.9
+// @version      1.6.10
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -129,8 +129,11 @@
       '.ibaIoN > div:has(a[href])', // expanded view's recommended works after pop-in
       '.iwHaa-d > li', // tags page's grid
       '.jClpXN > li', // tags page's grid (novel)
+      '.gLWzLO > div', // tags page's users tab
       '.fhUcsb > li', // "newest by all" page
       '.buGhFj > li', // requests page
+      '.bkRoSP > li', // manga page's followed works
+      '.kAeevZ > .fjXNAo', // manga page's daily ranking
       '.dHJLGd > div', // novels page's ongoing contests
       '.ranking-item', // rankings page
       '._ranking-item', // rankings page (novel)
@@ -221,7 +224,8 @@
 
     SELECTORS_RECOMMENDED_USER_CONTAINER: [
       // home's recommended users sidebar
-      '.hSNbaL > .grid > :nth-child(2) .flex-col.gap-8:first-child .flex-row.items-center:not(.mr-auto)'
+      '.hSNbaL > .grid > :nth-child(2) .flex-col.gap-8:first-child .flex-row.items-center:not(.mr-auto)',
+      '.YXoqY .grid li.list-none', // tags page's users tab
     ],
 
     SELECTORS_DATE: [
@@ -1020,15 +1024,18 @@
     } else {
       const reactFiberKey = Object.keys(element).find(k => k.startsWith('__reactFiber'));
       if (reactFiberKey) {
-        const MAX_STEPS = 4;
+        const MAX_STEPS = 2;
 
         let step = 0;
-        const traverseChild = obj => {
+        const traverseChild = (obj, skipStep = false) => {
           if (!obj || !obj.memoizedProps) {
             return;
           }
 
-          step++;
+          if (!skipStep) {
+            step++;
+          }
+
           const props = obj.memoizedProps;
           if (props.tags) {
             data.title = props.title;
@@ -1039,6 +1046,24 @@
             data.title = thumbnail.title;
             data.ai = thumbnail.aiType === 2;
             data.tags = thumbnail.tags;
+          } else if (props.children) {
+            let children = props.children;
+            if (!Array.isArray(children) || typeof children !== 'object') {
+              children = props.children.props?.children;
+            }
+            if (children) {
+              if (!Array.isArray(children)) {
+                children = [children];
+              }
+              for (const child of children) {
+                if (child.props?.thumbnail) {
+                  data.title = child.props.thumbnail.title;
+                  data.ai = child.props.thumbnail.aiType === 2;
+                  data.tags = child.props.thumbnail.tags;
+                  break;
+                }
+              }
+            }
           } else {
             for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
               if (props[key]) {
@@ -1055,7 +1080,7 @@
           }
         };
 
-        traverseChild(element[reactFiberKey].child);
+        traverseChild(element[reactFiberKey]);
       }
     }
 
