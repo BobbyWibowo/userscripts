@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.10
+// @version      1.6.11
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -1024,7 +1024,7 @@
     } else {
       const reactFiberKey = Object.keys(element).find(k => k.startsWith('__reactFiber'));
       if (reactFiberKey) {
-        const MAX_STEPS = 2;
+        const MAX_STEPS = 5;
 
         let step = 0;
         const traverseChild = obj => {
