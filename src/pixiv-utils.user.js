@@ -1111,15 +1111,15 @@
 
     let hint = '';
     if (CONFIG.PIXIV_BLOCK_AI && blockedAI) {
-      hint = '\nAI-generated';
+      hint = 'AI-generated';
     }
 
     const blockedTagsStr = blockedTags.join(', ');
     if (blockedTagsStr) {
       hint += `\nTags: ${blockedTagsStr}`;
-      hint = hint.trim();
     }
 
+    hint = hint.trim();
     return { hint };
   };
 
