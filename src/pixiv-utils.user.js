@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.8
+// @version      1.6.9
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -993,73 +993,102 @@
   };
 
   const getImagePixivData = async element => {
-    let ai = false;
-    let tags = null;
+    const data = {
+      title: null,
+      ai: null,
+      tags: null
+    };
 
     if (element.__vue__) {
       for (const key of ['item', 'illustDetails']) {
-        const data = element.__vue__._props?.[key];
-        if (!data) {
+        const _data = element.__vue__._props?.[key];
+        if (!_data) {
           continue;
         }
 
         if (key === 'item') {
-          const awaited = await waitFor(() => !data.notLoaded, element);
+          const awaited = await waitFor(() => !_data.notLoaded, element);
           if (!awaited) {
             return false;
           }
         }
 
-        ai = data.ai_type === 2;
-        tags = data.tags;
+        data.title = _data.title;
+        data.ai = _data.ai_type === 2;
+        data.tags = _data.tags;
       }
     } else {
       const reactFiberKey = Object.keys(element).find(k => k.startsWith('__reactFiber'));
-      if (!reactFiberKey) {
-        return false;
-      }
+      if (reactFiberKey) {
+        const MAX_STEPS = 4;
 
-      const MAX_STEPS = 4;
+        let step = 0;
+        const traverseChild = obj => {
+          if (!obj || !obj.memoizedProps) {
+            return;
+          }
 
-      let step = 0;
-      const traverseChild = obj => {
-        if (!obj || !obj.memoizedProps) {
-          return;
-        }
-
-        step++;
-        const props = obj.memoizedProps;
-        if (props.tags) {
-          ai = props.aiType === 2;
-          tags = props.tags;
-        } else if (props.content?.access?.tgs) {
-          tags = props.content.access.tgs;
-        } else {
-          for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
-            if (props[key]) {
-              ai = props[key].aiType === 2;
-              tags = props[key].tags;
-              break;
+          step++;
+          const props = obj.memoizedProps;
+          if (props.tags) {
+            data.title = props.title;
+            data.ai = props.aiType === 2;
+            data.tags = props.tags;
+          } else if (props.content?.thumbnails?.length) {
+            const thumbnail = props.content.thumbnails[0];
+            data.title = thumbnail.title;
+            data.ai = thumbnail.aiType === 2;
+            data.tags = thumbnail.tags;
+          } else {
+            for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
+              if (props[key]) {
+                data.title = props[key].title;
+                data.ai = props[key].aiType === 2;
+                data.tags = props[key].tags;
+                break;
+              }
             }
           }
-        }
 
-        if (tags === null && step < MAX_STEPS) {
-          traverseChild(obj.child);
-        }
-      };
+          if (data.tags === null && step < MAX_STEPS) {
+            traverseChild(obj.child);
+          }
+        };
 
-      traverseChild(element[reactFiberKey].child);
+        traverseChild(element[reactFiberKey].child);
+      }
     }
 
-    if (!tags) {
-      tags = [];
+    if (!data.tags) {
+      data.tags = [];
     }
 
     // Re-map extended tags data.
-    tags = tags.map(tag => typeof tag !== 'string' ? tag.name : tag);
+    data.tags = data.tags.map(tag => typeof tag !== 'string' ? tag.name : tag);
 
-    return { ai, tags };
+    return data;
+  };
+
+  const setImageTitle = (element, options = {}) => {
+    let title = '';
+
+    if (options.pixivData.title) {
+      title += options.pixivData.title;
+    }
+
+    if (options.pixivData.ai) {
+      title += '\nAI-generated';
+    }
+
+    if (options.pixivData.tags.length) {
+      title += `\n${options.pixivData.tags.join(', ')}`;
+    }
+
+    if (options.blockHint) {
+      title += `\nBlocked by:\n${options.blockHint}`;
+    }
+
+    element.title = title.trim();
   };
 
   const isImageBlockedByData = data => {
@@ -1077,8 +1106,8 @@
     }
 
     let hint = '';
-    if (CONFIG.PIXIV_BLOCK_AI) {
-      hint = `AI-generated: ${blockedAI}`;
+    if (CONFIG.PIXIV_BLOCK_AI && blockedAI) {
+      hint = '\nAI-generated';
     }
 
     const blockedTagsStr = blockedTags.join(', ');
@@ -1111,21 +1140,11 @@
 
     options.link.after(blockedThumb);
 
-    // Tooltip.
-    if (options.hint) {
-      element.title = options.hint;
-    }
-
     return true;
   };
 
-  const doBlockImage = async (element, data) => {
-    const pixivData = await getImagePixivData(element);
-    if (!pixivData.tags?.length) {
-      return false;
-    }
-
-    const blocked = isImageBlockedByData(pixivData);
+  const doBlockImage = async (element, options = {}) => {
+    const blocked = isImageBlockedByData(options.pixivData);
     if (!blocked) {
       return false;
     }
@@ -1140,8 +1159,13 @@
     const status = setImageBlocked(element, {
       mobile: element.matches(SELECTORS_IMAGE_MOBILE),
       remove,
-      hint: blocked.hint,
-      link: data.link
+      link: options.data.link
+    });
+
+    setImageTitle(element, {
+      data: options.data,
+      pixivData: options.pixivData,
+      blockHint: blocked.hint
     });
 
     if (status) {
@@ -1244,23 +1268,31 @@
       element.dataset.pixiv_utils_last_grid = element.classList.contains('grid');
     }
 
-    // Reset blocked status if necessary.
-    if (options.forced && element.dataset.pixiv_utils_blocked) {
-      delete element.title;
-      delete element.dataset.pixiv_utils_blocked;
-      const blockedThumb = element.querySelector('.pixiv_utils_blocked_image_container');
-      if (blockedThumb) {
-        blockedThumb.remove();
+    // Skip if already blocked, unless forced.
+    if (element.dataset.pixiv_utils_blocked) {
+      if (options.forced) {
+        delete element.title;
+        delete element.dataset.pixiv_utils_blocked;
+        const blockedThumb = element.querySelector('.pixiv_utils_blocked_image_container');
+        if (blockedThumb) {
+          blockedThumb.remove();
+        }
+      } else {
+        return false;
       }
     }
 
+    const pixivData = await getImagePixivData(element);
+
     // Only block images if not in own profile.
     if (PIXIV_BLOCKED_TAGS_VALIDATED && !options.isOwnProfile) {
-      const blocked = await doBlockImage(element, data);
+      const blocked = await doBlockImage(element, { data, pixivData });
       if (blocked) {
         return true;
       }
     }
+
+    setImageTitle(element, { data, pixivData });
 
     // Exit early if in own profile, and not in bookmarks tab.
     if (options.isOwnProfile && currentUrl.indexOf('/bookmarks') === -1) {
@@ -1310,18 +1342,8 @@
     return true;
   };
 
-  const doBlockMultiView = async element => {
-    const target = element.querySelector('div[data-ga4-label="thumbnail_link"]');
-    if (!target) {
-      return false;
-    }
-
-    const pixivData = await getImagePixivData(target);
-    if (!pixivData.tags?.length) {
-      return false;
-    }
-
-    const blocked = isImageBlockedByData(pixivData);
+  const doBlockMultiView = async (element, options = {}) => {
+    const blocked = isImageBlockedByData(options.pixivData);
     if (!blocked) {
       return false;
     }
@@ -1338,11 +1360,18 @@
       return false;
     }
 
-    if (PIXIV_BLOCKED_TAGS_VALIDATED) {
-      const blocked = await doBlockMultiView(element);
-      if (blocked) {
-        return true;
+    const pixivDataSource = element.querySelector('div[data-ga4-label="thumbnail_link"]');
+    if (pixivDataSource) {
+      const pixivData = await getImagePixivData(pixivDataSource);
+
+      if (PIXIV_BLOCKED_TAGS_VALIDATED) {
+        const blocked = await doBlockMultiView(element, { pixivData });
+        if (blocked) {
+          return true;
+        }
       }
+
+      setImageTitle(element, { data, pixivData });
     }
 
     if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome && data.novel) {
@@ -1449,7 +1478,7 @@
       // Re-process expanded view's artist bottom bar.
       const images = document.querySelectorAll(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE);
       for (const image of images) {
-        await doImage(image);
+        await doImage(image, { forced: true });
       }
 
       return true;
@@ -1605,11 +1634,18 @@
         return false;
       }
 
+      const pixivData = await getImagePixivData(image);
+
       const status = setImageBlocked(image, {
         mobile,
         remove: CONFIG.UTAGS_REMOVE_BLOCKED,
-        hint: `UTag: ${utag}`,
-        link: image.link
+        link: data.link
+      });
+
+      setImageTitle(image, {
+        data,
+        pixivData,
+        blockHint: `UTag: ${utag}`
       });
 
       if (status) {
