@@ -525,7 +525,7 @@
 
   /** MAIN UTILS */
 
-  const SELECTORS_IMAGE_CONTAINER_NO_CONTROLS = [
+  const SELECTORS_IMAGE_CONTAINER_SIMPLIFIED = [
     '.eyusRs', // user profile popup
     '.hGHlmK' // expanded view's other works sidebar
   ].join(', ');
@@ -1275,7 +1275,7 @@
     let remove = CONFIG.PIXIV_REMOVE_BLOCKED;
 
     // Do not ever remove in sections known to have display issues.
-    if (element.closest(SELECTORS_IMAGE_CONTAINER_NO_CONTROLS) ||
+    if (element.closest(SELECTORS_IMAGE_CONTAINER_SIMPLIFIED) ||
       element.matches(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE)) {
       remove = false;
     }
@@ -1432,8 +1432,8 @@
       return false;
     }
 
-    // Exit early if known to have no controls.
-    if (element.closest(SELECTORS_IMAGE_CONTAINER_NO_CONTROLS)) {
+    // Exit early if in sections where images won't have control buttons.
+    if (element.closest(SELECTORS_IMAGE_CONTAINER_SIMPLIFIED)) {
       return false;
     }
 
@@ -1502,7 +1502,6 @@
     if (pixivDataSource) {
       const pixivData = await getImagePixivData(pixivDataSource);
 
-      // Only proceed to blocking if not highlighted.
       if (PIXIV_BLOCKED_TAGS_VALIDATED) {
         const blocked = await doBlockMultiView(element, { pixivData });
         if (blocked) {
