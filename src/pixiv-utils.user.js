@@ -1384,17 +1384,17 @@
 
     const pixivData = await getImagePixivData(element);
 
-    let highlighted = null;
-    if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
-      highlighted = await doHighlightImage(element, { data, pixivData });
-    }
-
-    // Only block images if not already highlighted, or in own profile.
-    if (PIXIV_BLOCKED_TAGS_VALIDATED && !highlighted && !options.isOwnProfile) {
+    // Only block images if not in own profile.
+    if (PIXIV_BLOCKED_TAGS_VALIDATED && !options.isOwnProfile) {
       const blocked = await doBlockImage(element, { data, pixivData });
       if (blocked) {
         return true;
       }
+    }
+
+    let highlighted = null;
+    if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
+      highlighted = await doHighlightImage(element, { data, pixivData });
     }
 
     setImageTitle(element, {
@@ -1478,24 +1478,15 @@
     if (pixivDataSource) {
       const pixivData = await getImagePixivData(pixivDataSource);
 
-      let highlighted = null;
-      if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
-        highlighted = isImageHighlightedByData(pixivData);
-      }
-
       // Only proceed to blocking if not highlighted.
-      if (PIXIV_BLOCKED_TAGS_VALIDATED && !highlighted) {
+      if (PIXIV_BLOCKED_TAGS_VALIDATED) {
         const blocked = await doBlockMultiView(element, { pixivData });
         if (blocked) {
           return true;
         }
       }
 
-      setImageTitle(element, {
-        data,
-        pixivData,
-        highlightHint: highlighted?.hint
-      });
+      setImageTitle(element, { data, pixivData });
     }
 
     if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome && data.novel) {
@@ -1540,15 +1531,8 @@
     }
 
     const pixivData = await getImagePixivData(image);
-    if (pixivData) {
-      let highlighted = null;
-      if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
-        highlighted = isImageHighlightedByData(pixivData);
-      }
-
-      if (PIXIV_BLOCKED_TAGS_VALIDATED && !highlighted) {
-        await doBlockExpandedView(image, { pixivData });
-      }
+    if (pixivData && PIXIV_BLOCKED_TAGS_VALIDATED) {
+      await doBlockExpandedView(image, { pixivData });
     }
 
     // Init MutationObserver for dynamic expanded view.
