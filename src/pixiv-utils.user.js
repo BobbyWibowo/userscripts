@@ -795,7 +795,7 @@
     align-items: center;
     width: 100%;
     color: rgb(92, 92, 92);
-    min-width: 93px;
+    min-width: 90px;
     aspect-ratio: 1 / 1;
   }
 
