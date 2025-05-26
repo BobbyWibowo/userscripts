@@ -633,6 +633,9 @@
     .filter(s => !['._layout-thumbnail', '.novel-right-contents'].includes(s))
     .join(', ');
 
+  /* eslint-disable-next-line @stylistic/quotes */
+  const SELECTORS_IMAGE_HIGHLIGHTED = /*css*/`:not(.page-count, [size="24"]):has(> img:not([src^="data"]))::after`;
+
   const mainStyle = /*css*/`
   .flex:has(+ .pixiv_utils_edit_bookmark_container) {
     flex-grow: 1;
@@ -754,7 +757,7 @@
     justify-content: flex-end;
   }
 
-  [data-pixiv_utils_highlight] :not(.page-count):has(> img:not([src^="data"]))::after {
+  [data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
     box-shadow: inset 0 0 0 2px ${CONFIG.PIXIV_HIGHLIGHTED_COLOR};
     border-radius: 8px;
     content: '';
@@ -766,22 +769,20 @@
   }
 
   /* expanded view's artist bottom bar */
-  .eoaxji > div:has(a[href])[data-pixiv_utils_highlight] :not(.page-count):has(> img:not([src^="data"]))::after {
+  .eoaxji > div:has(a[href])[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-radius: 4px;
   }
 
-  /* user profile popup */
-  .eyusRs > div[data-pixiv_utils_highlight] :not(.page-count):has(> img:not([src^="data"]))::after,
-  /* mobile image */
-  .works-item-illust[data-pixiv_utils_highlight] :not(.page-count):has(> img:not([src^="data"]))::after {
+  .eyusRs > div[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED}, /* user profile popup */
+  .works-item-illust[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} { /* mobile image */
     border-radius: 0;
   }
 
-  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(1) :not(.page-count):has(> img:not([src^="data"]))::after {
+  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(1) ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-bottom-left-radius: 8px;
   }
 
-  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(3) :not(.page-count):has(> img:not([src^="data"]))::after {
+  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(3) ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-bottom-right-radius: 8px;
   }
 
