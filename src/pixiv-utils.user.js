@@ -754,9 +754,33 @@
     justify-content: flex-end;
   }
 
-  [data-pixiv_utils_highlight] *:has(> label[for], > div[width][height]) {
-    box-shadow: 0 0 0 2px ${CONFIG.PIXIV_HIGHLIGHTED_COLOR};
-    mask-image: none;
+  [data-pixiv_utils_highlight] *:has(> img):after {
+    box-shadow: inset 0 0 0 2px ${CONFIG.PIXIV_HIGHLIGHTED_COLOR};
+    border-radius: 8px;
+    content: '';
+    display: block;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+  }
+
+  /* expanded view's artist bottom bar */
+  .eoaxji > div:has(a[href])[data-pixiv_utils_highlight] *:has(> img):after {
+    border-radius: 4px;
+  }
+
+  /* user profile popup */
+  .eyusRs > div[data-pixiv_utils_highlight] *:has(> img):after {
+    border-radius: 0;
+  }
+
+  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(1) *:has(> img):after {
+    border-bottom-left-radius: 8px;
+  }
+
+  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(3) *:has(> img):after {
+    border-bottom-right-radius: 8px;
   }
 
   :not(#higher_specificity) *:has(+ .pixiv_utils_blocked_image_container) {
