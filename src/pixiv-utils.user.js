@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.11
+// @version      1.6.12
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -98,6 +98,9 @@
 
     ENABLE_KEYBINDS: true,
 
+    PIXIV_HIGHLIGHTED_TAGS: null,
+    PIXIV_HIGHLIGHTED_COLOR: '#32cd32',
+
     PIXIV_BLOCK_AI: false,
     PIXIV_BLOCKED_TAGS: null,
     // Instead of merely masking them à la Pixiv's built-in tags mute.
@@ -124,10 +127,11 @@
     SELECTORS_IMAGE: [
       'li[data-ga4-label="thumbnail"]', // home's latest works grid
       '.sc-96f10c4f-0 > li', // home's recommended works grid
+      '.eyusRs > div', // user profile popup
       '.jELUak > li', // artist page's grid
       '.iHrRmI > li', // artist page's featured works
       '.ibaIoN > div:has(a[href])', // expanded view's recommended works after pop-in
-      '.hGHlmK > div:has(a[href])', // expanded view's other works sidebar
+      '.hGHlmK > div', // expanded view's other works sidebar
       '.iwHaa-d > li', // tags page's grid
       '.jClpXN > li', // tags page's grid (novel)
       '.gLWzLO > div', // tags page's users tab
@@ -305,6 +309,8 @@
     ],
 
     // To ensure any custom values will be inserted into array, or combined together if also an array.
+    PIXIV_HIGHLIGHT_TAGS: [],
+
     PIXIV_BLOCKED_TAGS: [],
 
     UTAGS_BLOCKED_TAGS: ['block', 'hide']
@@ -374,6 +380,7 @@
       'DATE_CONVERSION',
       'REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME',
       'ENABLE_KEYBINDS',
+      'PIXIV_HIGHLIGHTED_TAGS',
       'PIXIV_BLOCK_AI',
       'PIXIV_BLOCKED_TAGS',
       'PIXIV_REMOVE_BLOCKED',
@@ -518,7 +525,27 @@
 
   /** MAIN UTILS */
 
+  const SELECTORS_IMAGE_CONTAINER_NO_CONTROLS = [
+    '.eyusRs', // user profile popup
+    '.hGHlmK' // expanded view's other works sidebar
+  ].join(', ');
+
   const SELECTORS_IMAGE_MOBILE = '.works-item-illust';
+
+  const PIXIV_HIGHLIGHTED_TAGS_STRING = [];
+  const PIXIV_HIGHLIGHTED_TAGS_REGEXP = [];
+
+  for (const tag of CONFIG.PIXIV_HIGHLIGHTED_TAGS) {
+    if (typeof tag === 'string') {
+      PIXIV_HIGHLIGHTED_TAGS_STRING.push(String(tag));
+    } else if (Array.isArray(tag)) {
+      PIXIV_HIGHLIGHTED_TAGS_REGEXP.push(new RegExp(tag[0], tag[1] || ''));
+    }
+  }
+
+  logDebug('PIXIV_HIGHLIGHTED_TAGS_STRING = ', PIXIV_HIGHLIGHTED_TAGS_STRING);
+  logDebug('PIXIV_HIGHLIGHTED_TAGS_REGEXP = ', PIXIV_HIGHLIGHTED_TAGS_REGEXP);
+  const PIXIV_HIGHLIGHTED_TAGS_VALIDATED = PIXIV_HIGHLIGHTED_TAGS_STRING.length || PIXIV_HIGHLIGHTED_TAGS_REGEXP.length;
 
   const PIXIV_BLOCKED_TAGS_STRING = [];
   const PIXIV_BLOCKED_TAGS_REGEXP = [];
@@ -534,6 +561,9 @@
   logDebug('PIXIV_BLOCKED_TAGS_STRING = ', PIXIV_BLOCKED_TAGS_STRING);
   logDebug('PIXIV_BLOCKED_TAGS_REGEXP = ', PIXIV_BLOCKED_TAGS_REGEXP);
   const PIXIV_BLOCKED_TAGS_VALIDATED = PIXIV_BLOCKED_TAGS_STRING.length || PIXIV_BLOCKED_TAGS_REGEXP.length;
+
+  const SELECTORS_UTAGS = CONFIG.UTAGS_BLOCKED_TAGS.map(s => `[data-utags_tag="${s}"]`).join(', ');
+  logDebug('SELECTORS_UTAGS =', SELECTORS_UTAGS);
 
   let currentUrl = new URL(window.location.href, window.location.origin).href;
   const notify = (method, url) => {
@@ -724,6 +754,11 @@
     justify-content: flex-end;
   }
 
+  [data-pixiv_utils_highlight] *:has(> label[for], > div[width][height]) {
+    box-shadow: 0 0 0 2px ${CONFIG.PIXIV_HIGHLIGHTED_COLOR};
+    mask-image: none;
+  }
+
   :not(#higher_specificity) *:has(+ .pixiv_utils_blocked_image_container) {
     display: none !important;
   }
@@ -820,11 +855,6 @@
   }
   `;
 
-  /** UTAGS INTEGRATION INIT **/
-
-  const SELECTORS_UTAGS = CONFIG.UTAGS_BLOCKED_TAGS.map(s => `[data-utags_tag="${s}"]`).join(', ');
-  log('SELECTORS_UTAGS =', SELECTORS_UTAGS);
-
   const BLOCKED_IMAGE_HTML = /*html*/`
   <div radius="4" class="pixiv_utils_blocked_image">
     <svg viewBox="0 0 24 24" style="width: 48px; height: 48px;">
@@ -853,6 +883,8 @@
     );
   };
 
+  const WAIT_FOR_POLL = 1000; // ms
+
   const waitForIntervals = {};
 
   const waitFor = (func, element = document) => {
@@ -873,7 +905,7 @@
         }
       };
       find();
-      interval = setInterval(find, 100);
+      interval = setInterval(find, WAIT_FOR_POLL);
       waitForIntervals[interval] = { func, element, resolve };
     });
   };
@@ -1107,7 +1139,9 @@
       title += `\n${options.pixivData.tags.join(', ')}`;
     }
 
-    if (options.blockHint) {
+    if (options.highlightHint) {
+      title += `\nHighlighted by:\n${options.highlightHint}`;
+    } else if (options.blockHint) {
       title += `\nBlocked by:\n${options.blockHint}`;
     }
 
@@ -1116,6 +1150,44 @@
     if (title.length) {
       element.title = title.trim();
     }
+  };
+
+  const isImageHighlightedByData = data => {
+    const highlightedTags = [];
+
+    for (const tag of data.tags) {
+      if (PIXIV_HIGHLIGHTED_TAGS_STRING.includes(tag) || PIXIV_HIGHLIGHTED_TAGS_REGEXP.some(t => t.test(tag))) {
+        highlightedTags.push(tag);
+      }
+    }
+
+    if (!highlightedTags.length) {
+      return false;
+    }
+
+    let hint = '';
+    const highlightedTagsStr = highlightedTags.join(', ');
+    if (highlightedTagsStr) {
+      hint = `Tags: ${highlightedTagsStr}`;
+    }
+
+    return { hint };
+  };
+
+  const doHighlightImage = (element, options = {}) => {
+    // Skip if already highlighted.
+    if (element.dataset.pixiv_utils_highlight) {
+      return false;
+    }
+
+    const highlighted = isImageHighlightedByData(options.pixivData);
+    if (!highlighted) {
+      return false;
+    }
+
+    element.dataset.pixiv_utils_highlight = true;
+
+    return highlighted;
   };
 
   const isImageBlockedByData = data => {
@@ -1178,8 +1250,8 @@
 
     let remove = CONFIG.PIXIV_REMOVE_BLOCKED;
 
-    // Do not ever remove if nav thumbs, or in expanded view's artist bottom bar, due to display issue.
-    if (element.parentNode?.tagName === 'NAV' ||
+    // Do not ever remove in sections known to have display issues.
+    if (element.closest(SELECTORS_IMAGE_CONTAINER_NO_CONTROLS) ||
       element.matches(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE)) {
       remove = false;
     }
@@ -1312,23 +1384,32 @@
 
     const pixivData = await getImagePixivData(element);
 
-    // Only block images if not in own profile.
-    if (PIXIV_BLOCKED_TAGS_VALIDATED && !options.isOwnProfile) {
+    let highlighted = null;
+    if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
+      highlighted = await doHighlightImage(element, { data, pixivData });
+    }
+
+    // Only block images if not already highlighted, or in own profile.
+    if (PIXIV_BLOCKED_TAGS_VALIDATED && !highlighted && !options.isOwnProfile) {
       const blocked = await doBlockImage(element, { data, pixivData });
       if (blocked) {
         return true;
       }
     }
 
-    setImageTitle(element, { data, pixivData });
+    setImageTitle(element, {
+      data,
+      pixivData,
+      highlightHint: highlighted?.hint
+    });
 
     // Exit early if in own profile, and not in bookmarks tab.
     if (options.isOwnProfile && currentUrl.indexOf('/bookmarks') === -1) {
       return false;
     }
 
-    // Exit early if nav thumbs (e.g., expanded view's other works sidebar)
-    if (element.parentNode?.tagName === 'NAV') {
+    // Exit early if known to have no controls.
+    if (element.closest(SELECTORS_IMAGE_CONTAINER_NO_CONTROLS)) {
       return false;
     }
 
@@ -1397,14 +1478,24 @@
     if (pixivDataSource) {
       const pixivData = await getImagePixivData(pixivDataSource);
 
-      if (PIXIV_BLOCKED_TAGS_VALIDATED) {
+      let highlighted = null;
+      if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
+        highlighted = isImageHighlightedByData(pixivData);
+      }
+
+      // Only proceed to blocking if not highlighted.
+      if (PIXIV_BLOCKED_TAGS_VALIDATED && !highlighted) {
         const blocked = await doBlockMultiView(element, { pixivData });
         if (blocked) {
           return true;
         }
       }
 
-      setImageTitle(element, { data, pixivData });
+      setImageTitle(element, {
+        data,
+        pixivData,
+        highlightHint: highlighted?.hint
+      });
     }
 
     if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome && data.novel) {
@@ -1427,16 +1518,11 @@
     return true;
   };
 
-  const doBlockExpandedView = async element => {
+  const doBlockExpandedView = async (element, options = {}) => {
     // Reset blocked status if necessary.
     delete element.dataset.pixiv_utils_expanded_view_blocked;
 
-    const pixivData = await getImagePixivData(element);
-    if (!pixivData.tags?.length) {
-      return false;
-    }
-
-    const blocked = isImageBlockedByData(pixivData);
+    const blocked = isImageBlockedByData(options.pixivData);
     if (!blocked) {
       return false;
     }
@@ -1453,8 +1539,16 @@
       return false;
     }
 
-    if (PIXIV_BLOCKED_TAGS_VALIDATED) {
-      await doBlockExpandedView(image);
+    const pixivData = await getImagePixivData(image);
+    if (pixivData) {
+      let highlighted = null;
+      if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
+        highlighted = isImageHighlightedByData(pixivData);
+      }
+
+      if (PIXIV_BLOCKED_TAGS_VALIDATED && !highlighted) {
+        await doBlockExpandedView(image, { pixivData });
+      }
     }
 
     // Init MutationObserver for dynamic expanded view.
