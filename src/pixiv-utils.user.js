@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.12
+// @version      1.6.13
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -309,7 +309,7 @@
     ],
 
     // To ensure any custom values will be inserted into array, or combined together if also an array.
-    PIXIV_HIGHLIGHT_TAGS: [],
+    PIXIV_HIGHLIGHTED_TAGS: [],
 
     PIXIV_BLOCKED_TAGS: [],
 
