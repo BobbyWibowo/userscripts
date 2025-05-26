@@ -127,6 +127,7 @@
       '.jELUak > li', // artist page's grid
       '.iHrRmI > li', // artist page's featured works
       '.ibaIoN > div:has(a[href])', // expanded view's recommended works after pop-in
+      '.hGHlmK > div:has(a[href])', // expanded view's other works sidebar
       '.iwHaa-d > li', // tags page's grid
       '.jClpXN > li', // tags page's grid (novel)
       '.gLWzLO > div', // tags page's users tab
@@ -169,7 +170,7 @@
     SELECTORS_IMAGE_CONTROLS: [
       '.ldNztP', // home's latest/recommended works grid
       '.ppQNN', // discovery page's grid
-      '.btqmcy', // artist page's grid
+      '.hLHrVH', // artist page's grid
       '.fRrNLv', // artist page's featured works
       '.cgYJXZ', // tags page's grid (novel)
       '.ZBDKi', // "newest by all" page
@@ -1177,8 +1178,9 @@
 
     let remove = CONFIG.PIXIV_REMOVE_BLOCKED;
 
-    // Do not ever remove in expanded view's artist bottom bar, due to display issue.
-    if (element.matches(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE)) {
+    // Do not ever remove if nav thumbs, or in expanded view's artist bottom bar, due to display issue.
+    if (element.parentNode?.tagName === 'NAV' ||
+      element.matches(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE)) {
       remove = false;
     }
 
@@ -1322,6 +1324,11 @@
 
     // Exit early if in own profile, and not in bookmarks tab.
     if (options.isOwnProfile && currentUrl.indexOf('/bookmarks') === -1) {
+      return false;
+    }
+
+    // Exit early if nav thumbs (e.g., expanded view's other works sidebar)
+    if (element.parentNode?.tagName === 'NAV') {
       return false;
     }
 
