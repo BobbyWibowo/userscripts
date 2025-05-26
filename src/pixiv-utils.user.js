@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.14
+// @version      1.6.15
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -690,7 +690,7 @@
     bottom: 15px;
   }
 
-  *:has(> .pixiv_utils_image_artist_container) {
+  :not(#higher_specificity) :has(> .pixiv_utils_image_artist_container) {
     position: relative !important;
   }
 
@@ -754,7 +754,7 @@
     justify-content: flex-end;
   }
 
-  [data-pixiv_utils_highlight] *:has(> img[src^="data"]):after {
+  [data-pixiv_utils_highlight] :not(.page-count):has(> img:not([src^="data"]))::after {
     box-shadow: inset 0 0 0 2px ${CONFIG.PIXIV_HIGHLIGHTED_COLOR};
     border-radius: 8px;
     content: '';
@@ -766,24 +766,26 @@
   }
 
   /* expanded view's artist bottom bar */
-  .eoaxji > div:has(a[href])[data-pixiv_utils_highlight] *:has(> img[src^="data"]):after {
+  .eoaxji > div:has(a[href])[data-pixiv_utils_highlight] :not(.page-count):has(> img:not([src^="data"]))::after {
     border-radius: 4px;
   }
 
-  .eyusRs > div[data-pixiv_utils_highlight] *:has(> img[src^="data"]):after, /* user profile popup */
-  .works-item-illust[data-pixiv_utils_highlight] *:has(> img[src^="data"]):after /* mobile image */ {
+  /* user profile popup */
+  .eyusRs > div[data-pixiv_utils_highlight] :not(.page-count):has(> img:not([src^="data"]))::after,
+  /* mobile image */
+  .works-item-illust[data-pixiv_utils_highlight] :not(.page-count):has(> img:not([src^="data"]))::after {
     border-radius: 0;
   }
 
-  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(1) *:has(> img[src^="data"]):after {
+  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(1) :not(.page-count):has(> img:not([src^="data"]))::after {
     border-bottom-left-radius: 8px;
   }
 
-  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(3) *:has(> img[src^="data"]):after {
+  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(3) :not(.page-count):has(> img:not([src^="data"]))::after {
     border-bottom-right-radius: 8px;
   }
 
-  :not(#higher_specificity) *:has(+ .pixiv_utils_blocked_image_container) {
+  :not(#higher_specificity) :has(+ .pixiv_utils_blocked_image_container) {
     display: none !important;
   }
 
