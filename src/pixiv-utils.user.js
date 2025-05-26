@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.13
+// @version      1.6.14
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -754,7 +754,7 @@
     justify-content: flex-end;
   }
 
-  [data-pixiv_utils_highlight] *:has(> img):after {
+  [data-pixiv_utils_highlight] *:has(> img[src^="data"]):after {
     box-shadow: inset 0 0 0 2px ${CONFIG.PIXIV_HIGHLIGHTED_COLOR};
     border-radius: 8px;
     content: '';
@@ -766,20 +766,20 @@
   }
 
   /* expanded view's artist bottom bar */
-  .eoaxji > div:has(a[href])[data-pixiv_utils_highlight] *:has(> img):after {
+  .eoaxji > div:has(a[href])[data-pixiv_utils_highlight] *:has(> img[src^="data"]):after {
     border-radius: 4px;
   }
 
-  /* user profile popup */
-  .eyusRs > div[data-pixiv_utils_highlight] *:has(> img):after {
+  .eyusRs > div[data-pixiv_utils_highlight] *:has(> img[src^="data"]):after, /* user profile popup */
+  .works-item-illust[data-pixiv_utils_highlight] *:has(> img[src^="data"]):after /* mobile image */ {
     border-radius: 0;
   }
 
-  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(1) *:has(> img):after {
+  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(1) *:has(> img[src^="data"]):after {
     border-bottom-left-radius: 8px;
   }
 
-  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(3) *:has(> img):after {
+  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(3) *:has(> img[src^="data"]):after {
     border-bottom-right-radius: 8px;
   }
 
@@ -1395,7 +1395,6 @@
     // Skip if already blocked, unless forced.
     if (element.dataset.pixiv_utils_blocked) {
       if (options.forced) {
-        delete element.title;
         delete element.dataset.pixiv_utils_blocked;
         const blockedThumb = element.querySelector('.pixiv_utils_blocked_image_container');
         if (blockedThumb) {
@@ -1404,6 +1403,12 @@
       } else {
         return false;
       }
+    }
+
+    // Reset other statuses if forced.
+    if (options.forced) {
+      delete element.title;
+      delete element.dataset.pixiv_utils_highlight;
     }
 
     const pixivData = await getImagePixivData(element);
