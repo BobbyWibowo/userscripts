@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.16
+// @version      1.6.17
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -532,20 +532,42 @@
 
   const SELECTORS_IMAGE_MOBILE = '.works-item-illust';
 
-  const PIXIV_HIGHLIGHTED_TAGS_STRING = [];
-  const PIXIV_HIGHLIGHTED_TAGS_REGEXP = [];
+  const PIXIV_HIGHLIGHTED_TAGS_FORMATTED = [];
 
-  for (const tag of CONFIG.PIXIV_HIGHLIGHTED_TAGS) {
-    if (typeof tag === 'string') {
-      PIXIV_HIGHLIGHTED_TAGS_STRING.push(String(tag));
-    } else if (Array.isArray(tag)) {
-      PIXIV_HIGHLIGHTED_TAGS_REGEXP.push(new RegExp(tag[0], tag[1] || ''));
+  for (const config of CONFIG.PIXIV_HIGHLIGHTED_TAGS) {
+    const buildTags = tags => {
+      const result = {
+        string: [],
+        regexp: []
+      };
+      for (const tag of tags) {
+        if (typeof tag === 'string') {
+          result.string.push(tag);
+        } else if (Array.isArray(tag)) {
+          result.regexp.push(new RegExp(tag[0], tag[1] || ''));
+        }
+      }
+      return result;
+    };
+
+    const _config = {};
+
+    if (typeof config === 'object' && !Array.isArray(config)) {
+      Object.assign(_config, buildTags(config.tags));
+      if (typeof config.color === 'string') {
+        _config.color = config.color;
+      }
+    } else {
+      Object.assign(_config, buildTags([config]));
+    }
+
+    if (_config.string.length || _config.regexp.length) {
+      PIXIV_HIGHLIGHTED_TAGS_FORMATTED.push(_config);
     }
   }
 
-  logDebug('PIXIV_HIGHLIGHTED_TAGS_STRING = ', PIXIV_HIGHLIGHTED_TAGS_STRING);
-  logDebug('PIXIV_HIGHLIGHTED_TAGS_REGEXP = ', PIXIV_HIGHLIGHTED_TAGS_REGEXP);
-  const PIXIV_HIGHLIGHTED_TAGS_VALIDATED = PIXIV_HIGHLIGHTED_TAGS_STRING.length || PIXIV_HIGHLIGHTED_TAGS_REGEXP.length;
+  logDebug('PIXIV_HIGHLIGHTED_TAGS_FORMATTED = ', PIXIV_HIGHLIGHTED_TAGS_FORMATTED);
+  const PIXIV_HIGHLIGHTED_TAGS_VALIDATED = PIXIV_HIGHLIGHTED_TAGS_FORMATTED.length;
 
   const PIXIV_BLOCKED_TAGS_STRING = [];
   const PIXIV_BLOCKED_TAGS_REGEXP = [];
@@ -633,8 +655,7 @@
     .filter(s => !['._layout-thumbnail', '.novel-right-contents'].includes(s))
     .join(', ');
 
-  /* eslint-disable-next-line @stylistic/quotes */
-  const SELECTORS_IMAGE_HIGHLIGHTED = /*css*/`:not(.page-count, [size="24"]):has(> img:not([src^="data"]))::after`;
+  const SELECTORS_IMAGE_HIGHLIGHTED = ':not(.page-count, [size="24"]):has(> img:not([src^="data"]))::after';
 
   const mainStyle = /*css*/`
   .flex:has(+ .pixiv_utils_edit_bookmark_container) {
@@ -758,7 +779,7 @@
   }
 
   [data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
-    box-shadow: inset 0 0 0 2px ${CONFIG.PIXIV_HIGHLIGHTED_COLOR};
+    box-shadow: inset 0 0 0 3px var(--pixiv_utils_highlight_color, ${CONFIG.PIXIV_HIGHLIGHTED_COLOR});
     border-radius: 8px;
     content: '';
     display: block;
@@ -766,6 +787,10 @@
     height: 100%;
     position: absolute;
     top: 0;
+  }
+
+  :is(${SELECTORS_IMAGE_CONTAINER_SIMPLIFIED}) [data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
+    box-shadow: inset 0 0 0 2px var(--pixiv_utils_highlight_color, ${CONFIG.PIXIV_HIGHLIGHTED_COLOR});
   }
 
   /* expanded view's artist bottom bar */
@@ -1180,25 +1205,33 @@
   };
 
   const isImageHighlightedByData = data => {
-    const highlightedTags = [];
+    const result = {
+      highlightedTags: [],
+      hint: '',
+      color: null
+    };
 
     for (const tag of data.tags) {
-      if (PIXIV_HIGHLIGHTED_TAGS_STRING.includes(tag) || PIXIV_HIGHLIGHTED_TAGS_REGEXP.some(t => t.test(tag))) {
-        highlightedTags.push(tag);
+      for (const config of PIXIV_HIGHLIGHTED_TAGS_FORMATTED) {
+        if (config.string?.includes(tag) || config.regexp?.some(t => t.test(tag))) {
+          result.highlightedTags.push(tag);
+          if (!result.color && config.color) {
+            result.color = config.color;
+          }
+        }
       }
     }
 
-    if (!highlightedTags.length) {
+    if (!result.highlightedTags.length) {
       return false;
     }
 
-    let hint = '';
-    const highlightedTagsStr = highlightedTags.join(', ');
-    if (highlightedTagsStr) {
-      hint = `Tags: ${highlightedTagsStr}`;
+    if (!result.color) {
+      result.color = CONFIG.PIXIV_HIGHLIGHTED_COLOR;
     }
 
-    return { hint };
+    result.hint = `Tags: ${result.highlightedTags.join(', ')}`;
+    return result;
   };
 
   const doHighlightImage = (element, options = {}) => {
@@ -1214,35 +1247,37 @@
 
     element.dataset.pixiv_utils_highlight = true;
 
+    if (highlighted.color) {
+      element.style.setProperty('--pixiv_utils_highlight_color', highlighted.color);
+    }
+
     return highlighted;
   };
 
   const isImageBlockedByData = data => {
-    const blockedAI = CONFIG.PIXIV_BLOCK_AI && data.ai;
-    const blockedTags = [];
+    const result = {
+      blockedAI: CONFIG.PIXIV_BLOCK_AI && data.ai,
+      blockedTags: [],
+      hint: ''
+    };
 
     for (const tag of data.tags) {
       if (PIXIV_BLOCKED_TAGS_STRING.includes(tag) || PIXIV_BLOCKED_TAGS_REGEXP.some(t => t.test(tag))) {
-        blockedTags.push(tag);
+        result.blockedTags.push(tag);
       }
     }
 
-    if (!blockedAI && !blockedTags.length) {
+    if (!result.blockedAI && !result.blockedTags.length) {
       return false;
     }
 
-    let hint = '';
-    if (CONFIG.PIXIV_BLOCK_AI && blockedAI) {
-      hint = 'AI-generated';
+    if (CONFIG.PIXIV_BLOCK_AI && result.blockedAI) {
+      result.hint += 'AI-generated';
     }
 
-    const blockedTagsStr = blockedTags.join(', ');
-    if (blockedTagsStr) {
-      hint += `\nTags: ${blockedTagsStr}`;
-    }
-
-    hint = hint.trim();
-    return { hint };
+    result.hint += `\nTags: ${result.blockedTags.join(', ')}`;
+    result.hint = result.hint.trim();
+    return result;
   };
 
   const setImageBlocked = (element, options = {}) => {
@@ -1412,6 +1447,7 @@
     if (options.forced) {
       delete element.title;
       delete element.dataset.pixiv_utils_highlight;
+      element.style.removeProperty('--pixiv_utils_highlight_color');
     }
 
     const pixivData = await getImagePixivData(element);
