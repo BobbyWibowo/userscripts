@@ -29,10 +29,6 @@ export default [
     ],
     languageOptions: {
       globals: {
-        $: 'readonly',
-        cloneInto: 'readonly',
-        exportFunction: 'readonly',
-        unsafeWindow: 'readonly',
         GM_addStyle: 'readonly',
         GM_getValue: 'readonly',
         GM_setValue: 'readonly'

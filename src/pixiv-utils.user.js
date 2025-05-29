@@ -23,17 +23,17 @@
 (function () {
   'use strict';
 
+  const _LOG_TIME_FORMAT = new Intl.DateTimeFormat([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    fractionalSecondDigits: 3
+  });
+
   const _logTime = () => {
-    return new Date().toLocaleTimeString([], {
-      hourCycle: 'h12',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      fractionalSecondDigits: 3
-    })
+    return _LOG_TIME_FORMAT.format(Date.now())
       .replaceAll('.', ':')
-      .replace(',', '.')
-      .toLocaleUpperCase();
+      .replace(',', '.');
   };
 
   const log = (message, ...args) => {
@@ -413,6 +413,17 @@
   }
   `;
 
+  const DATE_FORMAT = new Intl.DateTimeFormat(CONFIG.DATE_CONVERSION_LOCALES, CONFIG.DATE_CONVERSION_OPTIONS);
+
+  const DATE_FORMAT_NO_HMS_OPTIONS = Object.assign({}, CONFIG.DATE_CONVERSION_OPTIONS);
+  delete DATE_FORMAT_NO_HMS_OPTIONS.hour12;
+  delete DATE_FORMAT_NO_HMS_OPTIONS.hourCycle;
+  delete DATE_FORMAT_NO_HMS_OPTIONS.hour;
+  delete DATE_FORMAT_NO_HMS_OPTIONS.minute;
+  delete DATE_FORMAT_NO_HMS_OPTIONS.second;
+
+  const DATE_FORMAT_NO_HMS = new Intl.DateTimeFormat(CONFIG.DATE_CONVERSION_LOCALES, DATE_FORMAT_NO_HMS_OPTIONS);
+
   const convertDate = (element, fixJapanTime = false) => {
     // Support "updated on" popups
     const updatedOnRegexes = [
@@ -475,18 +486,15 @@
       duplicateDate.dataset.pixiv_utils_date_prefix = prefix;
     }
 
-    let dateConversionOptions = CONFIG.DATE_CONVERSION_OPTIONS;
-    if (!dateHasHMS) {
-      dateConversionOptions = Object.assign({}, dateConversionOptions);
-      delete dateConversionOptions.hour12;
-      delete dateConversionOptions.hourCycle;
-      delete dateConversionOptions.hour;
-      delete dateConversionOptions.minute;
-      delete dateConversionOptions.second;
+    let dateString = '';
+    if (dateHasHMS) {
+      dateString = DATE_FORMAT.format(date);
+    } else {
+      dateString = DATE_FORMAT_NO_HMS.format(date);
     }
 
     duplicateDate.dataset.pixiv_utils_date_timestamp = timestamp;
-    duplicateDate.innerHTML = prefix + date.toLocaleString(CONFIG.DATE_CONVERSION_LOCALES, dateConversionOptions);
+    duplicateDate.innerHTML = prefix + dateString;
     return true;
   };
 
