@@ -1212,8 +1212,8 @@
       color: null
     };
 
-    for (const tag of data.tags) {
-      for (const config of PIXIV_HIGHLIGHTED_TAGS_FORMATTED) {
+    for (const config of PIXIV_HIGHLIGHTED_TAGS_FORMATTED) {
+      for (const tag of data.tags) {
         if (config.string?.includes(tag) || config.regexp?.some(t => t.test(tag))) {
           result.highlightedTags.push(tag);
           if (!result.color && config.color) {
