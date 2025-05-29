@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Article Copy Button
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.3.0
+// @version      1.3.1
 // @description  Add copy buttons to some sites. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -18,17 +18,17 @@
 (function () {
   'use strict';
 
+  const _LOG_TIME_FORMAT = new Intl.DateTimeFormat([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    fractionalSecondDigits: 3
+  });
+
   const _logTime = () => {
-    return new Date().toLocaleTimeString([], {
-      hourCycle: 'h12',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      fractionalSecondDigits: 3
-    })
+    return _LOG_TIME_FORMAT.format(Date.now())
       .replaceAll('.', ':')
-      .replace(',', '.')
-      .toLocaleUpperCase();
+      .replace(',', '.');
   };
 
   const log = (message, ...args) => {
