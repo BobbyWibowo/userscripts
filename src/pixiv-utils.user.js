@@ -1086,6 +1086,8 @@
   const _TB_MIN = 0;
   const _TB_MAX = 2;
 
+  let toggleBookmarkedMode = GM_getValue('PREF_TOGGLE_BOOKMARKED_MODE', _TB_MIN);
+
   const isImageBookmarked = element => {
     return element.querySelector(CONFIG.SELECTORS_IMAGE_BOOKMARKED) !== null;
   };
@@ -1406,10 +1408,9 @@
 
     // Process new entries in toggled bookmarked sections.
     if (element.closest('[data-pixiv_utils_toggle_bookmarked_section]')) {
-      const mode = GM_getValue('PREF_TOGGLE_BOOKMARKED_MODE', _TB_MIN);
-      if (mode === 1) {
+      if (toggleBookmarkedMode === 1) {
         element.style.display = isImageBookmarked(element) ? 'none' : '';
-      } else if (mode === 2) {
+      } else if (toggleBookmarkedMode === 2) {
         element.style.display = isImageBookmarked(element) ? '' : 'none';
       }
     }
@@ -1685,18 +1686,27 @@
   };
 
   let toggling = false;
-  const toggleBookmarked = (button, parent, header, imagesContainer, rightClick = false) => {
+  const toggleBookmarked = (button, parent, header, imagesContainer, options = {}) => {
     if (toggling) {
       return false;
     }
 
     toggling = true;
 
-    let mode = GM_getValue('PREF_TOGGLE_BOOKMARKED_MODE', _TB_MIN);
-    if (rightClick) { mode--; } else { mode++; }
-    if (mode > _TB_MAX) { mode = _TB_MIN; } else if (mode < _TB_MIN) { mode = _TB_MAX; }
+    if (options.sync) {
+      toggleBookmarkedMode = GM_getValue('PREF_TOGGLE_BOOKMARKED_MODE', _TB_MIN);
+    } else if (options.rightClick) {
+      toggleBookmarkedMode--;
+    } else {
+      toggleBookmarkedMode++;
+    }
+    if (toggleBookmarkedMode > _TB_MAX) {
+      toggleBookmarkedMode = _TB_MIN;
+    } else if (toggleBookmarkedMode < _TB_MIN) {
+      toggleBookmarkedMode = _TB_MAX;
+    }
 
-    button.innerHTML = formatToggleBookmarkedButtonHtml(mode);
+    button.innerHTML = formatToggleBookmarkedButtonHtml(toggleBookmarkedMode);
 
     let images = Array.from(imagesContainer.querySelectorAll(CONFIG.SELECTORS_IMAGE));
 
@@ -1705,11 +1715,11 @@
       images = images.filter(image => !image.dataset.pixiv_utils_blocked);
     }
 
-    if (mode === 0) {
+    if (toggleBookmarkedMode === 0) {
       for (const image of images) {
         image.style.display = '';
       }
-    } else if (mode === 1) {
+    } else if (toggleBookmarkedMode === 1) {
       for (const image of images) {
         if (image.dataset.pixiv_utils_blocked || isImageBookmarked(image)) {
           image.style.display = 'none';
@@ -1717,7 +1727,7 @@
           image.style.display = '';
         }
       }
-    } else if (mode === 2) {
+    } else if (toggleBookmarkedMode === 2) {
       for (const image of images) {
         if (image.dataset.pixiv_utils_blocked || !isImageBookmarked(image)) {
           image.style.display = 'none';
@@ -1727,7 +1737,7 @@
       }
     }
 
-    GM_setValue('PREF_TOGGLE_BOOKMARKED_MODE', mode);
+    GM_setValue('PREF_TOGGLE_BOOKMARKED_MODE', toggleBookmarkedMode);
 
     toggling = false;
 
@@ -1775,19 +1785,26 @@
 
     const button = document.createElement('a');
     button.className = 'pixiv_utils_toggle_bookmarked';
-    button.innerHTML = formatToggleBookmarkedButtonHtml(GM_getValue('PREF_TOGGLE_BOOKMARKED_MODE', _TB_MIN));
+    button.innerHTML = formatToggleBookmarkedButtonHtml(toggleBookmarkedMode);
 
     if (CONFIG.TEXT_TOGGLE_BOOKMARKED_TOOLTIP) {
       button.title = CONFIG.TEXT_TOGGLE_BOOKMARKED_TOOLTIP;
     }
 
     // Left click.
-    button.addEventListener('click', event => toggleBookmarked(button, element, header, imagesContainer));
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      toggleBookmarked(button, element, header, imagesContainer, {
+        sync: event.shiftKey
+      });
+    });
 
     // Right click.
     button.addEventListener('contextmenu', event => {
       event.preventDefault();
-      toggleBookmarked(button, element, header, imagesContainer, true);
+      toggleBookmarked(button, element, header, imagesContainer, {
+        rightClick: true
+      });
     });
 
     buttonContainer.append(button);
