@@ -151,7 +151,7 @@
     SELECTORS_IMAGE_TITLE: [
       '[data-ga4-label="title_link"]', // home's recommended works grid
       '.gtm-illust-recommend-title', // discovery page's grid
-      '.kmUlkw', // tags/bookmarks page's grid
+      '.fvnDRG', // artist/tags page
       '.title', // rankings page
       '.illust-info > a[class*="c-text"]' // mobile list view
     ],
@@ -159,14 +159,14 @@
     SELECTORS_IMAGE_ARTIST_AVATAR: [
       '[data-ga4-label="user_icon_link"]', // home's recommended works grid
       '.sc-1rx6dmq-1', // expanded view's related works grid
-      '.lbFgXO', // tags/bookmarks page's grid
+      '.lbFgXO', // artist/tags page
       '._user-icon' // rankings page
     ],
 
     SELECTORS_IMAGE_ARTIST_NAME: [
       '[data-ga4-label="user_name_link"]', // home's recommended works grid
       '.gtm-illust-recommend-user-name', // expanded view's related works grid
-      '.QzTPT', // tags/bookmarks page's grid
+      '.QzTPT', // artist/tags page
       '.user-name', // rankings page
       '.illust-author' // mobile list view
     ],
