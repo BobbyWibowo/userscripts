@@ -79,6 +79,7 @@
     SELECTORS_FOLLOW_BUTTON_CONTAINER: null,
     SELECTORS_FOLLOW_BUTTON: null,
     SELECTORS_RECOMMENDED_USER_CONTAINER: null,
+    SELECTORS_TAG_BUTTON: null,
 
     DATE_CONVERSION: true,
     DATE_CONVERSION_LOCALES: 'en-GB',
@@ -231,6 +232,11 @@
       // home's recommended users sidebar
       '.hSNbaL > .grid > :nth-child(2) .flex-col.gap-8:first-child .flex-row.items-center:not(.mr-auto)',
       '.YXoqY .grid li.list-none', // tags page's users tab
+    ],
+
+    SELECTORS_TAG_BUTTON: [
+      '.hFZtbZ', // artist page
+      '.fdslki' // illustrations page
     ],
 
     SELECTORS_DATE: [
@@ -1812,6 +1818,31 @@
     return true;
   };
 
+  const doTagButton = element => {
+    let tag = null;
+
+    const tags = element.querySelectorAll('div[title]');
+    if (tags.length) {
+      const tagRaw = tags[tags.length - 1].textContent;
+      if (tagRaw.startsWith('#')) {
+        tag = tagRaw.substring(1);
+      }
+    }
+
+    if (!tag) {
+      return false;
+    }
+
+    const blocked = PIXIV_BLOCKED_TAGS_STRING.includes(tag) || PIXIV_BLOCKED_TAGS_REGEXP.some(t => t.test(tag));
+
+    if (blocked) {
+      element.style.display = 'none';
+      logDebug(`Tag button blocked (${tag})`);
+    }
+
+    return blocked;
+  };
+
   const doUtags = async element => {
     let image = element.closest(CONFIG.SELECTORS_IMAGE);
 
@@ -1977,6 +2008,14 @@
         if (parent && !element.dataset.pixiv_utils_toggle_bookmarked_section) {
           doToggleBookmarkedSection(parent, sectionConfig);
         }
+      });
+    }
+
+    // Tag Buttons
+    if (PIXIV_BLOCKED_TAGS_VALIDATED && CONFIG.PIXIV_REMOVE_BLOCKED) {
+      // Only process if blocked images are also removed instead of just muted.
+      sentinel.on(CONFIG.SELECTORS_TAG_BUTTON, element => {
+        doTagButton(element);
       });
     }
 
