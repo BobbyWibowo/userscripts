@@ -23,21 +23,15 @@
 (function () {
   'use strict';
 
-  const _LOG_TIME_FORMAT = new Intl.DateTimeFormat([], {
+  const _LOG_TIME_FORMAT = new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     fractionalSecondDigits: 3
   });
 
-  const _logTime = () => {
-    return _LOG_TIME_FORMAT.format(Date.now())
-      .replaceAll('.', ':')
-      .replace(',', '.');
-  };
-
   const log = (message, ...args) => {
-    const prefix = `[${_logTime()}]: `;
+    const prefix = `[${_LOG_TIME_FORMAT.format(Date.now())}]: `;
     if (typeof message === 'string') {
       return console.log(prefix + message, ...args);
     } else {
