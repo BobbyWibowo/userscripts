@@ -1113,7 +1113,7 @@
   const _TB_MIN = 0;
   const _TB_MAX = 2;
 
-  let toggleBookmarkedMode = GM_getValue('PREF_TOGGLE_BOOKMARKED_MODE', _TB_MIN);
+  let toggleBookmarkedMode = null;
 
   const isImageBookmarked = element => {
     return element.querySelector(CONFIG.SELECTORS_IMAGE_BOOKMARKED) !== null;
@@ -1840,6 +1840,11 @@
         return false;
       }
       logDebug('Refreshing toggle bookmarked section due to images container update', element);
+    }
+
+    // Load latest state from storage for the first time.
+    if (toggleBookmarkedMode === null) {
+      toggleBookmarkedMode = GM_getValue('PREF_TOGGLE_BOOKMARKED_MODE', _TB_MIN);
     }
 
     const header = element.querySelector(sectionConfig.selectorHeader);
