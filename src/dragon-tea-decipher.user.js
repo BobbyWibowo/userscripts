@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dragon Tea Decipher
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.1.2
+// @version      1.1.3
 // @description  Decipher Atbash cipher on Dragon Tea website, to facilitate customizing display font.
 // @author       Bobby Wibowo
 // @license      MIT

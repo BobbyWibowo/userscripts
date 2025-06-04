@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Article Copy Button
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.3.1
+// @version      1.3.2
 // @description  Add copy buttons to some sites. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
