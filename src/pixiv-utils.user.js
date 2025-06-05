@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.20
+// @version      1.6.21
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -129,9 +129,9 @@
       '.fJcxiL > li', // artist page's featured works
       '.ibaIoN > div:has(a[href])', // expanded view's recommended works after pop-in
       '.gMVVng > div', // expanded view's other works sidebar
-      '.iwHaa-d > li', // tags page's grid
+      '.hHLaTl > li', // tags page's grid
       '.jClpXN > li', // tags page's grid (novel)
-      '.gLWzLO > div', // tags page's users tab
+      '.jOuhfn > div', // tags page's users tab
       '.fhUcsb > li', // "newest by all" page
       '.buGhFj > li', // requests page
       '.bkRoSP > li', // manga page's followed works
@@ -282,13 +282,19 @@
       {
         selectorParent: '.icUpwV',
         selectorHeader: '.dlidhK',
-        selectorImagesContainer: '.fxjfKC'
+        selectorImagesContainer: '.cmMzCq'
+      },
+      // Tags page (novel)
+      {
+        selectorParent: '.icUpwV',
+        selectorHeader: '.dlidhK',
+        selectorImagesContainer: '.dsoOUK'
       },
       // "Newest by all" page
       {
-        selectorParent: '.YXoqY',
-        selectorHeader: '.cwGkEl',
-        selectorImagesContainer: '.hairtM '
+        selectorParent: '.icUpwV',
+        selectorHeader: '.hYPUjr',
+        selectorImagesContainer: '.fVnbGC'
       },
       // Rankings page
       {
@@ -692,6 +698,11 @@
     '.gAyuNi' // novels page's ongoing contests
   ];
 
+  const SELECTORS_TOGGLE_BOOKMARKED_HEADER = [
+    '.hyniYI', // general page
+    '.gnbCrF' // tags page (novel)
+  ];
+
   const mainStyle = /*css*/`
   .flex:has(+ .pixiv_utils_edit_bookmark_container) {
     flex-grow: 1;
@@ -778,7 +789,7 @@
     width: 100%;
   }
 
-  :is(.cxuHib, .bXtqby, .eEVUIK, .eYXksB):has(+ .pixiv_utils_toggle_bookmarked_container) {
+  :is(${SELECTORS_TOGGLE_BOOKMARKED_HEADER.join(', ')}):has(+ .pixiv_utils_toggle_bookmarked_container) {
     flex-grow: 1;
     justify-content: flex-end;
   }
