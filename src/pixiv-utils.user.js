@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.22
+// @version      1.6.23
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -129,13 +129,13 @@
       '.blqLzT > li', // artist page's featured works
       '.ibaIoN > div:has(a[href])', // expanded view's recommended works after pop-in
       '.gMVVng > div', // expanded view's other works sidebar
+      '.xPzcf > .fVofhy', // illustrations/manga page's daily ranking
       '.hHLaTl > li', // tags page's grid
       '.jClpXN > li', // tags page's grid (novel)
       '.jOuhfn > div', // tags page's users tab
       '.fhUcsb > li', // "newest by all" page
       '.buGhFj > li', // requests page
       '.bkRoSP > li', // manga page's followed works
-      '.xPzcf > div', // manga page's daily ranking
       '.dHJLGd > div', // novels page's ongoing contests
       '.ranking-item', // rankings page
       '._ranking-item', // rankings page (novel)
@@ -183,6 +183,7 @@
       '.Yzjmx', // artist page's grid (novel)
       '.jVTssb', // artist page's featured works (novel)
       '.hFAmSK', // novels page
+      '.cUooIb', // novels page's followed works
       '.djUdtd > div:last-child', // novels page's editor's picks
       '.gAyuNi', // novels page's ongoing contests
       '._layout-thumbnail', // rankings page
@@ -695,6 +696,7 @@
     '.byWzRq', // expanded view's artist bottom bar
     '.Yzjmx', // artist page's grid
     '.hFAmSK', // novels page
+    '.cUooIb', // novels page's followed works
     '.gAyuNi' // novels page's ongoing contests
   ];
 
