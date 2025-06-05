@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.21
+// @version      1.6.22
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -126,7 +126,7 @@
       '.iyMBlR > li', // following page's grid (novel)
       '.eyusRs > div', // user profile popup
       '.jELUak > li', // artist page's grid
-      '.fJcxiL > li', // artist page's featured works
+      '.blqLzT > li', // artist page's featured works
       '.ibaIoN > div:has(a[href])', // expanded view's recommended works after pop-in
       '.gMVVng > div', // expanded view's other works sidebar
       '.hHLaTl > li', // tags page's grid
