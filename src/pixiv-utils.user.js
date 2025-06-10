@@ -170,18 +170,19 @@
     ],
 
     SELECTORS_IMAGE_CONTROLS: [
-      '.ldNztP', // home's latest/recommended works grid
+      '.jPGduJ', // home's latest/recommended works grid
       '.jTSPzA', // following page's grid
       '.XziBq', // following page's grid (novel)
-      '.ppQNN', // discovery page's grid
+      '.hGKVAM', // discovery page's grid
       '.hLHrVH', // artist page's grid
-      '.fRrNLv', // artist page's featured works
       '.chJny', // artist page's grid (novel)
+      '.fRrNLv', // artist page's featured works
+      '.cOEQuT', // artist page's featured works (novel)
       '.cgYJXZ', // tags page's grid (novel)
       '.ZBDKi', // "newest by all" page
+      '.fvFuEP', // requests page
+      '.khAYZn', // requests page (novel)
       '.byWzRq', // expanded view's artist bottom bar (novel)
-      '.Yzjmx', // artist page's grid (novel)
-      '.jVTssb', // artist page's featured works (novel)
       '.hFAmSK', // novels page
       '.cUooIb', // novels page's followed works
       '.djUdtd > div:last-child', // novels page's editor's picks
@@ -690,11 +691,11 @@
   // NOTE Keep in sync with SELECTORS_IMAGE_CONTROLS.
   // Strictly for tweaking button positioning, which only some will need.
   const SELECTORS_IMAGE_CONTROLS_NOVEL = [
-    '.XziBq', // following page's grid
+    '.XziBq', // following page's grid (novel)
     '.chJny', // artist page's grid (novel)
-    '.cgYJXZ', // tags page's grid
-    '.byWzRq', // expanded view's artist bottom bar
-    '.Yzjmx', // artist page's grid
+    '.cgYJXZ', // tags page's grid (novel)
+    '.khAYZn', // requests page (novel)
+    '.byWzRq', // expanded view's artist bottom bar (novel)
     '.hFAmSK', // novels page
     '.cUooIb', // novels page's followed works
     '.gAyuNi' // novels page's ongoing contests
