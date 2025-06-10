@@ -131,7 +131,6 @@
       '.gMVVng > div', // expanded view's other works sidebar
       '.xPzcf > .fVofhy', // illustrations/manga page's daily ranking
       '.hHLaTl > li', // tags page's grid
-      '.jClpXN > li', // tags page's grid (novel)
       '.jOuhfn > div', // tags page's users tab
       '.fhUcsb > li', // "newest by all" page
       '.buGhFj > li', // requests page
@@ -178,7 +177,6 @@
       '.chJny', // artist page's grid (novel)
       '.fRrNLv', // artist page's featured works
       '.cOEQuT', // artist page's featured works (novel)
-      '.cgYJXZ', // tags page's grid (novel)
       '.ZBDKi', // "newest by all" page
       '.fvFuEP', // requests page
       '.khAYZn', // requests page (novel)
@@ -561,6 +559,11 @@
     '.gMVVng' // expanded view's other works sidebar
   ].join(', ');
 
+  // NOTE Keep in sync with SELECTORS_IMAGE.
+  const SELECTORS_IMAGE_SMALL = [
+    '.iyMBlR > li' // following page's grid (novel)
+  ].join(', ');
+
   const SELECTORS_IMAGE_MOBILE = '.works-item-illust';
 
   const PIXIV_HIGHLIGHTED_TAGS_FORMATTED = [];
@@ -686,14 +689,14 @@
     .filter(s => !['._layout-thumbnail', '.novel-right-contents'].includes(s))
     .join(', ');
 
-  const SELECTORS_IMAGE_HIGHLIGHTED = ':not(.page-count, [size="24"]):has(> img:not([src^="data"]))::after';
+  const SELECTORS_IMAGE_HIGHLIGHTED =
+    ':not(.page-count, [size="16"], [size="24"]):has(> img:not([src^="data"]))::after';
 
   // NOTE Keep in sync with SELECTORS_IMAGE_CONTROLS.
   // Strictly for tweaking button positioning, which only some will need.
   const SELECTORS_IMAGE_CONTROLS_NOVEL = [
     '.XziBq', // following page's grid (novel)
     '.chJny', // artist page's grid (novel)
-    '.cgYJXZ', // tags page's grid (novel)
     '.khAYZn', // requests page (novel)
     '.byWzRq', // expanded view's artist bottom bar (novel)
     '.hFAmSK', // novels page
@@ -839,6 +842,7 @@
   }
 
   :is(${SELECTORS_IMAGE_CONTAINER_SIMPLIFIED}) [data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED},
+  :is(${SELECTORS_IMAGE_SMALL})[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED},
   :is(${SELECTORS_IMAGE_MOBILE})[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
     box-shadow: inset 0 0 0 2px var(--pixiv_utils_highlight_color, ${CONFIG.PIXIV_HIGHLIGHTED_COLOR});
   }
