@@ -564,7 +564,7 @@
     '.iyMBlR > li' // following page's grid (novel)
   ].join(', ');
 
-  const SELECTORS_IMAGE_MOBILE = '.works-item-illust';
+  const SELECTORS_IMAGE_MOBILE = '.works-item';
 
   const PIXIV_HIGHLIGHTED_TAGS_FORMATTED = [];
 
@@ -889,6 +889,11 @@
     border: 1px solid rgb(242, 242, 242);
   }
 
+  .works-item:not(.works-item-illust) .pixiv_utils_blocked_image {
+    min-width: 64px;
+    max-width: 64px;
+  }
+
   /* Pixiv's built-in tags mute. */
   .ranking-item.muted .work img {
     filter: brightness(50%);
@@ -1174,16 +1179,13 @@
           }
 
           step++;
+          let source = null;
+
           const props = obj.memoizedProps;
           if (props.tags) {
-            data.title = props.title;
-            data.ai = props.aiType === 2;
-            data.tags = props.tags;
+            source = props;
           } else if (props.content?.thumbnails?.length) {
-            const thumbnail = props.content.thumbnails[0];
-            data.title = thumbnail.title;
-            data.ai = thumbnail.aiType === 2;
-            data.tags = thumbnail.tags;
+            source = props.content.thumbnails[0];
           } else if (props.children) {
             let children = props.children;
             if (!Array.isArray(children) || typeof children !== 'object') {
@@ -1195,9 +1197,7 @@
               }
               for (const child of children) {
                 if (child.props?.thumbnail) {
-                  data.title = child.props.thumbnail.title;
-                  data.ai = child.props.thumbnail.aiType === 2;
-                  data.tags = child.props.thumbnail.tags;
+                  source = child.props.thumbnail;
                   break;
                 }
               }
@@ -1205,12 +1205,16 @@
           } else {
             for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
               if (props[key]) {
-                data.title = props[key].title;
-                data.ai = props[key].aiType === 2;
-                data.tags = props[key].tags;
+                source = props[key];
                 break;
               }
             }
+          }
+
+          if (source !== null) {
+            data.title = source.title;
+            data.ai = source.aiType === 2;
+            data.tags = source.tags;
           }
 
           if (data.tags === null && step < MAX_STEPS) {
