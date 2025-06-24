@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.1.8
+// @version      1.1.9
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -186,8 +186,7 @@
 
   /** MAIN **/
 
-  const handleVideoUpdate = event => {
-    const video = event.target.closest(CONFIG.SELECTORS_VIDEO);
+  const handleVideoUpdate = video => {
     if (video?.dataset.noview_threshold_unmet) {
       logDebug(`Resetting old statuses (${video.dataset.noview_views} <= ${video.dataset.noview_threshold_unmet})`,
         video);
@@ -201,13 +200,10 @@
       return false;
     }
 
-    const dismissible = element.querySelector('#dismissible');
-    if (!dismissible) {
-      return false;
-    }
-
     // Listen to this event to handle dynamic update (during page navigation).
-    element.addEventListener('yt-enable-lockup-interaction', handleVideoUpdate);
+    element.addEventListener('yt-enable-lockup-interaction', () => handleVideoUpdate(element));
+
+    const dismissible = element.querySelector('#dismissible');
 
     if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
       delete element.dataset.noview_allowed_channel;
@@ -241,7 +237,10 @@
 
     let thresholdUnmet = null;
 
-    const isNew = Boolean(dismissible.querySelector('.badge[aria-label="New"]'));
+    // Do not look for New badge if thresholds are identical.
+    const isNew = (CONFIG.VIEWS_THRESHOLD_NEW !== CONFIG.VIEWS_THRESHOLD) &&
+      Boolean(dismissible.querySelector('.badge[aria-label="New"]'));
+
     if (isNew) {
       if (views <= CONFIG.VIEWS_THRESHOLD_NEW) {
         thresholdUnmet = CONFIG.VIEWS_THRESHOLD_NEW;
@@ -258,7 +257,7 @@
 
     log(`Hid video (${views} <= ${thresholdUnmet})`, element);
     element.dataset.noview_threshold_unmet = thresholdUnmet;
-    element.dataset.noview_views = views; // for context with inspect element
+    element.dataset.noview_views = views;
     return true;
   };
 
