@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.2.0
+// @version      1.2.1
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -233,6 +233,14 @@
 
   /** MAIN **/
 
+  const emptyMetadata = {
+    channelID: null,
+    author: null,
+    isLive: null,
+    isUpcoming: null,
+    viewCount: null
+  };
+
   const fetchVideoDataDesktopClient = async videoID => {
     const url = 'https://www.youtube.com/youtubei/v1/player';
     const data = {
@@ -258,13 +266,7 @@
         const response = await result.json();
         const newVideoID = response?.videoDetails?.videoId ?? null;
         if (newVideoID !== videoID) {
-          return {
-            channelID: null,
-            author: null,
-            isLive: null,
-            isUpcoming: null,
-            viewCount: null
-          };
+          return structuredClone(emptyMetadata);
         }
 
         const channelId = response?.videoDetails?.channelId ?? null;
@@ -285,22 +287,10 @@
       }
     } catch (e) {}
 
-    return {
-      channelID: null,
-      author: null,
-      isLive: null,
-      isUpcoming: null,
-      viewCount: null
-    };
+    return structuredClone(emptyMetadata);
   };
 
-  const videoMetadataCache = new DataCache(() => ({
-    channelID: null,
-    author: null,
-    isLive: null,
-    isUpcoming: null,
-    viewCount: null
-  }));
+  const videoMetadataCache = new DataCache(() => (structuredClone(emptyMetadata)));
 
   const waitingForMetadata = [];
 
@@ -400,38 +390,20 @@
           return videoCache;
         }
 
+        const _emptyMetadata = structuredClone(emptyMetadata);
         window.postMessage({
           type: 'youtube-noview:video-metadata-received',
           videoID,
-          metadata: {
-            channelID: null,
-            author: null,
-            isLive: null,
-            isUpcoming: null,
-            viewCount: null
-          }
+          metadata: _emptyMetadata
         }, '*');
-
-        return {
-          channelID: null,
-          author: null,
-          isLive: null,
-          isUpcoming: null,
-          viewCount: null
-        };
+        return _emptyMetadata;
       })();
 
       activeRequests[videoID] = result;
       return await result;
     } catch (e) { }
 
-    return {
-      channelID: null,
-      author: null,
-      isLive: null,
-      isUpcoming: null,
-      viewCount: null
-    };
+    return structuredClone(emptyMetadata);
   };
 
   const getVideoData = async element => {
