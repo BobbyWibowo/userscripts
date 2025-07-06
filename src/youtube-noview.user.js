@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.2.3
+// @version      1.2.4
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -146,6 +146,10 @@
 
   // Styling that must always be enabled for the script's core functionalities.
   GM_addStyle(/*css*/`
+    [data-noview_views] {
+      transition: 0.25s opacity;
+    }
+
     [data-noview_threshold_unmet] {
       display: none !important;
     }
@@ -153,7 +157,8 @@
     /* Visually hide, while still letting the element occupy the space.
      * To prevent YouTube from infinitely loading more videos. */
     [data-noview_processing] {
-      visibility: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
     }
   `);
 
@@ -292,6 +297,21 @@
     return structuredClone(emptyMetadata);
   };
 
+  const enqueueFetchVideoDataDesktopClient = (() => {
+    let pending = Promise.resolve();
+
+    const run = async videoID => {
+      try {
+        await pending;
+      } catch (e) {
+        console.log(e);
+      }
+      return fetchVideoDataDesktopClient(videoID);
+    };
+
+    return videoID => (pending = run(videoID));
+  })();
+
   const videoMetadataCache = new DataCache(() => (structuredClone(emptyMetadata)));
 
   const waitingForMetadata = [];
@@ -365,11 +385,11 @@
           videoID
         }, '*');
 
-        let metadata = await fetchVideoDataDesktopClient(videoID).catch(() => null);
+        let metadata = await enqueueFetchVideoDataDesktopClient(videoID).catch(() => null);
 
         // Don't retry for LOGIN_REQUIRED, they will never have urls
         if (!metadata || metadata.playabilityStatus !== 'LOGIN_REQUIRED') {
-          metadata = await fetchVideoDataDesktopClient(videoID).catch(() => null);
+          metadata = await enqueueFetchVideoDataDesktopClient(videoID).catch(() => null);
         }
 
         if (metadata) {
@@ -453,12 +473,22 @@
   };
 
   const handleVideoUpdate = element => {
-    if (element.dataset.noview_threshold_unmet) {
-      logDebug(`Resetting old statuses (${element.dataset.noview_views} <= ${element.dataset.noview_threshold_unmet})`,
-        element);
-      delete element.dataset.noview_threshold_unmet;
-      delete element.dataset.noview_views;
+    if (element.dataset.noview_processing) {
+      return;
     }
+
+    delete element.dataset.noview_views;
+
+    if (element.dataset.noview_threshold_unmet) {
+      // Deleting this removes "display: none", which will trigger doVideo() via sentinel.
+      delete element.dataset.noview_threshold_unmet;
+      return;
+    }
+
+    doVideo(element).finally(() => {
+      // Mark video as done processing (unhide).
+      delete element.dataset.noview_processing;
+    });
   };
 
   const doVideo = async element => {
@@ -493,10 +523,13 @@
       return false;
     }
 
+    const viewCount = parseInt(data.metadata.viewCount);
+    element.dataset.noview_views = viewCount;
+
     let thresholdUnmet = null;
 
     if (data.metadata.isLive && CONFIG.VIEWS_THRESHOLD_LIVE !== null) {
-      if (data.metadata.viewCount <= CONFIG.VIEWS_THRESHOLD_LIVE) {
+      if (viewCount <= CONFIG.VIEWS_THRESHOLD_LIVE) {
         thresholdUnmet = CONFIG.VIEWS_THRESHOLD_LIVE;
       }
     } else {
@@ -504,11 +537,11 @@
       const isNew = (CONFIG.VIEWS_THRESHOLD_NEW !== CONFIG.VIEWS_THRESHOLD) && isVideoNew(element);
 
       if (isNew) {
-        if (data.metadata.viewCount <= CONFIG.VIEWS_THRESHOLD_NEW) {
+        if (viewCount <= CONFIG.VIEWS_THRESHOLD_NEW) {
           thresholdUnmet = CONFIG.VIEWS_THRESHOLD_NEW;
         }
       } else {
-        if (data.metadata.viewCount <= CONFIG.VIEWS_THRESHOLD) {
+        if (viewCount <= CONFIG.VIEWS_THRESHOLD) {
           thresholdUnmet = CONFIG.VIEWS_THRESHOLD;
         }
       }
@@ -518,9 +551,8 @@
       return false;
     }
 
-    log(`Hid video (${data.metadata.viewCount} <= ${thresholdUnmet})`, element);
+    log(`Hid video (${viewCount} <= ${thresholdUnmet})`, element);
     element.dataset.noview_threshold_unmet = thresholdUnmet;
-    element.dataset.noview_views = data.metadata.viewCount;
 
     return true;
   };
@@ -530,10 +562,11 @@
   waitPageLoaded().then(() => {
     setupMetadataOnRecieve();
 
-    sentinel.on(CONFIG.SELECTORS_VIDEO, async element => {
-      await doVideo(element).catch(() => {});
-      // Mark video as done processing (unhide).
-      delete element.dataset.noview_processing;
+    sentinel.on(CONFIG.SELECTORS_VIDEO, element => {
+      doVideo(element).finally(() => {
+        // Mark video as done processing (unhide).
+        delete element.dataset.noview_processing;
+      });
     });
   });
 })();
