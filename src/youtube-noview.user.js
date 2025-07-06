@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.2.4
+// @version      1.2.5
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -146,19 +146,19 @@
 
   // Styling that must always be enabled for the script's core functionalities.
   GM_addStyle(/*css*/`
-    [data-noview_views] {
+    /* Visually hide, while still letting the element occupy the space.
+     * To prevent YouTube from infinitely loading more videos. */
+    :is(${CONFIG.SELECTORS_ALLOWED_PAGE}) :is(${CONFIG.SELECTORS_VIDEO}) {
       transition: 0.25s opacity;
+    }
+
+    :is(${CONFIG.SELECTORS_ALLOWED_PAGE}) :is(${CONFIG.SELECTORS_VIDEO}):not([data-noview_views], [data-noview_allowed_channel]) {
+      visibility: hidden;
+      opacity: 0;
     }
 
     [data-noview_threshold_unmet] {
       display: none !important;
-    }
-
-    /* Visually hide, while still letting the element occupy the space.
-     * To prevent YouTube from infinitely loading more videos. */
-    [data-noview_processing] {
-      visibility: hidden !important;
-      opacity: 0 !important;
     }
   `);
 
@@ -223,15 +223,47 @@
     }
   }
 
+  const isPartialElementInViewport = element => {
+    if (element.style.display === 'none') {
+      return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+
+    const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+    const windowWidth = window.innerWidth || document.documentElement.clientWidth;
+
+    const vertInView = (rect.top <= windowHeight) && ((rect.top + rect.height) >= 0);
+    const horzInView = (rect.left <= windowWidth) && ((rect.left + rect.width) >= 0);
+
+    return (vertInView && horzInView);
+  };
+
+  let intersectionObserver = null;
+
   let isPageAllowed = false;
 
   window.addEventListener('yt-navigate-start', event => {
     isPageAllowed = false;
+    // Clear previous intersection observer.
+    if (intersectionObserver !== null) {
+      intersectionObserver.disconnect();
+      intersectionObserver = null;
+    }
   });
 
   window.addEventListener('yt-page-data-updated', event => {
     isPageAllowed = Boolean(document.querySelector(CONFIG.SELECTORS_ALLOWED_PAGE));
     if (isPageAllowed) {
+      // Re-init intersection observer.
+      intersectionObserver = new IntersectionObserver(entries => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            doVideo(entry.target);
+            intersectionObserver.unobserve(entry.target);
+          }
+        }
+      }, { delay: 100, threshold: 0 });
       logDebug('Page allowed, waiting for videos\u2026');
     } else {
       logDebug('Page not allowed.');
@@ -296,21 +328,6 @@
 
     return structuredClone(emptyMetadata);
   };
-
-  const enqueueFetchVideoDataDesktopClient = (() => {
-    let pending = Promise.resolve();
-
-    const run = async videoID => {
-      try {
-        await pending;
-      } catch (e) {
-        console.log(e);
-      }
-      return fetchVideoDataDesktopClient(videoID);
-    };
-
-    return videoID => (pending = run(videoID));
-  })();
 
   const videoMetadataCache = new DataCache(() => (structuredClone(emptyMetadata)));
 
@@ -385,12 +402,7 @@
           videoID
         }, '*');
 
-        let metadata = await enqueueFetchVideoDataDesktopClient(videoID).catch(() => null);
-
-        // Don't retry for LOGIN_REQUIRED, they will never have urls
-        if (!metadata || metadata.playabilityStatus !== 'LOGIN_REQUIRED') {
-          metadata = await enqueueFetchVideoDataDesktopClient(videoID).catch(() => null);
-        }
+        const metadata = await fetchVideoDataDesktopClient(videoID).catch(() => null);
 
         if (metadata) {
           const videoCache = videoMetadataCache.setupCache(videoID);
@@ -430,7 +442,7 @@
 
   const getVideoData = async element => {
     const videoLink = element.querySelector('a[href]');
-    if (!videoLink || !videoLink.href) {
+    if (!videoLink?.href) {
       return null;
     }
 
@@ -472,35 +484,23 @@
     }
   };
 
-  const handleVideoUpdate = element => {
-    if (element.dataset.noview_processing) {
-      return;
-    }
-
-    delete element.dataset.noview_views;
-
+  function handleVideoUpdate () {
+    const element = this;
     if (element.dataset.noview_threshold_unmet) {
+      logDebug(`Resetting old statuses (${element.dataset.noview_views} < ${element.dataset.noview_threshold_unmet})`,
+        element);
+      delete element.dataset.noview_views;
       // Deleting this removes "display: none", which will trigger doVideo() via sentinel.
       delete element.dataset.noview_threshold_unmet;
-      return;
+    } else {
+      delete element.dataset.noview_views;
+      doVideo(element);
     }
-
-    doVideo(element).finally(() => {
-      // Mark video as done processing (unhide).
-      delete element.dataset.noview_processing;
-    });
   };
 
   const doVideo = async element => {
-    if (!isPageAllowed) {
-      return false;
-    }
-
-    // Mark video as processing (immediately hide).
-    element.dataset.noview_processing = true;
-
     // Listen to this event to handle dynamic update (during page navigation).
-    element.addEventListener('yt-enable-lockup-interaction', () => handleVideoUpdate(element));
+    element.addEventListener('yt-enable-lockup-interaction', handleVideoUpdate);
 
     const data = await getVideoData(element);
     if (!data) {
@@ -511,7 +511,6 @@
       delete element.dataset.noview_allowed_channel;
       if (data.metadata.channelID !== null) {
         if (CONFIG.ALLOWED_CHANNEL_IDS.includes(data.metadata.channelID)) {
-          logDebug(`Ignoring video from an allowed channel (${data.metadata.channelID})`, element);
           element.dataset.noview_allowed_channel = data.metadata.channelID;
           return false;
         }
@@ -519,13 +518,11 @@
     }
 
     if (data.metadata.viewCount === null) {
-      logDebug('Unable to access views data', element, data);
+      logDebug('Unable to access views data', element);
       return false;
     }
 
     const viewCount = parseInt(data.metadata.viewCount);
-    element.dataset.noview_views = viewCount;
-
     let thresholdUnmet = null;
 
     if (data.metadata.isLive && CONFIG.VIEWS_THRESHOLD_LIVE !== null) {
@@ -547,13 +544,12 @@
       }
     }
 
-    if (thresholdUnmet === null) {
-      return false;
+    if (thresholdUnmet !== null) {
+      log(`Hid video (${viewCount} <= ${thresholdUnmet})`, element);
+      element.dataset.noview_threshold_unmet = thresholdUnmet;
     }
 
-    log(`Hid video (${viewCount} <= ${thresholdUnmet})`, element);
-    element.dataset.noview_threshold_unmet = thresholdUnmet;
-
+    element.dataset.noview_views = viewCount;
     return true;
   };
 
@@ -563,10 +559,16 @@
     setupMetadataOnRecieve();
 
     sentinel.on(CONFIG.SELECTORS_VIDEO, element => {
-      doVideo(element).finally(() => {
-        // Mark video as done processing (unhide).
-        delete element.dataset.noview_processing;
-      });
+      if (!isPageAllowed) {
+        return false;
+      }
+
+      if (isPartialElementInViewport(element)) {
+        doVideo(element);
+      } else {
+        // If not in viewport, observe intersection.
+        intersectionObserver.observe(element);
+      }
     });
   });
 })();
