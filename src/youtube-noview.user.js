@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.2.5
+// @version      1.2.6
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -273,7 +273,7 @@
   /** MAIN **/
 
   const emptyMetadata = {
-    channelID: null,
+    channelIDs: null,
     author: null,
     isLive: null,
     isUpcoming: null,
@@ -308,7 +308,19 @@
           return structuredClone(emptyMetadata);
         }
 
-        const channelId = response?.videoDetails?.channelId ?? null;
+        const channelIds = new Set();
+        if (response?.videoDetails?.channelId) {
+          channelIds.add(response?.videoDetails?.channelId);
+        }
+
+        // To get IDs of parent channel for auto-generated topic channels.
+        const subscribeChannelIds = response?.playerConfig?.webPlayerConfig?.webPlayerActionsPorting?.subscribeCommand?.subscribeEndpoint?.channelIds;
+        if (subscribeChannelIds?.length) {
+          for (const id of subscribeChannelIds) {
+            channelIds.add(id);
+          }
+        }
+
         const author = response?.videoDetails?.author ?? null;
         const isLive = response?.videoDetails?.isLive ?? null;
         const isUpcoming = response?.videoDetails?.isUpcoming ?? null;
@@ -316,7 +328,7 @@
         const playabilityStatus = response?.playabilityStatus?.status ?? null;
 
         return {
-          channelID: channelId,
+          channelIDs: channelIds,
           author,
           isLive,
           isUpcoming,
@@ -341,7 +353,7 @@
           const metadata = data.metadata;
           const cachedData = videoMetadataCache.setupCache(data.videoID);
 
-          cachedData.channelID = metadata.channelID;
+          cachedData.channelIDs = metadata.channelIDs;
           cachedData.author = metadata.author;
           cachedData.isLive = metadata.isLive;
           cachedData.isUpcoming = metadata.isUpcoming;
@@ -372,7 +384,7 @@
 
   const fetchVideoMetadata = async videoID => {
     const cachedData = videoMetadataCache.getFromCache(videoID);
-    if (cachedData && cachedData.channelID !== null) {
+    if (cachedData && cachedData.viewCount !== null) {
       return cachedData;
     }
 
@@ -406,7 +418,7 @@
 
         if (metadata) {
           const videoCache = videoMetadataCache.setupCache(videoID);
-          videoCache.channelID = metadata.channelID;
+          videoCache.channelIDs = metadata.channelIDs;
           videoCache.author = metadata.author;
           videoCache.isLive = metadata.isLive;
           videoCache.isUpcoming = metadata.isUpcoming;
@@ -456,23 +468,51 @@
       return null;
     }
 
+    let videoID;
     if (urlObject.searchParams.has('v') && ['/watch', '/watch/'].includes(urlObject.pathname)) {
-      const videoID = urlObject.searchParams.get('v');
-      const metadata = await fetchVideoMetadata(videoID);
-      return { videoID, metadata };
+      videoID = urlObject.searchParams.get('v');
     } else if (urlObject.pathname.match(/^\/embed\/|^\/shorts\/|^\/live\//)) {
       try {
         const id = urlObject.pathname.split('/')[2];
         if (id?.length >= 11) {
-          const videoID = id.slice(0, 11);
-          const metadata = await fetchVideoMetadata(videoID);
-          return { videoID, metadata };
+          videoID = id.slice(0, 11);
         }
       } catch (e) {
         log('Video ID not valid for:', url);
-        return null;
       }
     }
+
+    if (!videoID) {
+      return null;
+    }
+
+    let channelId;
+    if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
+      // Attempt to get channel ID early.
+      if (element.tagName === 'YT-LOCKUP-VIEW-MODEL') {
+        const symbols = Object.getOwnPropertySymbols(element.componentProps?.data ?? {});
+        if (symbols.length) {
+          const metadata = element.componentProps.data[symbols[0]].value?.metadata?.lockupMetadataViewModel;
+          channelId = metadata?.image?.decoratedAvatarViewModel?.rendererContext?.commandContext?.onTap
+            ?.innertubeCommand?.browseEndpoint?.browseId;
+        }
+      } else {
+        const dismissible = element.querySelector('#dismissible');
+        if (dismissible) {
+          const data = dismissible.__dataHost?.__data?.data;
+          channelId = data?.owner?.navigationEndpoint?.browseEndpoint?.browseId ||
+            data?.longBylineText?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId;
+        }
+      }
+    }
+
+    if (channelId && CONFIG.ALLOWED_CHANNEL_IDS.includes(channelId)) {
+      logDebug('Skipped metadata fetch due to allowed channel', element);
+      return { videoID, allowedChannel: channelId };
+    }
+
+    const metadata = await fetchVideoMetadata(videoID);
+    return { videoID, metadata };
   };
 
   const isVideoNew = element => {
@@ -509,9 +549,16 @@
 
     if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
       delete element.dataset.noview_allowed_channel;
-      if (data.metadata.channelID !== null) {
-        if (CONFIG.ALLOWED_CHANNEL_IDS.includes(data.metadata.channelID)) {
-          element.dataset.noview_allowed_channel = data.metadata.channelID;
+      if (data.allowedChannel) {
+        // Through early check via DOM properties.
+        element.dataset.noview_channel_ids = JSON.stringify([data.allowedChannel]);
+        element.dataset.noview_allowed_channel = true;
+        return false;
+      } else if (data.metadata.channelIDs?.size) {
+        // Through metadata fetch from API.
+        element.dataset.noview_channel_ids = JSON.stringify([...data.metadata.channelIDs]);
+        if (CONFIG.ALLOWED_CHANNEL_IDS.some(id => data.metadata.channelIDs.has(id))) {
+          element.dataset.noview_allowed_channel = true;
           return false;
         }
       }
