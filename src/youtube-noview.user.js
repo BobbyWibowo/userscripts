@@ -169,12 +169,13 @@
         font-style: italic !important;
       }
 
-      /* Fix YouTube styling when some videos are hidden. */
-      ytd-rich-item-renderer[rendered-from-rich-grid][is-in-first-column] {
+      /* Fix YouTube's home styling when some videos are hidden. */
+      ytd-browse[page-subtype="home"] ytd-rich-item-renderer[rendered-from-rich-grid][is-in-first-column],
+      ytd-browse[page-subtype="home"] #content.ytd-rich-section-renderer {
         margin-left: calc(var(--ytd-rich-grid-item-margin) / 2) !important;
       }
 
-      #contents.ytd-rich-grid-renderer {
+      ytd-browse[page-subtype="home"] #contents.ytd-rich-grid-renderer {
         padding-left: calc(var(--ytd-rich-grid-item-margin) / 2 + var(--ytd-rich-grid-gutter-margin)) !important;
       }
     `);
