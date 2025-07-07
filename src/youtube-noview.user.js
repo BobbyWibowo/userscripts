@@ -146,12 +146,12 @@
 
   // Styling that must always be enabled for the script's core functionalities.
   GM_addStyle(/*css*/`
-    /* Visually hide, while still letting the element occupy the space.
-     * To prevent YouTube from infinitely loading more videos. */
     :is(${CONFIG.SELECTORS_ALLOWED_PAGE}) :is(${CONFIG.SELECTORS_VIDEO}) {
       transition: 0.25s opacity;
     }
 
+    /* Visually hide, while still letting the element occupy the space.
+     * To prevent YouTube from infinitely loading more videos. */
     :is(${CONFIG.SELECTORS_ALLOWED_PAGE}) :is(${CONFIG.SELECTORS_VIDEO}):not([data-noview_views], [data-noview_allowed_channel]) {
       visibility: hidden;
       opacity: 0;
@@ -167,6 +167,15 @@
       [data-noview_allowed_channel] #metadata-line span:nth-last-child(2 of .inline-metadata-item),
       [data-noview_allowed_channel] yt-content-metadata-view-model div:nth-child(2) span:nth-last-child(2 of .yt-core-attributed-string) {
         font-style: italic !important;
+      }
+
+      /* Fix YouTube styling when some videos are hidden. */
+      ytd-rich-item-renderer[rendered-from-rich-grid][is-in-first-column] {
+        margin-left: calc(var(--ytd-rich-grid-item-margin) / 2) !important;
+      }
+
+      #contents.ytd-rich-grid-renderer {
+        padding-left: calc(var(--ytd-rich-grid-item-margin) / 2 + var(--ytd-rich-grid-gutter-margin)) !important;
       }
     `);
   }
