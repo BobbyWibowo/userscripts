@@ -46,7 +46,7 @@
     MODE: 'PROD',
 
     VIEWS_THRESHOLD: 999,
-    VIEWS_THRESHOLD_NEW: 499,
+    VIEWS_THRESHOLD_NEW: null, // this may only work for EN locale
     VIEWS_THRESHOLD_LIVE: null, // based on the livestream's accumulative views count reported by YouTube API
 
     ALLOWED_CHANNEL_IDS: [],
@@ -572,13 +572,15 @@
     const viewCount = parseInt(data.metadata.viewCount);
     let thresholdUnmet = null;
 
-    if (data.metadata.isLive && CONFIG.VIEWS_THRESHOLD_LIVE !== null) {
+    if (CONFIG.VIEWS_THRESHOLD_LIVE !== null && data.metadata.isLive) {
       if (viewCount <= CONFIG.VIEWS_THRESHOLD_LIVE) {
         thresholdUnmet = CONFIG.VIEWS_THRESHOLD_LIVE;
       }
     } else {
       // Do not look for New badge if thresholds are identical.
-      const isNew = (CONFIG.VIEWS_THRESHOLD_NEW !== CONFIG.VIEWS_THRESHOLD) && isVideoNew(element);
+      const isNew = CONFIG.VIEWS_THRESHOLD_NEW !== null &&
+        (CONFIG.VIEWS_THRESHOLD_NEW !== CONFIG.VIEWS_THRESHOLD) &&
+        isVideoNew(element);
 
       if (isNew) {
         if (viewCount <= CONFIG.VIEWS_THRESHOLD_NEW) {
