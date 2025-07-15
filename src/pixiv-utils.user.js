@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.24
+// @version      1.6.25
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -131,7 +131,7 @@
       '.gMVVng > div', // expanded view's other works sidebar
       '.xPzcf > .fVofhy', // illustrations/manga page's daily ranking
       '.hHLaTl > li', // tags page's grid
-      '.jOuhfn > div', // tags page's users tab
+      '.eTKQDQ .jOuhfn > div', // tags page's users tab
       '.fhUcsb > li', // "newest by all" page
       '.buGhFj > li', // requests page
       '.bkRoSP > li', // manga page's followed works
@@ -258,9 +258,9 @@
       },
       // Artist page
       {
-        selectorParent: '.jMIBwy',
-        selectorHeader: '.cgGWZL',
-        selectorImagesContainer: '.cgGWZL ~ div:not([class])'
+        selectorParent: '.eiHtAJ',
+        selectorHeader: '.jdzbvg',
+        selectorImagesContainer: '.jdzbvg ~ div:not([class])'
       },
       // Artist page's requests tab
       {
@@ -271,8 +271,8 @@
       // Artist page's bookmarks tab
       {
         selectorParent: '.icUpwV',
-        selectorHeader: '.kfBuju',
-        selectorImagesContainer: '.kfBuju ~ div:not([class])',
+        selectorHeader: '.giPitS',
+        selectorImagesContainer: '.giPitS ~ div:not([class])',
         sanityCheck: () => {
           // Skip if in own profile.
           return document.querySelector('a[href*="settings/profile"]');
@@ -706,7 +706,8 @@
 
   const SELECTORS_TOGGLE_BOOKMARKED_HEADER = [
     '.hyniYI', // general page
-    '.gnbCrF' // tags page (novel)
+    '.gnbCrF', // tags page (novel)
+    '.eYXksB' // artist page's requests tab
   ];
 
   const mainStyle = /*css*/`
