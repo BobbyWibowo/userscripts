@@ -520,7 +520,7 @@
         if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
           // Attempt to get channel ID early.
           channelId = data?.owner?.navigationEndpoint?.browseEndpoint?.browseId ||
-              data?.longBylineText?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId;
+            data?.longBylineText?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId;
         }
 
         const views = data?.viewCountText?.simpleText;
