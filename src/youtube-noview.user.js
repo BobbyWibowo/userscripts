@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.2.7
+// @version      1.2.8
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -497,21 +497,40 @@
     }
 
     let channelId;
-    if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
-      // Attempt to get channel ID early.
-      if (element.tagName === 'YT-LOCKUP-VIEW-MODEL') {
+    let metadata;
+
+    if (element.tagName === 'YT-LOCKUP-VIEW-MODEL') {
+      // YouTube newest design.
+      // https://www.androidauthority.com/youtube-new-video-player-ui-test-web-3547254/
+      if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
+        // Attempt to get channel ID early.
         const symbols = Object.getOwnPropertySymbols(element.componentProps?.data ?? {});
         if (symbols.length) {
           const metadata = element.componentProps.data[symbols[0]].value?.metadata?.lockupMetadataViewModel;
           channelId = metadata?.image?.decoratedAvatarViewModel?.rendererContext?.commandContext?.onTap
             ?.innertubeCommand?.browseEndpoint?.browseId;
         }
-      } else {
-        const dismissible = element.querySelector('#dismissible');
-        if (dismissible) {
-          const data = dismissible.__dataHost?.__data?.data;
+      }
+    } else {
+      // YouTube older design, attempt to get metadata through DOM properties.
+      // Livestreams will gracefully fallback to YouTube API method.
+      const dismissible = element.querySelector('#dismissible');
+      if (dismissible) {
+        const data = dismissible.__dataHost?.__data?.data;
+        if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
+          // Attempt to get channel ID early.
           channelId = data?.owner?.navigationEndpoint?.browseEndpoint?.browseId ||
-            data?.longBylineText?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId;
+              data?.longBylineText?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId;
+        }
+
+        const views = data?.viewCountText?.simpleText;
+        if (views) {
+          let viewCount = 0;
+          const digits = views.match(/\d/g);
+          if (digits !== null) {
+            viewCount = Number(digits.join(''));
+          }
+          metadata = { viewCount };
         }
       }
     }
@@ -521,7 +540,11 @@
       return { videoID, allowedChannel: channelId };
     }
 
-    const metadata = await fetchVideoMetadata(videoID);
+    if (!metadata) {
+      // Fetch metadata via YouTube API.
+      metadata = await fetchVideoMetadata(videoID);
+    }
+
     return { videoID, metadata };
   };
 
@@ -564,7 +587,7 @@
         element.dataset.noview_channel_ids = JSON.stringify([data.allowedChannel]);
         element.dataset.noview_allowed_channel = true;
         return false;
-      } else if (data.metadata.channelIDs?.size) {
+      } else if (data.metadata?.channelIDs?.size) {
         // Through metadata fetch from API.
         element.dataset.noview_channel_ids = JSON.stringify([...data.metadata.channelIDs]);
         if (CONFIG.ALLOWED_CHANNEL_IDS.some(id => data.metadata.channelIDs.has(id))) {
@@ -574,7 +597,7 @@
       }
     }
 
-    if (data.metadata.viewCount === null) {
+    if (!data.metadata || data.metadata.viewCount === null) {
       logDebug('Unable to access views data', element);
       return false;
     }
