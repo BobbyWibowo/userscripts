@@ -497,7 +497,7 @@
     }
 
     let channelId;
-    let metadata;
+    let metadata = {};
 
     if (element.tagName === 'YT-LOCKUP-VIEW-MODEL') {
       // YouTube newest design.
@@ -506,8 +506,8 @@
         // Attempt to get channel ID early.
         const symbols = Object.getOwnPropertySymbols(element.componentProps?.data ?? {});
         if (symbols.length) {
-          const metadata = element.componentProps.data[symbols[0]].value?.metadata?.lockupMetadataViewModel;
-          channelId = metadata?.image?.decoratedAvatarViewModel?.rendererContext?.commandContext?.onTap
+          const _metadata = element.componentProps.data[symbols[0]].value?.metadata?.lockupMetadataViewModel;
+          channelId = _metadata?.image?.decoratedAvatarViewModel?.rendererContext?.commandContext?.onTap
             ?.innertubeCommand?.browseEndpoint?.browseId;
         }
       }
@@ -525,22 +525,25 @@
 
         const views = data?.viewCountText?.simpleText;
         if (views) {
-          let viewCount = 0;
+          metadata.viewCount = 0;
           const digits = views.match(/\d/g);
           if (digits !== null) {
-            viewCount = Number(digits.join(''));
+            metadata.viewCount = Number(digits.join(''));
           }
-          metadata = { viewCount };
         }
       }
     }
 
-    if (channelId && CONFIG.ALLOWED_CHANNEL_IDS.includes(channelId)) {
-      logDebug('Skipped metadata fetch due to allowed channel', element);
-      return { videoID, allowedChannel: channelId };
+    if (channelId) {
+      metadata.channelIDs = new Set([channelId]);
+      // If early-found channel ID is allowed, skip onward.
+      if (CONFIG.ALLOWED_CHANNEL_IDS.includes(channelId)) {
+        logDebug('Skipped metadata fetch due to allowed channel', element);
+        return { videoID, allowedChannel: channelId, metadata };
+      }
     }
 
-    if (!metadata) {
+    if (typeof metadata?.viewCount === 'undefined') {
       // Fetch metadata via YouTube API.
       metadata = await fetchVideoMetadata(videoID);
     }
@@ -597,7 +600,7 @@
       }
     }
 
-    if (!data.metadata || data.metadata.viewCount === null) {
+    if (!data.metadata || data.metadata.isUpcoming || data.metadata.viewCount === null) {
       logDebug('Unable to access views data', element);
       return false;
     }
