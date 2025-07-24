@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.25
+// @version      1.6.26
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -218,7 +218,7 @@
     SELECTORS_MULTI_VIEW_CONTROLS: '& > .w-full:last-child > .flex:first-child > .flex-row:first-child',
 
     SELECTORS_FOLLOW_BUTTON_CONTAINER: [
-      '.XFDNu', // artist page's header
+      '.jmgNKO', // artist page's header
       '.kIkMnj', // artist hover popup
       '.gSkxA', // expanded view's artist bottom bar
       '.cmowxU', // expanded view's artist sidebar
@@ -252,8 +252,8 @@
     SECTIONS_TOGGLE_BOOKMARKED: [
       // Following page
       {
-        selectorParent: '.icUpwV',
-        selectorHeader: '.bTXBlY',
+        selectorParent: '.buChOd',
+        selectorHeader: '.hYPUjr',
         selectorImagesContainer: '.bghEFg'
       },
       // Artist page
@@ -270,7 +270,7 @@
       },
       // Artist page's bookmarks tab
       {
-        selectorParent: '.icUpwV',
+        selectorParent: '.buChOd',
         selectorHeader: '.giPitS',
         selectorImagesContainer: '.giPitS ~ div:not([class])',
         sanityCheck: () => {
@@ -280,21 +280,21 @@
       },
       // Tags page
       {
-        selectorParent: '.icUpwV',
+        selectorParent: '.buChOd',
         selectorHeader: '.dlidhK',
         selectorImagesContainer: '.cmMzCq'
       },
       // Tags page (novel)
       {
-        selectorParent: '.icUpwV',
+        selectorParent: '.buChOd',
         selectorHeader: '.dlidhK',
         selectorImagesContainer: '.dsoOUK'
       },
       // "Newest by all" page
       {
-        selectorParent: '.icUpwV',
-        selectorHeader: '.hYPUjr',
-        selectorImagesContainer: '.fVnbGC'
+        selectorParent: '.ldgmym > section',
+        selectorHeader: '.hYDgvb',
+        selectorImagesContainer: '.kDcbyT'
       },
       // Rankings page
       {
@@ -706,8 +706,9 @@
 
   const SELECTORS_TOGGLE_BOOKMARKED_HEADER = [
     '.hyniYI', // general page
+    '.eYXksB', // artist page's requests tab
     '.gnbCrF', // tags page (novel)
-    '.eYXksB' // artist page's requests tab
+    '.eEVUIK' // "newest by all" page
   ];
 
   const mainStyle = /*css*/`
