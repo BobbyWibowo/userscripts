@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.2.9
+// @version      1.2.10
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -74,7 +74,9 @@
       'ytd-rich-item-renderer:has(#dismissible)',
       'yt-lockup-view-model',
       'ytd-rich-item-renderer:has(ytm-shorts-lockup-view-model-v2)',
-      '#items > ytm-shorts-lockup-view-model-v2'
+      '#items > ytm-shorts-lockup-view-model-v2',
+      'ytd-player .ytp-suggestion-set',
+      'ytd-player .ytp-ce-video.ytp-ce-element-show'
     ]
   };
 
@@ -165,7 +167,8 @@
   if (!CONFIG.DISABLE_STYLES) {
     GM_addStyle(/*css*/`
       [data-noview_allowed_channel] #metadata-line span:nth-last-child(2 of .inline-metadata-item),
-      [data-noview_allowed_channel] yt-content-metadata-view-model div:nth-child(2) span:nth-last-child(2 of .yt-core-attributed-string) {
+      [data-noview_allowed_channel] yt-content-metadata-view-model div:nth-child(2) span:nth-last-child(2 of .yt-core-attributed-string),
+      [data-noview_allowed_channel] .ytp-videowall-still-info-author {
         font-style: italic !important;
       }
 
@@ -463,8 +466,8 @@
   };
 
   const getVideoData = async element => {
-    const videoLink = element.querySelector('a[href]');
-    if (!videoLink?.href) {
+    const videoLink = (element.matches('a[href]') && element) || element.querySelector('a[href]');
+    if (!videoLink) {
       return null;
     }
 
