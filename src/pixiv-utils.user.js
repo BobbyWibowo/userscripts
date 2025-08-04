@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.26
+// @version      1.6.27
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -169,14 +169,15 @@
     ],
 
     SELECTORS_IMAGE_CONTROLS: [
-      '.jPGduJ', // home's latest/recommended works grid
+      '.ivXNxl', // home's latest/recommended works grid
       '.jTSPzA', // following page's grid
       '.XziBq', // following page's grid (novel)
-      '.hGKVAM', // discovery page's grid
+      '.gtm-illust-recommend-bookmark', // discovery page's grid
       '.hLHrVH', // artist page's grid
       '.chJny', // artist page's grid (novel)
       '.fRrNLv', // artist page's featured works
       '.cOEQuT', // artist page's featured works (novel)
+      '.gHWpGx', // tags page's users tab
       '.ZBDKi', // "newest by all" page
       '.fvFuEP', // requests page
       '.khAYZn', // requests page (novel)
@@ -258,9 +259,9 @@
       },
       // Artist page
       {
-        selectorParent: '.eiHtAJ',
-        selectorHeader: '.jdzbvg',
-        selectorImagesContainer: '.jdzbvg ~ div:not([class])'
+        selectorParent: '.ftHDDa',
+        selectorHeader: '.cyKDJj',
+        selectorImagesContainer: '.cyKDJj ~ div:not([class])'
       },
       // Artist page's requests tab
       {
