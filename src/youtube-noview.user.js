@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.3.1
+// @version      1.3.2
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -255,10 +255,10 @@
 
   let intersectionObserver = null;
 
-  let isPageAllowed = false;
+  let currentPage = null;
 
   window.addEventListener('yt-navigate-start', event => {
-    isPageAllowed = false;
+    currentPage = null;
 
     // Clear previous intersection observer.
     if (intersectionObserver !== null) {
@@ -269,8 +269,9 @@
 
   window.addEventListener('yt-navigate-finish', event => {
     // Determine if navigated page is allowed.
-    isPageAllowed = document.querySelector(CONFIG.SELECTORS_ALLOWED_PAGE);
-    if (!isPageAllowed) {
+    currentPage = document.querySelector(CONFIG.SELECTORS_ALLOWED_PAGE);
+
+    if (!currentPage) {
       logDebug('Page not allowed.');
       return;
     }
@@ -651,16 +652,18 @@
     const newID = await new Promise(resolve => {
       let interval = null;
       const findNewID = () => {
-        // Skip thorough checks when the element is a child of a navigated-away page.
-        if (!isPageAllowed || !isPageAllowed.contains(element)) {
-          return;
+        // Exit if the element is no longer in DOM.
+        if (!document.body.contains(element)) {
+          clearInterval(interval);
+          return resolve();
         }
-        const newID = getVideoID(element);
-        if (oldID !== newID) {
-          if (interval) {
+        // Only do thorough checks if the element is in the currently visible page.
+        if (currentPage?.contains(element)) {
+          const newID = getVideoID(element);
+          if (oldID !== newID) {
             clearInterval(interval);
+            return resolve(newID);
           }
-          return resolve(newID);
         }
       };
       findNewID();
@@ -703,10 +706,9 @@
     setupMetadataOnRecieve();
 
     sentinel.on(CONFIG.SELECTORS_VIDEO, element => {
-      if (!isPageAllowed || !isPageAllowed.contains(element)) {
-        return false;
+      if (currentPage?.contains(element)) {
+        processNewElement(element);
       }
-      processNewElement(element);
     });
   });
 })();
