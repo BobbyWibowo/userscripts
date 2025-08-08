@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.3.0
+// @version      1.3.1
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -46,8 +46,10 @@
     MODE: 'PROD',
 
     VIEWS_THRESHOLD: 999,
-    VIEWS_THRESHOLD_NEW: null, // this may only work for EN locale
+    VIEWS_THRESHOLD_NEW: null, // requires "TEXT_BADGE_NEW" to be set properly depending on your locale
     VIEWS_THRESHOLD_LIVE: null, // based on the livestream's accumulative views count reported by YouTube API
+
+    TEXT_BADGE_NEW: 'New',
 
     ALLOWED_CHANNEL_IDS: [],
 
@@ -148,7 +150,7 @@
   // Styling that must always be enabled for the script's core functionalities.
   GM_addStyle(/*css*/`
     :is(${CONFIG.SELECTORS_ALLOWED_PAGE}) :is(${CONFIG.SELECTORS_VIDEO}) {
-      transition: 0.25s opacity;
+      transition: 0.2s opacity;
     }
 
     /* Visually hide, while still letting the element occupy the space.
@@ -251,14 +253,13 @@
     return (vertInView && horzInView);
   };
 
-  const doneElements = [];
-
   let intersectionObserver = null;
 
   let isPageAllowed = false;
 
   window.addEventListener('yt-navigate-start', event => {
     isPageAllowed = false;
+
     // Clear previous intersection observer.
     if (intersectionObserver !== null) {
       intersectionObserver.disconnect();
@@ -266,33 +267,24 @@
     }
   });
 
-  window.addEventListener('yt-page-data-updated', event => {
-    // Clear statuses of previously processed videos.
-    if (doneElements.length) {
-      logDebug(`Resetting old statuses of ${doneElements.length} element(s)\u2026`);
-      for (const element of doneElements) {
-        delete element.dataset.noview_views;
-        delete element.dataset.noview_threshold_unmet;
-        delete element.dataset.noview_channel_ids;
-        delete element.dataset.noview_allowed_channel;
-      }
-    }
+  window.addEventListener('yt-navigate-finish', event => {
     // Determine if navigated page is allowed.
-    isPageAllowed = Boolean(document.querySelector(CONFIG.SELECTORS_ALLOWED_PAGE));
-    if (isPageAllowed) {
-      // Re-init intersection observer.
-      intersectionObserver = new IntersectionObserver(entries => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            doVideoWrapped(entry.target);
-            intersectionObserver.unobserve(entry.target);
-          }
-        }
-      }, { delay: 100, threshold: 0 });
-      logDebug('Page allowed, waiting for videos\u2026');
-    } else {
+    isPageAllowed = document.querySelector(CONFIG.SELECTORS_ALLOWED_PAGE);
+    if (!isPageAllowed) {
       logDebug('Page not allowed.');
+      return;
     }
+
+    // Re-init intersection observer.
+    intersectionObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          doVideoWrapped(entry.target);
+          intersectionObserver.unobserve(entry.target);
+        }
+      }
+    }, { delay: 100, threshold: 0 });
+    logDebug('Page allowed, waiting for videos\u2026');
   });
 
   /** MAIN **/
@@ -477,7 +469,7 @@
     return structuredClone(emptyMetadata);
   };
 
-  const getVideoData = async element => {
+  const getVideoID = element => {
     const videoLink = (element.matches('a[href]') && element) || element.querySelector('a[href]');
     if (!videoLink) {
       return null;
@@ -507,6 +499,11 @@
       }
     }
 
+    return videoID;
+  };
+
+  const getVideoData = async element => {
+    const videoID = getVideoID(element);
     if (!videoID) {
       return null;
     }
@@ -514,30 +511,33 @@
     let channelId;
     let metadata = {};
 
-    if (element.tagName === 'YT-LOCKUP-VIEW-MODEL') {
-      // YouTube newest design.
-      // https://www.androidauthority.com/youtube-new-video-player-ui-test-web-3547254/
+    // YouTube newest design.
+    const lockupViewModel = (element.tagName === 'YT-LOCKUP-VIEW-MODEL' && element) ||
+      element.querySelector('yt-lockup-view-model');
+
+    if (lockupViewModel) {
       if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
-        // Attempt to get channel ID early.
-        const symbols = Object.getOwnPropertySymbols(element.componentProps?.data ?? {});
+        // Attempt to get channel ID early through DOM properties.
+        const symbols = Object.getOwnPropertySymbols(lockupViewModel.componentProps?.data ?? {});
         if (symbols.length) {
-          const _metadata = element.componentProps.data[symbols[0]].value?.metadata?.lockupMetadataViewModel;
+          const _metadata = lockupViewModel.componentProps.data[symbols[0]].value?.metadata?.lockupMetadataViewModel;
           channelId = _metadata?.image?.decoratedAvatarViewModel?.rendererContext?.commandContext?.onTap
             ?.innertubeCommand?.browseEndpoint?.browseId;
         }
       }
     } else {
-      // YouTube older design, attempt to get metadata through DOM properties.
-      // Livestreams will gracefully fallback to YouTube API method.
+      // YouTube older design.
+      // Live videos will fallback to YouTube API method.
       const dismissible = element.querySelector('#dismissible');
       if (dismissible) {
         const data = dismissible.__dataHost?.__data?.data;
         if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
-          // Attempt to get channel ID early.
+          // Attempt to get channel ID early through DOM properties.
           channelId = data?.owner?.navigationEndpoint?.browseEndpoint?.browseId ||
             data?.longBylineText?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId;
         }
 
+        // For older design, views count can also be parsed through DOM properties.
         const views = data?.viewCountText?.simpleText;
         if (views) {
           metadata.viewCount = 0;
@@ -569,9 +569,9 @@
   const isVideoNew = element => {
     if (element.tagName === 'YT-LOCKUP-VIEW-MODEL') {
       const badges = Array.from(element.querySelectorAll('yt-content-metadata-view-model .badge-shape-wiz__text'));
-      return badges.some(badge => badge?.innerText === 'New');
+      return badges.some(badge => badge?.innerText === CONFIG.TEXT_BADGE_NEW);
     } else {
-      return Boolean(element.querySelector('#dismissible .badge[aria-label="New"]'));
+      return Boolean(element.querySelector(`#dismissible .badge[aria-label="${CONFIG.TEXT_BADGE_NEW}"]`));
     }
   };
 
@@ -580,6 +580,8 @@
     if (!data) {
       return false;
     }
+
+    element.dataset.noview_id = data.videoID;
 
     if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
       delete element.dataset.noview_allowed_channel;
@@ -598,7 +600,11 @@
       }
     }
 
-    if (!data.metadata || data.metadata.isUpcoming || data.metadata.viewCount === null) {
+    if (data.metadata?.isUpcoming) {
+      return false;
+    }
+
+    if (!data.metadata || data.metadata.viewCount === null) {
       logDebug('Unable to access views data', element);
       return false;
     }
@@ -636,14 +642,59 @@
     return true;
   };
 
+  const waitForVideoIDChange = async element => {
+    const oldID = element.dataset.noview_id || getVideoID(element);
+    if (!oldID) {
+      return false;
+    }
+
+    const newID = await new Promise(resolve => {
+      let interval = null;
+      const findNewID = () => {
+        // Skip thorough checks when the element is a child of a navigated-away page.
+        if (!isPageAllowed || !isPageAllowed.contains(element)) {
+          return;
+        }
+        const newID = getVideoID(element);
+        if (oldID !== newID) {
+          if (interval) {
+            clearInterval(interval);
+          }
+          return resolve(newID);
+        }
+      };
+      findNewID();
+      interval = setInterval(findNewID, 1000);
+    });
+
+    if (newID) {
+      delete element.dataset.noview_id;
+      delete element.dataset.noview_views;
+      delete element.dataset.noview_threshold_unmet;
+      delete element.dataset.noview_channel_ids;
+      delete element.dataset.noview_allowed_channel;
+      // logDebug(`${oldID} -> ${newID}`, element);
+      processNewElement(element);
+    }
+  };
+
   const doVideoWrapped = async element => {
     return doVideo(element)
       .finally(() => {
-        doneElements.push(element);
         if (typeof element.dataset.noview_views === 'undefined') {
           element.dataset.noview_views = '';
         }
+        waitForVideoIDChange(element);
       });
+  };
+
+  const processNewElement = element => {
+    if (isPartialElementInViewport(element)) {
+      doVideoWrapped(element);
+    } else {
+      // If not in viewport, observe intersection.
+      intersectionObserver.observe(element);
+    }
   };
 
   /** SENTINEL */
@@ -652,16 +703,10 @@
     setupMetadataOnRecieve();
 
     sentinel.on(CONFIG.SELECTORS_VIDEO, element => {
-      if (!isPageAllowed) {
+      if (!isPageAllowed || !isPageAllowed.contains(element)) {
         return false;
       }
-
-      if (isPartialElementInViewport(element)) {
-        doVideoWrapped(element);
-      } else {
-        // If not in viewport, observe intersection.
-        intersectionObserver.observe(element);
-      }
+      processNewElement(element);
     });
   });
 })();
