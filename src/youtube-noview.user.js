@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.2.10
+// @version      1.2.11
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -71,9 +71,8 @@
     ],
     SELECTORS_VIDEO: [
       'ytd-compact-video-renderer:has(#dimissible)',
-      'ytd-rich-item-renderer:has(#dismissible)',
-      'yt-lockup-view-model',
-      'ytd-rich-item-renderer:has(ytm-shorts-lockup-view-model-v2)',
+      'ytd-rich-item-renderer:has(#dismissible, yt-lockup-view-model, ytm-shorts-lockup-view-model-v2)',
+      'ytd-item-section-renderer yt-lockup-view-model',
       '#items > ytm-shorts-lockup-view-model-v2',
       'ytd-player .ytp-suggestion-set',
       'ytd-player .ytp-ce-video.ytp-ce-element-show'
