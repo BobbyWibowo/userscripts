@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.2.11
+// @version      1.3.0
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -251,6 +251,8 @@
     return (vertInView && horzInView);
   };
 
+  const doneElements = [];
+
   let intersectionObserver = null;
 
   let isPageAllowed = false;
@@ -265,13 +267,24 @@
   });
 
   window.addEventListener('yt-page-data-updated', event => {
+    // Clear statuses of previously processed videos.
+    if (doneElements.length) {
+      logDebug(`Resetting old statuses of ${doneElements.length} element(s)\u2026`);
+      for (const element of doneElements) {
+        delete element.dataset.noview_views;
+        delete element.dataset.noview_threshold_unmet;
+        delete element.dataset.noview_channel_ids;
+        delete element.dataset.noview_allowed_channel;
+      }
+    }
+    // Determine if navigated page is allowed.
     isPageAllowed = Boolean(document.querySelector(CONFIG.SELECTORS_ALLOWED_PAGE));
     if (isPageAllowed) {
       // Re-init intersection observer.
       intersectionObserver = new IntersectionObserver(entries => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            doVideo(entry.target);
+            doVideoWrapped(entry.target);
             intersectionObserver.unobserve(entry.target);
           }
         }
@@ -562,27 +575,9 @@
     }
   };
 
-  function handleVideoUpdate () {
-    const element = this;
-    if (element.dataset.noview_threshold_unmet) {
-      logDebug(`Resetting old statuses (${element.dataset.noview_views} < ${element.dataset.noview_threshold_unmet})`,
-        element);
-      delete element.dataset.noview_views;
-      // Deleting this removes "display: none", which will trigger doVideo() via sentinel.
-      delete element.dataset.noview_threshold_unmet;
-    } else {
-      delete element.dataset.noview_views;
-      doVideo(element);
-    }
-  };
-
   const doVideo = async element => {
-    // Listen to this event to handle dynamic update (during page navigation).
-    element.addEventListener('yt-enable-lockup-interaction', handleVideoUpdate);
-
     const data = await getVideoData(element);
     if (!data) {
-      element.dataset.noview_views = '';
       return false;
     }
 
@@ -605,7 +600,6 @@
 
     if (!data.metadata || data.metadata.isUpcoming || data.metadata.viewCount === null) {
       logDebug('Unable to access views data', element);
-      element.dataset.noview_views = '';
       return false;
     }
 
@@ -642,6 +636,16 @@
     return true;
   };
 
+  const doVideoWrapped = async element => {
+    return doVideo(element)
+      .finally(() => {
+        doneElements.push(element);
+        if (typeof element.dataset.noview_views === 'undefined') {
+          element.dataset.noview_views = '';
+        }
+      });
+  };
+
   /** SENTINEL */
 
   waitPageLoaded().then(() => {
@@ -653,7 +657,7 @@
       }
 
       if (isPartialElementInViewport(element)) {
-        doVideo(element);
+        doVideoWrapped(element);
       } else {
         // If not in viewport, observe intersection.
         intersectionObserver.observe(element);
