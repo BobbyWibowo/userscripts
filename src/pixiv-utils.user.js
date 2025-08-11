@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.28
+// @version      1.6.29
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -169,7 +169,7 @@
     ],
 
     SELECTORS_IMAGE_CONTROLS: [
-      '.ivXNxl', // home's latest/recommended works grid
+      '.lhECTV', // home's latest/recommended works grid
       '.jTSPzA', // following page's grid
       '.XziBq', // following page's grid (novel)
       '.gtm-illust-recommend-bookmark', // discovery page's grid
@@ -219,11 +219,12 @@
     SELECTORS_MULTI_VIEW_CONTROLS: '& > .w-full:last-child > .flex:first-child > .flex-row:first-child',
 
     SELECTORS_FOLLOW_BUTTON_CONTAINER: [
-      '.jmgNKO', // artist page's header
+      '.hNGTeS', // artist page's header
       '.kIkMnj', // artist hover popup
-      '.gSkxA', // expanded view's artist bottom bar
-      '.cmowxU', // expanded view's artist sidebar
-      '.user-details' // mobile's artist page
+      '.kngwLX', // expanded view's artist bottom bar
+      '.dcCqBF', // expanded view's artist sidebar
+      '.user-details', // mobile's artist page
+      '.user-details-card' // mobile's expanded view
     ],
 
     SELECTORS_FOLLOW_BUTTON: [
@@ -1597,7 +1598,8 @@
 
     // Add artist tag if necessary.
     if (!hasVisibleArtistTag &&
-      !element.closest('.user-badge .works-horizontal-list') && // never in mobile expanded view's artist bottom bar
+      // never in mobile expanded view's artist bottom bar
+      !element.closest('.user-details-card ~ div .works-horizontal-list') &&
       (currentUrl.indexOf('users/') === -1 || // never in artist page (except bookmarks tab)
       (currentUrl.indexOf('users/') !== -1 && currentUrl.indexOf('/bookmarks') !== -1))) {
       await addImageArtist(element);
