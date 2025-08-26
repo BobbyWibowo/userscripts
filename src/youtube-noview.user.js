@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.3.3
+// @version      1.3.4
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -54,6 +54,7 @@
     ALLOWED_CHANNEL_IDS: [],
 
     DISABLE_STYLES: false,
+    DISABLE_HIDE_PROCESSING: false,
 
     SELECTORS_ALLOWED_PAGE: null,
     SELECTORS_VIDEO: null
@@ -147,23 +148,27 @@
 
   /** STYLES **/
 
-  // Styling that must always be enabled for the script's core functionalities.
+  // Styling that must always be enabled for the script's core functionality.
   GM_addStyle(/*css*/`
-    :is(${CONFIG.SELECTORS_ALLOWED_PAGE}) :is(${CONFIG.SELECTORS_VIDEO}) {
-      transition: 0.2s opacity;
-    }
-
-    /* Visually hide, while still letting the element occupy the space.
-     * To prevent YouTube from infinitely loading more videos. */
-    :is(${CONFIG.SELECTORS_ALLOWED_PAGE}) :is(${CONFIG.SELECTORS_VIDEO}):not([data-noview_views], [data-noview_allowed_channel]) {
-      visibility: hidden;
-      opacity: 0;
-    }
-
     [data-noview_threshold_unmet] {
       display: none !important;
     }
   `);
+
+  if (!CONFIG.DISABLE_HIDE_PROCESSING) {
+    GM_addStyle(/*css*/`
+      :is(${CONFIG.SELECTORS_ALLOWED_PAGE}) :is(${CONFIG.SELECTORS_VIDEO}) {
+        transition: 0.2s opacity;
+      }
+
+      /* Visually hide, while still letting the element occupy the space.
+      * To prevent YouTube from infinitely loading more videos. */
+      :is(${CONFIG.SELECTORS_ALLOWED_PAGE}) :is(${CONFIG.SELECTORS_VIDEO}):not([data-noview_views], [data-noview_allowed_channel]) {
+        visibility: hidden;
+        opacity: 0;
+      }
+    `);
+  }
 
   if (!CONFIG.DISABLE_STYLES) {
     GM_addStyle(/*css*/`
