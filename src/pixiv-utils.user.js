@@ -2205,14 +2205,20 @@
       // "Shift+B" for Edit Bookmark.
       // Pixiv has built-in keybind "B" for just bookmarking.
       if (event.keyCode === 66) {
+        // "Ctrl+B" and "Alt+B": Ignore.
         if (event.ctrlKey || event.altKey) {
-          // Ignore "Ctrl+B" or "Alt+B".
           return;
         }
+        // "Shift+B": Edit bookmark.
         if (event.shiftKey) {
           event.stopPropagation();
           const element = document.querySelector(selectors.editBookmark);
           return processKeyEvent('bookmarkEdit', element);
+        }
+        // "B": Scroll to image. In conjunction with Pixiv's built-in keybind.
+        const largeImage = document.querySelector('img[src*="p0_master"], img[src*="p0_original"]');
+        if (largeImage) {
+          largeImage.scrollIntoView({ behavior: 'smooth' });
         }
       }
     });
