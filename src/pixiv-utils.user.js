@@ -208,7 +208,7 @@
     ],
 
     SELECTORS_EXPANDED_VIEW_CONTROLS: [
-      '.gPBXUH', // desktop
+      '.kDUrpE', // desktop
       '.work-interactions' // mobile
     ],
 
