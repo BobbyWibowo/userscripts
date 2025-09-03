@@ -2215,10 +2215,14 @@
           const element = document.querySelector(selectors.editBookmark);
           return processKeyEvent('bookmarkEdit', element);
         }
-        // "B": Scroll to image. In conjunction with Pixiv's built-in keybind.
+        // "B": Scroll to image, only if it has not been scrolled away.
+        // In conjunction with Pixiv's built-in keybind.
         const largeImage = document.querySelector('img[src*="p0_master"], img[src*="p0_original"]');
         if (largeImage) {
-          largeImage.scrollIntoView({ behavior: 'smooth' });
+          const rect = largeImage.getBoundingClientRect();
+          if (rect?.top > 0) {
+            largeImage.scrollIntoView({ behavior: 'smooth' });
+          }
         }
       }
     });
