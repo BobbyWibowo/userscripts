@@ -132,6 +132,7 @@
       '.xPzcf > .fVofhy', // illustrations/manga page's daily ranking
       '.hHLaTl > li', // tags page's grid
       '.eTKQDQ .jOuhfn > div', // tags page's users tab
+      '.bJnszw > li', // tags page's popular works
       '.fhUcsb > li', // "newest by all" page
       '.buGhFj > li', // requests page
       '.bkRoSP > li', // manga page's followed works
@@ -563,7 +564,13 @@
 
   // NOTE Keep in sync with SELECTORS_IMAGE.
   const SELECTORS_IMAGE_SMALL = [
-    '.iyMBlR > li' // following page's grid (novel)
+    '.iyMBlR > li', // following page's grid (novel)
+    '.bJnszw > li' // tags page's popular works
+  ].join(', ');
+
+  // NOTE Keep in sync with SELECTORS_IMAGE.
+  const SELECTORS_IMAGE_NO_CONTROLS = [
+    '.bJnszw > li' // tags page's popular works
   ].join(', ');
 
   const SELECTORS_IMAGE_MOBILE = '.works-item';
@@ -1575,8 +1582,10 @@
       oldImageArtist.remove();
     }
 
+    const doNotWaitControls = element.matches(SELECTORS_IMAGE_NO_CONTROLS);
+
     let imageControls = null;
-    if (data.novel) {
+    if (data.novel || doNotWaitControls) {
       imageControls = element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
     } else {
       // If it's not a novel, assume image controls may be delayed due to still being generated.
@@ -1585,7 +1594,7 @@
       }, element);
     }
 
-    if (!imageControls) {
+    if (!imageControls && !doNotWaitControls) {
       return false;
     }
 
@@ -1605,12 +1614,15 @@
       await addImageArtist(element);
     }
 
-    const oldEditBookmarkButton = imageControls.querySelector('.pixiv_utils_edit_bookmark_container');
-    if (oldEditBookmarkButton) {
-      oldEditBookmarkButton.remove();
+    if (imageControls) {
+      const oldEditBookmarkButton = imageControls.querySelector('.pixiv_utils_edit_bookmark_container');
+      if (oldEditBookmarkButton) {
+        oldEditBookmarkButton.remove();
+      }
+
+      imageControls.prepend(editBookmarkButton(data.id, data.novel));
     }
 
-    imageControls.prepend(editBookmarkButton(data.id, data.novel));
     return true;
   };
 
