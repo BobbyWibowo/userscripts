@@ -31,7 +31,10 @@ export default [
       globals: {
         GM_addStyle: 'readonly',
         GM_getValue: 'readonly',
-        GM_setValue: 'readonly'
+        GM_getValues: 'readonly',
+        GM_listValues: 'readonly',
+        GM_setValue: 'readonly',
+        GM_setValues: 'readonly'
       }
     },
     plugins: {

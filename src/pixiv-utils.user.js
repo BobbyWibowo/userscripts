@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.32
+// @version      1.6.33
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -12,7 +12,10 @@
 // @run-at       document-start
 // @grant        GM_addStyle
 // @grant        GM_getValue
+// @grant        GM_getValues
+// @grant        GM_listValues
 // @grant        GM_setValue
+// @grant        GM_setValues
 // @grant        window.onurlchange
 // @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
 // @noframes
@@ -553,6 +556,108 @@
     log('bookmark_add.php detected. Excluding date conversion, script has terminated early.');
     return;
   }
+
+  /** SETTINGS PAGE (IMPORT/EXPORT) */
+
+  const generateSettingsPage = () => {
+    GM_addStyle(/*css*/`
+      body > *:not(#pixiv-utils-settings) {
+        display: none !important;
+      }
+
+      #pixiv-utils-settings {
+        height: 100vh;
+        width: 100vw;
+        padding: 20px;
+        box-sizing: border-box;
+        color: #f5f5f5;
+        background-color: #1f1f1f;
+
+        & > :last-child {
+          margin-bottom: 0;
+        }
+
+        p {
+          margin-bottom: 10px;
+        }
+
+        button, textarea {
+          display: block;
+          width: 100%;
+          box-sizing: border-box;
+          margin-bottom: 10px;
+        }
+
+        button {
+          padding: 10px;
+          border: 1px solid white;
+          cursor: pointer;
+          font-weight: bold;
+        }
+      }
+
+      #pixiv-utils-json {
+        font-family: monospace;
+      }
+    `);
+
+    const valueKeys = GM_listValues();
+    const valuesString = JSON.stringify(GM_getValues(valueKeys));
+
+    const container = document.createElement('div');
+    container.id = 'pixiv-utils-settings';
+
+    container.innerHTML = /*html*/`
+      <p>Bobby's Pixiv Utils</p>
+      <p id="pixiv-utils-settings-json-title">Stored settings:</p>
+      <textarea id="pixiv-utils-settings-json" rows="20">${valuesString}</textarea>
+      <button id="pixiv-utils-settings-export">Export to clipboard</button>
+      <p>To import settings, first clear the texarea, paste your copied settings, then import.</p>
+      <p>This allows partial import, thus keys missing from the import value will not be removed from your stored settings.</p>
+      <button id="pixiv-utils-settings-clear">Clear textarea</button>
+      <button id="pixiv-utils-settings-import">Import</button>
+      <button id="pixiv-utils-settings-exit">Exit</button>
+    `;
+
+    container.querySelector('#pixiv-utils-settings-export').addEventListener('click', () => {
+      navigator.clipboard.writeText(valuesString).then(() => {
+        alert('Stored settings exported to clipboard.');
+      });
+    });
+
+    const textarea = container.querySelector('#pixiv-utils-settings-json');
+
+    container.querySelector('#pixiv-utils-settings-clear').addEventListener('click', () => {
+      textarea.value = '';
+      container.querySelector('#pixiv-utils-settings-json-title').innerText = 'Import settings:';
+    });
+
+    container.querySelector('#pixiv-utils-settings-import').addEventListener('click', () => {
+      try {
+        const parsed = JSON.parse(textarea.value);
+        // This allows partial imports.
+        GM_setValues(parsed);
+        alert('Settings imported. Exit settings to see your changes.');
+      } catch (error) {
+        console.error(error);
+        alert('Error encountered while parsing JSON.\n\n' + error.toString());
+      }
+    });
+
+    container.querySelector('#pixiv-utils-settings-exit').addEventListener('click', () => {
+      // Reload current page with hashes removed.
+      window.location.href = window.location.href.split('#')[0];
+    });
+
+    document.body.append(container);
+  };
+
+  const checkHashForSettingsPage = () => {
+    if (window.location.hash === '#pixiv-utils-settings') {
+      generateSettingsPage();
+      return true;
+    }
+  };
 
   /** MAIN UTILS */
 
@@ -2078,6 +2183,13 @@
   /** SENTINEL */
 
   waitPageLoaded().then(() => {
+    // Immediately check if settings page should be shown.
+    if (checkHashForSettingsPage()) {
+      return;
+    }
+
+    window.addEventListener('hashchange', checkHashForSettingsPage);
+
     // Immediately attempt to determine page type.
     determinePageType();
 
