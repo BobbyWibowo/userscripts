@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.34
+// @version      1.6.35
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -127,7 +127,7 @@
       '.sc-96f10c4f-0 > li', // home's recommended works grid
       '.bCxfvI > li', // following page's grid
       '.iyMBlR > li', // following page's grid (novel)
-      '.eyusRs > div', // user profile popup
+      '.hdpcUf > div', // user profile popup
       '.jELUak > li', // artist page's grid
       '.blqLzT > li', // artist page's featured works
       '.ibaIoN > div:has(a[href])', // expanded view's recommended works after pop-in
@@ -663,7 +663,7 @@
 
   // NOTE Keep in sync with SELECTORS_IMAGE (parent selector).
   const SELECTORS_IMAGE_CONTAINER_SIMPLIFIED = [
-    '.eyusRs', // user profile popup
+    '.hdpcUf', // user profile popup
     '.gMVVng' // expanded view's other works sidebar
   ].join(', ');
 
@@ -968,16 +968,16 @@
     border-radius: 4px;
   }
 
-  .eyusRs > div[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED}, /* user profile popup */
+  .hdpcUf > div[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED}, /* user profile popup */
   :is(${SELECTORS_IMAGE_MOBILE})[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-radius: 0;
   }
 
-  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(1) ${SELECTORS_IMAGE_HIGHLIGHTED} {
+  .hdpcUf > div[data-pixiv_utils_highlight]:nth-child(1) ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-bottom-left-radius: 8px;
   }
 
-  .eyusRs > div[data-pixiv_utils_highlight]:nth-child(3) ${SELECTORS_IMAGE_HIGHLIGHTED} {
+  .hdpcUf > div[data-pixiv_utils_highlight]:nth-child(3) ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-bottom-right-radius: 8px;
   }
 
