@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.3.4
+// @version      1.3.5
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -433,7 +433,7 @@
     try {
       const result = activeRequests[videoID] ?? (async () => {
         window.postMessage({
-          type: 'maze-utils:video-metadata-requested',
+          type: 'youtube-noview:video-metadata-requested',
           videoID
         }, '*');
 
