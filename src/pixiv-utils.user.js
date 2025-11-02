@@ -125,22 +125,22 @@
     SELECTORS_IMAGE: [
       'li[data-ga4-label="thumbnail"]', // home's latest works grid
       '.sc-96f10c4f-0 > li', // home's recommended works grid
-      '.bCxfvI > li', // following page's grid
-      '.iyMBlR > li', // following page's grid (novel)
-      '.isIHxF > div', // user profile's following users
-      '.hdpcUf > div', // user profile popup
+      '.gIHHFW > li', // following page's grid
+      '.fjlElr > li', // following page's grid (novel)
+      '.EiFpp > div', // user profile's following users
+      '.cHJjhJ > div', // user profile popup
       '.jELUak > li', // artist page's grid
       '.blqLzT > li', // artist page's featured works
-      '.ibaIoN > div:has(a[href])', // expanded view's recommended works after pop-in
-      '.gMVVng > div', // expanded view's other works sidebar
-      '.xPzcf > .fVofhy', // illustrations/manga page's daily ranking
-      '.hHLaTl > li', // tags page's grid
-      '.eTKQDQ .jOuhfn > div', // tags page's users tab
-      '.bJnszw > li', // tags page's popular works
-      '.fhUcsb > li', // "newest by all" page
-      '.buGhFj > li', // requests page
+      '.cEDGNG > div:has(a[href])', // expanded view's recommended works after pop-in
+      '.gsFPFI > div', // expanded view's other works sidebar
+      '.jQzvLN > li', // tags page's grid
+      '.iEuxMH > div', // tags page's users tab
+      '.bDfUjL > li', // tags page's popular works
+      ':is(.fhUcsb, .dCKMhG) > li', // "newest by all" page
+      '.cpliyG > li', // requests page
+      '.buGhFj > li', // requests page (novel)
       '.bkRoSP > li', // manga page's followed works
-      '.dHJLGd > div', // novels page's ongoing contests
+      '.eKXoND > div', // novels page's ongoing contests
       '.ranking-item', // rankings page
       '._ranking-item', // rankings page (novel)
       '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
@@ -153,7 +153,7 @@
       '[data-ga4-label="title_link"]', // home's recommended works grid
       '.gtm-illust-recommend-title', // discovery page's grid
       '.gtm-followlatestpage-thumbnail-link', // following page
-      '.fNOdSq', // artist/tags page
+      '.hzgkTo', // artist/tags page
       '.title', // rankings page
       '.illust-info > a[class*="c-text"]' // mobile list view
     ],
@@ -174,18 +174,17 @@
     ],
 
     SELECTORS_IMAGE_CONTROLS: [
-      '.ljxGcs', // home's latest/recommended works grid
-      '.jTSPzA', // following page's grid
-      '.XziBq', // following page's grid (novel)
+      '.hNYPhJ', // home's latest/recommended works grid
+      '.gQZtou', // following page's grid
+      '.eRfubz', // following page's grid (novel)
       '.gtm-illust-recommend-bookmark', // discovery page's grid
-      '.hLHrVH', // artist page's grid
-      '.chJny', // artist page's grid (novel)
+      '.eJoreT', // artist page's grid (novel)
       '.fRrNLv', // artist page's featured works
       '.cOEQuT', // artist page's featured works (novel)
       '.gHWpGx', // tags page's users tab
       '.ZBDKi', // "newest by all" page
-      '.fvFuEP', // requests page
-      '.khAYZn', // requests page (novel)
+      '.kJmWdo', // requests page
+      '.iVXjxC', // requests page (novel)
       '.byWzRq', // expanded view's artist bottom bar (novel)
       '.hFAmSK', // novels page
       '.cUooIb', // novels page's followed works
@@ -208,16 +207,16 @@
     ],
 
     SELECTORS_EXPANDED_VIEW_IMAGE: [
-      '.cxsjmo', // desktop
+      'section.iFIbHj', // desktop
       '.illust-details-view' // mobile
     ],
 
     SELECTORS_EXPANDED_VIEW_CONTROLS: [
-      '.kDUrpE', // desktop
+      '.klitwS', // desktop
       '.work-interactions' // mobile
     ],
 
-    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: '.eoaxji > div:has(a[href])',
+    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: '.cHGkPb > div:has(a[href])',
 
     SELECTORS_MULTI_VIEW: '[data-ga4-label="work_content"]:has(a[href])',
 
@@ -259,15 +258,15 @@
     SECTIONS_TOGGLE_BOOKMARKED: [
       // Following page
       {
-        selectorParent: '.buChOd',
-        selectorHeader: '.hYPUjr',
-        selectorImagesContainer: '.bghEFg'
+        selectorParent: '.fbGJOF',
+        selectorHeader: '.cUyyCX',
+        selectorImagesContainer: '.kWdrPK'
       },
       // Artist page
       {
-        selectorParent: '.gqvfWY',
-        selectorHeader: '.bJlGjt',
-        selectorImagesContainer: '.bJlGjt ~ div:not([class])'
+        selectorParent: '.iJEVBL',
+        selectorHeader: '.iqNkug',
+        selectorImagesContainer: '.iqNkug ~ div:not([class])'
       },
       // Artist page's requests tab
       {
@@ -277,25 +276,19 @@
       },
       // Artist page's bookmarks tab
       {
-        selectorParent: '.buChOd',
-        selectorHeader: '.giPitS',
-        selectorImagesContainer: '.giPitS ~ div:not([class])',
+        selectorParent: '.fbGJOF',
+        selectorHeader: '.imOMDR',
+        selectorImagesContainer: '.imOMDR ~ div:not([class])',
         sanityCheck: () => {
           // Skip if in own profile.
           return document.querySelector('a[href*="settings/profile"]');
         }
       },
-      // Tags page
+      // Tags page (illustration/novel)
       {
-        selectorParent: '.buChOd',
-        selectorHeader: '.dlidhK',
-        selectorImagesContainer: '.cmMzCq'
-      },
-      // Tags page (novel)
-      {
-        selectorParent: '.buChOd',
-        selectorHeader: '.dlidhK',
-        selectorImagesContainer: '.dsoOUK'
+        selectorParent: '.fbGJOF',
+        selectorHeader: '.bSpaXW',
+        selectorImagesContainer: '.clssKu, .eemFeq'
       },
       // "Newest by all" page
       {
@@ -664,19 +657,19 @@
 
   // NOTE Keep in sync with SELECTORS_IMAGE (parent selector).
   const SELECTORS_IMAGE_CONTAINER_SIMPLIFIED = [
-    '.hdpcUf', // user profile popup
-    '.gMVVng' // expanded view's other works sidebar
+    '.cHJjhJ', // user profile popup
+    '.gsFPFI' // expanded view's other works sidebar
   ].join(', ');
 
   // NOTE Keep in sync with SELECTORS_IMAGE.
   const SELECTORS_IMAGE_SMALL = [
     '.iyMBlR > li', // following page's grid (novel)
-    '.bJnszw > li' // tags page's popular works
+    '.bDfUjL > li' // tags page's popular works
   ].join(', ');
 
   // NOTE Keep in sync with SELECTORS_IMAGE.
   const SELECTORS_IMAGE_NO_CONTROLS = [
-    '.bJnszw > li' // tags page's popular works
+    '.bDfUjL > li' // tags page's popular works
   ].join(', ');
 
   const SELECTORS_IMAGE_MOBILE = '.works-item';
@@ -810,9 +803,9 @@
   // NOTE Keep in sync with SELECTORS_IMAGE_CONTROLS.
   // Strictly for tweaking button positioning, which only some will need.
   const SELECTORS_IMAGE_CONTROLS_NOVEL = [
-    '.XziBq', // following page's grid (novel)
-    '.chJny', // artist page's grid (novel)
-    '.khAYZn', // requests page (novel)
+    '.eRfubz', // following page's grid (novel)
+    '.eJoreT', // artist page's grid (novel)
+    '.iVXjxC', // requests page (novel)
     '.byWzRq', // expanded view's artist bottom bar (novel)
     '.hFAmSK', // novels page
     '.cUooIb', // novels page's followed works
@@ -820,7 +813,7 @@
   ];
 
   const SELECTORS_TOGGLE_BOOKMARKED_HEADER = [
-    '.hyniYI', // general page
+    '.eUkONc', // general page
     '.eYXksB', // artist page's requests tab
     '.gnbCrF', // tags page (novel)
     '.eEVUIK' // "newest by all" page
@@ -965,20 +958,20 @@
   }
 
   /* expanded view's artist bottom bar */
-  .eoaxji > div:has(a[href])[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
+  .cHGkPb > div:has(a[href])[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-radius: 4px;
   }
 
-  .hdpcUf > div[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED}, /* user profile popup */
+  .cHJjhJ > div[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED}, /* user profile popup */
   :is(${SELECTORS_IMAGE_MOBILE})[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-radius: 0;
   }
 
-  .hdpcUf > div[data-pixiv_utils_highlight]:nth-child(1) ${SELECTORS_IMAGE_HIGHLIGHTED} {
+  .cHJjhJ > div[data-pixiv_utils_highlight]:nth-child(1) ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-bottom-left-radius: 8px;
   }
 
-  .hdpcUf > div[data-pixiv_utils_highlight]:nth-child(3) ${SELECTORS_IMAGE_HIGHLIGHTED} {
+  .cHJjhJ > div[data-pixiv_utils_highlight]:nth-child(3) ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-bottom-right-radius: 8px;
   }
 
