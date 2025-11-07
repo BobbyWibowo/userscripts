@@ -125,6 +125,9 @@
     SELECTORS_IMAGE: [
       'ul > li:has(a[href*="artworks/"] img[src])', // desktop
       'ul > li:has(a[href*="novel/show.php"] img[src])', // desktop (novel)
+      'nav:not([style]) > div:has(a[href*="artworks/"] img[src])',
+      'nav:not([style]) > div:has(a[href*="novel/show.php"] img[src])',
+      'div[open] a[href*="users/"] ~ div > div:has(a[href*="artworks/"] img[src])', // user profile popup
       '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
       '.works-item:not(.works-item-illust):has(.thumb:not([src^="data"]))', // mobile (novel)
       '.works-item-novel-editor-recommend:has(.cover:not([style^="data"]))', // mobile's novels page's editor's picks
@@ -183,7 +186,7 @@
       '.work-interactions' // mobile
     ],
 
-    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: '.ICRyc > div > div:has(a[href])',
+    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: 'main > section:has(figure > [role="presentation"]) nav[style] > div > div:has(a[href])',
 
     SELECTORS_MULTI_VIEW: '[data-ga4-label="work_content"]:has(a[href])',
 
@@ -624,8 +627,8 @@
 
   // NOTE Keep in sync with SELECTORS_IMAGE (parent selector).
   const SELECTORS_IMAGE_CONTAINER_SIMPLIFIED = [
-    '.cHJjhJ', // user profile popup
-    '.eXfHHg' // expanded view's other works sidebar
+    'div[open] a[href*="users/"] ~ div', // user profile popup
+    'aside > section' // expanded view's other works sidebar
   ].join(', ');
 
   // NOTE Keep in sync with SELECTORS_IMAGE.
@@ -922,17 +925,22 @@
     border-radius: 4px;
   }
 
-  .cHJjhJ > div[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED}, /* user profile popup */
   :is(${SELECTORS_IMAGE_MOBILE})[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-radius: 0;
   }
 
-  .cHJjhJ > div[data-pixiv_utils_highlight]:nth-child(1) ${SELECTORS_IMAGE_HIGHLIGHTED} {
-    border-bottom-left-radius: 8px;
-  }
+  div[open] a[href*="users/"] ~ div > div:has(a[href*="artworks/"] img[src]) {
+    &[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
+      border-radius: 0;
+    }
 
-  .cHJjhJ > div[data-pixiv_utils_highlight]:nth-child(3) ${SELECTORS_IMAGE_HIGHLIGHTED} {
-    border-bottom-right-radius: 8px;
+    &[data-pixiv_utils_highlight]:nth-child(1) ${SELECTORS_IMAGE_HIGHLIGHTED} {
+      border-bottom-left-radius: 8px;
+    }
+
+    &[data-pixiv_utils_highlight]:nth-child(3) ${SELECTORS_IMAGE_HIGHLIGHTED} {
+      border-bottom-right-radius: 8px;
+    }
   }
 
   :not(#higher_specificity) :has(+ .pixiv_utils_blocked_image_container) {
