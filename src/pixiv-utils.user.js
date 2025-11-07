@@ -123,11 +123,12 @@
     ],
 
     SELECTORS_IMAGE: [
-      'ul > li:has(a[href*="artworks/"] img[src])', // desktop
+      'ul > li:has(a[href*="artworks/"] img[src], a[href*="artworks/"] figure)', // desktop
       'ul > li:has(a[href*="novel/show.php"] img[src])', // desktop (novel)
       'nav:not([style]) > div:has(a[href*="artworks/"] img[src])',
       'nav:not([style]) > div:has(a[href*="novel/show.php"] img[src])',
       'div[open] a[href*="users/"] ~ div > div:has(a[href*="artworks/"] img[src])', // user profile popup
+      'div[open] div:has(a[href*="users/"]) + div > div:has(a[href*="artworks/"] img[src])', // user profile popup (alt)
       '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
       '.works-item:not(.works-item-illust):has(.thumb:not([src^="data"]))', // mobile (novel)
       '.works-item-novel-editor-recommend:has(.cover:not([style^="data"]))', // mobile's novels page's editor's picks
@@ -135,25 +136,25 @@
     ],
 
     SELECTORS_IMAGE_TITLE: [
+      'div > div:not([width]):not([height]) > a[href*="artworks/"]', // desktop
       '[data-ga4-label="title_link"]', // home's recommended works grid
       '.gtm-illust-recommend-title', // discovery page's grid
       '.gtm-followlatestpage-thumbnail-link', // following page
-      '.hzgkTo', // artist/tags page
       '.title', // rankings page
       '.illust-info > a[class*="c-text"]' // mobile list view
     ],
 
     SELECTORS_IMAGE_ARTIST_AVATAR: [
+      'a[href*="users/"] > div > img', // desktop
       '[data-ga4-label="user_icon_link"]', // home's recommended works grid
       '.sc-1rx6dmq-1', // expanded view's related works grid
-      '.lbFgXO', // artist/tags page
       '._user-icon' // rankings page
     ],
 
     SELECTORS_IMAGE_ARTIST_NAME: [
+      'a[href*="users/"][data-gtm-value]', // desktop
       '[data-ga4-label="user_name_link"]', // home's recommended works grid
       '.gtm-illust-recommend-user-name', // expanded view's related works grid
-      '.QzTPT', // artist/tags page
       '.user-name', // rankings page
       '.illust-author' // mobile list view
     ],
@@ -177,7 +178,7 @@
     ],
 
     SELECTORS_EXPANDED_VIEW_IMAGE: [
-      'main > section:has(figure > [role="presentation"])', // desktop
+      'main > section:has(figure) > div:first-of-type', // desktop
       '.illust-details-view' // mobile
     ],
 
@@ -186,17 +187,17 @@
       '.work-interactions' // mobile
     ],
 
-    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: 'main > section:has(figure > [role="presentation"]) nav[style] > div > div:has(a[href])',
+    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: 'main > section:has(figure) > :nth-child(2 of div) nav[style] > div > div:has(a[href])',
 
     SELECTORS_MULTI_VIEW: '[data-ga4-label="work_content"]:has(a[href])',
 
     SELECTORS_MULTI_VIEW_CONTROLS: '& > .w-full:last-child > .flex:first-child > .flex-row:first-child',
 
     SELECTORS_FOLLOW_BUTTON_CONTAINER: [
-      '.hNGTeS', // artist page's header
-      '.kIkMnj', // artist hover popup
-      '.kngwLX', // expanded view's artist bottom bar
-      '.dcCqBF', // expanded view's artist sidebar
+      '.gqvfWY', // artist page's header
+      'div[open] a[href*="users/"] + div', // artist hover popup
+      'main > section:has(figure) > :nth-child(2 of div)', // expanded view's artist bottom bar
+      'main:has(section figure) + aside > section:first-of-type', // expanded view's artist sidebar
       '.user-details', // mobile's artist page
       '.user-details-card' // mobile's expanded view
     ],
@@ -218,8 +219,7 @@
     ],
 
     SELECTORS_DATE: [
-      '.dgDuKx', // desktop
-      '.kzGSfF', // desktop "updated on" popup
+      'main > section:has(figure img[src]) figcaption div > time:first-of-type',
       '.times', // mobile
       '.reupload-info .tooltip-text' // mobile "updated on" popup
     ],
@@ -256,9 +256,9 @@
       },
       // Tags page (illustration/novel)
       {
-        selectorParent: '.fbGJOF',
-        selectorHeader: '.bSpaXW',
-        selectorImagesContainer: '.clssKu, .eemFeq'
+        selectorParent: '.buChOd',
+        selectorHeader: '.dlidhK',
+        selectorImagesContainer: '.cmMzCq, .dsoOUK'
       },
       // "Newest by all" page
       {
@@ -627,7 +627,7 @@
 
   // NOTE Keep in sync with SELECTORS_IMAGE (parent selector).
   const SELECTORS_IMAGE_CONTAINER_SIMPLIFIED = [
-    'div[open] a[href*="users/"] ~ div', // user profile popup
+    'div[open]:has(a[href*="users/"])', // user profile popup
     'aside > section' // expanded view's other works sidebar
   ].join(', ');
 
@@ -925,11 +925,13 @@
     border-radius: 4px;
   }
 
+  /* mobile images */
   :is(${SELECTORS_IMAGE_MOBILE})[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-radius: 0;
   }
 
-  div[open] a[href*="users/"] ~ div > div:has(a[href*="artworks/"] img[src]) {
+  /* user profile popup */
+  div[open]:has(a[href*="users/"]) div > div:has(a[href*="artworks/"] img[src]) {
     &[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
       border-radius: 0;
     }
@@ -995,7 +997,7 @@
     display: none !important;
   }
 
-  [data-pixiv_utils_blocked] :is(${CONFIG.SELECTORS_IMAGE_TITLE}) {
+  [data-pixiv_utils_blocked] :is(${CONFIG.SELECTORS_IMAGE_TITLE}):not(.pixiv_utils_blocked_image_container) {
     display: none !important;
   }
 
@@ -1037,7 +1039,7 @@
     display: none !important;
   }
 
-  :is(${CONFIG.SELECTORS_DATE})[data-pixiv_utils_duplicate_date]:not([data-pixiv_utils_date_prefix]) {
+  [data-pixiv_utils_duplicate_date]:not([data-pixiv_utils_date_prefix]) {
     font-size: 14px !important;
     font-weight: bold !important;
     color: rgb(214, 214, 214) !important;
