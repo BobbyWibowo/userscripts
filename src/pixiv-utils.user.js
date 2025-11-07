@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.37
+// @version      1.6.38
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -124,9 +124,10 @@
 
     SELECTORS_IMAGE: [
       'ul > li:has(a[href*="artworks/"] img[src], a[href*="artworks/"] figure)', // desktop
-      'ul > li:has(a[href*="novel/show.php"] img[src])', // desktop (novel)
+      'ul > div:has(a[href*="artworks/"] img[src])',
+      'ul > li:has(a[href*="novel/"])', // desktop (novel)
       'nav:not([style]) > div:has(a[href*="artworks/"] img[src])',
-      'nav:not([style]) > div:has(a[href*="novel/show.php"] img[src])',
+      'nav:not([style]) > div:has(a[href*="novel/"])',
       'div[open] a[href*="users/"] ~ div > div:has(a[href*="artworks/"] img[src])', // user profile popup
       'div[open] div:has(a[href*="users/"]) + div > div:has(a[href*="artworks/"] img[src])', // user profile popup (alt)
       '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
@@ -160,8 +161,7 @@
     ],
 
     SELECTORS_IMAGE_CONTROLS: [
-      'div[width][height] > div:last-of-type',
-      'div[size] > div:last-of-type div:has(> button)', // novel
+      'div:has(> button > svg > path)',
       '.imgoverlay', // mobile's feed page
       '.bookmark', // mobile
       '.hSoPoc' // mobile
@@ -214,8 +214,7 @@
     ],
 
     SELECTORS_TAG_BUTTON: [
-      '.hsAWPs', // artist page
-      '.lgNtXn' // illustrations page
+      'div > div:has(> a[href*="tags/"] div[title])'
     ],
 
     SELECTORS_DATE: [
@@ -770,11 +769,6 @@
   const SELECTORS_IMAGE_HIGHLIGHTED =
     ':not(.page-count, [size="16"], [size="24"]):has(> img:not([src^="data"]))::after';
 
-  // Strictly for tweaking button positioning, which only some will need.
-  const SELECTORS_IMAGE_CONTROLS_NOVEL = [
-    'div[size] > div:last-of-type div:has(> button)'
-  ];
-
   const SELECTORS_TOGGLE_BOOKMARKED_HEADER = [
     '.hwVGXz', // general page
     '.eYXksB', // artist page's requests tab
@@ -791,8 +785,12 @@
     display: none;
   }
 
-  :is(${SELECTORS_IMAGE_CONTROLS_NOVEL.join(', ')}) .pixiv_utils_edit_bookmark {
+  :is(${CONFIG.SELECTORS_IMAGE}):has(a[href*="novel/"]) .pixiv_utils_edit_bookmark {
     margin-top: -26px;
+  }
+
+  :not(#higher_specificity) .absolute.right-0 .pixiv_utils_edit_bookmark {
+    margin-top: 6px;
   }
 
   .pixiv_utils_edit_bookmark {
@@ -1163,6 +1161,10 @@
     return element.querySelector('a[href*="novel/show.php?id="]');
   };
 
+  const findNovelSeriesUrl = element => {
+    return element.querySelector('a[href*="novel/series/"]');
+  };
+
   const findIllustImg = element => {
     return element.querySelector('img[src*="_p0"]');
   };
@@ -1172,7 +1174,8 @@
       { func: findIllustImg, regex: /\/(\d+)_p0/, img: true },
       { func: findArtworkUrl, regex: /artworks\/(\d+)/ },
       { func: findIllustUrl, regex: /illust_id=(\d+)/ },
-      { func: findNovelUrl, regex: /novel\/show\.php\?id=(\d+)/, novel: true }
+      { func: findNovelUrl, regex: /novel\/show\.php\?id=(\d+)/, novel: true },
+      { func: findNovelSeriesUrl, regex: /novel\/series\/(\d+)/, novel: true }
     ];
 
     const result = {
