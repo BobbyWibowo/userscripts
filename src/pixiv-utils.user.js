@@ -123,26 +123,8 @@
     ],
 
     SELECTORS_IMAGE: [
-      'li[data-ga4-label="thumbnail"]', // home's latest works grid
-      '.sc-96f10c4f-0 > li', // home's recommended works grid
-      '.gIHHFW > li', // following page's grid
-      '.fjlElr > li', // following page's grid (novel)
-      '.EiFpp > div', // user profile's following users
-      '.cHJjhJ > div', // user profile popup
-      '.jELUak > li', // artist page's grid
-      '.blqLzT > li', // artist page's featured works
-      '.cEDGNG > div:has(a[href])', // expanded view's recommended works after pop-in
-      '.gsFPFI > div', // expanded view's other works sidebar
-      '.jQzvLN > li', // tags page's grid
-      '.iEuxMH > div', // tags page's users tab
-      '.bDfUjL > li', // tags page's popular works
-      ':is(.fhUcsb, .dCKMhG) > li', // "newest by all" page
-      '.cpliyG > li', // requests page
-      '.buGhFj > li', // requests page (novel)
-      '.bkRoSP > li', // manga page's followed works
-      '.eKXoND > div', // novels page's ongoing contests
-      '.ranking-item', // rankings page
-      '._ranking-item', // rankings page (novel)
+      'ul > li:has(a[href*="artworks/"] img[src])', // desktop
+      'ul > li:has(a[href*="novel/show.php"] img[src])', // desktop (novel)
       '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
       '.works-item:not(.works-item-illust):has(.thumb:not([src^="data"]))', // mobile (novel)
       '.works-item-novel-editor-recommend:has(.cover:not([style^="data"]))', // mobile's novels page's editor's picks
@@ -174,24 +156,8 @@
     ],
 
     SELECTORS_IMAGE_CONTROLS: [
-      '.hNYPhJ', // home's latest/recommended works grid
-      '.gQZtou', // following page's grid
-      '.eRfubz', // following page's grid (novel)
-      '.gtm-illust-recommend-bookmark', // discovery page's grid
-      '.eJoreT', // artist page's grid (novel)
-      '.fRrNLv', // artist page's featured works
-      '.cOEQuT', // artist page's featured works (novel)
-      '.gHWpGx', // tags page's users tab
-      '.ZBDKi', // "newest by all" page
-      '.kJmWdo', // requests page
-      '.iVXjxC', // requests page (novel)
-      '.byWzRq', // expanded view's artist bottom bar (novel)
-      '.hFAmSK', // novels page
-      '.cUooIb', // novels page's followed works
-      '.djUdtd > div:last-child', // novels page's editor's picks
-      '.gAyuNi', // novels page's ongoing contests
-      '._layout-thumbnail', // rankings page
-      '.novel-right-contents', // rankings page (novel)
+      'div[width][height] > div:last-of-type',
+      'div[size] > div:last-of-type div:has(> button)', // novel
       '.imgoverlay', // mobile's feed page
       '.bookmark', // mobile
       '.hSoPoc' // mobile
@@ -199,6 +165,7 @@
 
     SELECTORS_IMAGE_BOOKMARKED: [
       '.epoVSE', // desktop
+      '.lbkCkj', // following page's grid
       '.bvHYhE', // expanded view
       '.lbkCkj', // artist/tags page
       '.wQCIS', // "newest by all" page
@@ -207,16 +174,16 @@
     ],
 
     SELECTORS_EXPANDED_VIEW_IMAGE: [
-      'section.iFIbHj', // desktop
+      'main > section:has(figure > [role="presentation"])', // desktop
       '.illust-details-view' // mobile
     ],
 
     SELECTORS_EXPANDED_VIEW_CONTROLS: [
-      '.klitwS', // desktop
+      'div[style*="translateY"] section', // desktop
       '.work-interactions' // mobile
     ],
 
-    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: '.cHGkPb > div:has(a[href])',
+    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: '.ICRyc > div > div:has(a[href])',
 
     SELECTORS_MULTI_VIEW: '[data-ga4-label="work_content"]:has(a[href])',
 
@@ -258,15 +225,15 @@
     SECTIONS_TOGGLE_BOOKMARKED: [
       // Following page
       {
-        selectorParent: '.fbGJOF',
-        selectorHeader: '.cUyyCX',
-        selectorImagesContainer: '.kWdrPK'
+        selectorParent: '.buChOd',
+        selectorHeader: '.kiLTiY',
+        selectorImagesContainer: '.bghEFg'
       },
       // Artist page
       {
-        selectorParent: '.iJEVBL',
-        selectorHeader: '.iqNkug',
-        selectorImagesContainer: '.iqNkug ~ div:not([class])'
+        selectorParent: '.gqvfWY',
+        selectorHeader: '.cnrhlb',
+        selectorImagesContainer: '.cnrhlb ~ div:not([class])'
       },
       // Artist page's requests tab
       {
@@ -276,9 +243,9 @@
       },
       // Artist page's bookmarks tab
       {
-        selectorParent: '.fbGJOF',
-        selectorHeader: '.imOMDR',
-        selectorImagesContainer: '.imOMDR ~ div:not([class])',
+        selectorParent: '.buChOd',
+        selectorHeader: '.cMIVlY',
+        selectorImagesContainer: '.cMIVlY ~ div:not([class])',
         sanityCheck: () => {
           // Skip if in own profile.
           return document.querySelector('a[href*="settings/profile"]');
@@ -658,7 +625,7 @@
   // NOTE Keep in sync with SELECTORS_IMAGE (parent selector).
   const SELECTORS_IMAGE_CONTAINER_SIMPLIFIED = [
     '.cHJjhJ', // user profile popup
-    '.gsFPFI' // expanded view's other works sidebar
+    '.eXfHHg' // expanded view's other works sidebar
   ].join(', ');
 
   // NOTE Keep in sync with SELECTORS_IMAGE.
@@ -800,20 +767,13 @@
   const SELECTORS_IMAGE_HIGHLIGHTED =
     ':not(.page-count, [size="16"], [size="24"]):has(> img:not([src^="data"]))::after';
 
-  // NOTE Keep in sync with SELECTORS_IMAGE_CONTROLS.
   // Strictly for tweaking button positioning, which only some will need.
   const SELECTORS_IMAGE_CONTROLS_NOVEL = [
-    '.eRfubz', // following page's grid (novel)
-    '.eJoreT', // artist page's grid (novel)
-    '.iVXjxC', // requests page (novel)
-    '.byWzRq', // expanded view's artist bottom bar (novel)
-    '.hFAmSK', // novels page
-    '.cUooIb', // novels page's followed works
-    '.gAyuNi' // novels page's ongoing contests
+    'div[size] > div:last-of-type div:has(> button)'
   ];
 
   const SELECTORS_TOGGLE_BOOKMARKED_HEADER = [
-    '.eUkONc', // general page
+    '.hwVGXz', // general page
     '.eYXksB', // artist page's requests tab
     '.gnbCrF', // tags page (novel)
     '.eEVUIK' // "newest by all" page
