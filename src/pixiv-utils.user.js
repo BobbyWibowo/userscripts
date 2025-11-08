@@ -214,7 +214,7 @@
     ],
 
     SELECTORS_TAG_BUTTON: [
-      'div > div:has(> a[href*="tags/"] div[title])',
+      ':is(ul, div) > div:has(> a[href*="tags/"] div[title])',
       'div > div:has(> a[href*="illustrations/"] div[title^="#"])' // artist page
     ],
 
