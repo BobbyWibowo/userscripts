@@ -2015,6 +2015,8 @@
       const tagRaw = tags[tags.length - 1].textContent;
       if (tagRaw.startsWith('#')) {
         tag = tagRaw.substring(1);
+      } else {
+        tag = tagRaw;
       }
     }
 
