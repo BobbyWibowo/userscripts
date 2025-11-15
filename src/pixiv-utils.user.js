@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.40
+// @version      1.6.41
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -130,6 +130,7 @@
       'nav:not([style]) > div:has(a[href*="novel/"])',
       'div[open] a[href*="users/"] ~ div > div:has(a[href*="artworks/"] img[src])', // user profile popup
       'div[open] div:has(a[href*="users/"]) + div > div:has(a[href*="artworks/"] img[src])', // user profile popup (alt)
+      '.ranking-items > .ranking-item', // rankings page
       '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
       '.works-item:not(.works-item-illust):has(.thumb:not([src^="data"]))', // mobile (novel)
       '.works-item-novel-editor-recommend:has(.cover:not([style^="data"]))', // mobile's novels page's editor's picks
@@ -141,12 +142,13 @@
       '[data-ga4-label="title_link"]', // home's recommended works grid
       '.gtm-illust-recommend-title', // discovery page's grid
       '.gtm-followlatestpage-thumbnail-link', // following page
-      '.title', // rankings page
+      'h2:has(> .title)', // rankings page
       '.illust-info > a[class*="c-text"]' // mobile list view
     ],
 
     SELECTORS_IMAGE_ARTIST_AVATAR: [
       'div > a[href*="users/"]:has(> div > img)', // desktop
+      '._user-icon', // rankings page
       '[data-ga4-label="user_icon_link"]', // home's recommended works grid
       '._user-icon' // rankings page
     ],
@@ -161,6 +163,7 @@
 
     SELECTORS_IMAGE_CONTROLS: [
       'div:has(> button > svg > path)',
+      '._layout-thumbnail', // rankings page
       '.imgoverlay', // mobile's feed page
       '.bookmark', // mobile
       '.hSoPoc' // mobile
@@ -869,7 +872,7 @@
   }
 
   [data-pixiv_utils_toggle_bookmarked_hide] {
-    display: none;
+    display: none !important;
   }
 
   ${_FILTERED_SELECTORS_IMAGE_CONTROLS} {
@@ -1199,14 +1202,14 @@
   let toggleBookmarkedMode = null;
 
   const isImageBookmarked = element => {
-    const hasBookmarkedClass = element.querySelector(CONFIG.SELECTORS_IMAGE_BOOKMARKED) !== null;
+    const hasBookmarkedClass = Boolean(element.querySelector(CONFIG.SELECTORS_IMAGE_BOOKMARKED));
     if (!hasBookmarkedClass) {
       const bookmarkButton = element.querySelector('button > svg:has(path)');
       if (bookmarkButton) {
         return window.getComputedStyle(bookmarkButton).getPropertyValue('color') === 'rgb(255, 64, 96)';
       }
     }
-    return false;
+    return hasBookmarkedClass;
   };
 
   const getImagePixivData = async element => {
