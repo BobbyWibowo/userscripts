@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.39
+// @version      1.6.40
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -65,7 +65,7 @@
     SELECTORS_IMAGE: null,
     SELECTORS_IMAGE_TITLE: null,
     SELECTORS_IMAGE_ARTIST_AVATAR: null,
-    SELECTORS_IMAGE_ARTIST_NAME: null,
+    SELECTORS_IMAGE_AUXILIARY_ELEMENTS: null,
     SELECTORS_IMAGE_CONTROLS: null,
     SELECTORS_IMAGE_BOOKMARKED: null,
     SELECTORS_EXPANDED_VIEW_IMAGE: null,
@@ -146,18 +146,17 @@
     ],
 
     SELECTORS_IMAGE_ARTIST_AVATAR: [
-      'a[href*="users/"] > div > img', // desktop
+      'div > a[href*="users/"]:has(> div > img)', // desktop
       '[data-ga4-label="user_icon_link"]', // home's recommended works grid
-      '.sc-1rx6dmq-1', // expanded view's related works grid
       '._user-icon' // rankings page
     ],
 
-    SELECTORS_IMAGE_ARTIST_NAME: [
-      'a[href*="users/"][data-gtm-value]', // desktop
-      '[data-ga4-label="user_name_link"]', // home's recommended works grid
-      '.gtm-illust-recommend-user-name', // expanded view's related works grid
-      '.user-name', // rankings page
-      '.illust-author' // mobile list view
+    SELECTORS_IMAGE_AUXILIARY_ELEMENTS: [
+      'div:has(> a[href*="/bookmark_detail"])', // illustrations page's popular projects section
+      '.gtm-novel-toppage-recommended-work-series', // novels page's recommended works section
+      '.pixiv_utils_blocked_image_container + div:has(.text-text2)', // novel grid's right-side texts
+      'div:has(> div > .pixiv_utils_blocked_image_container) ~ div:has(> div > div > div[title] > a[href*="novel/"]) > div > div:not(:has(a[href*="users/"]))', // novel grid's right-side texts (alt)
+      'div:has(> div > .pixiv_utils_blocked_image_container) ~ div:not(:has(a[href*="users/"]))' // novel grid's right-side texts (alt)
     ],
 
     SELECTORS_IMAGE_CONTROLS: [
@@ -168,11 +167,6 @@
     ],
 
     SELECTORS_IMAGE_BOOKMARKED: [
-      '.epoVSE', // desktop
-      '.lbkCkj', // following page's grid
-      '.bvHYhE', // expanded view
-      '.lbkCkj', // artist/tags page
-      '.wQCIS', // "newest by all" page
       '._one-click-bookmark.on', // rankings page
       '.works-bookmark-button svg path[fill="#FF4060"]' // mobile
     ],
@@ -194,7 +188,7 @@
     SELECTORS_MULTI_VIEW_CONTROLS: '& > .w-full:last-child > .flex:first-child > .flex-row:first-child',
 
     SELECTORS_FOLLOW_BUTTON_CONTAINER: [
-      '.gqvfWY', // artist page's header
+      'div:has(> div:first-child > h1):has(> div:nth-child(2) > [data-click-label="follow"])', // artist page's header
       'div[open] a[href*="users/"] + div', // artist hover popup
       'main > section:has(figure) > :nth-child(2 of div)', // expanded view's artist bottom bar
       'main:has(section figure) + aside > section:first-of-type', // expanded view's artist sidebar
@@ -208,9 +202,8 @@
     ],
 
     SELECTORS_RECOMMENDED_USER_CONTAINER: [
-      // home's recommended users sidebar
-      '.hSNbaL > .grid > :nth-child(2) .flex-col.gap-8:first-child .flex-row.items-center:not(.mr-auto)',
-      '.YXoqY .grid li.list-none', // tags page's users tab
+      'section > .grid > :nth-child(2) .flex-col.gap-8:first-child .flex-row.items-center:not(.mr-auto)', // home's recommended users sidebar
+      'nav:has(a[href*="tags/"]) ~ h2:has(span) + div.grid > li.list-none', // tags page's users tab
     ],
 
     SELECTORS_TAG_BUTTON: [
@@ -226,45 +219,33 @@
 
     // Selectors must be single-line strings.
     SECTIONS_TOGGLE_BOOKMARKED: [
-      // Following page
+      // "Newest by followed" page
       {
-        selectorParent: '.buChOd',
-        selectorHeader: '.kiLTiY',
-        selectorImagesContainer: '.bghEFg'
+        selectorParent: 'section:has(> div:nth-child(2) > div:first-child > div:first-child > span)',
+        selectorHeader: '& > div:nth-child(2) > div:first-child:has(> div:first-child > span):has(> div:nth-child(2) span)',
+        selectorImagesContainer: '& > div:nth-child(2) > div:first-child:has(> div:first-child > span):has(> div:nth-child(2) span) + div'
+      },
+      // "Newest by all" page
+      {
+        selectorParent: 'section:has(> div:nth-child(2) > nav:first-child > a[href*="/new"])',
+        selectorHeader: '& > div:nth-child(2):has(> nav:first-child > a[href*="/new"])',
+        selectorImagesContainer: '& > div:nth-child(2):has(> nav:first-child > a[href*="/new"]) + div'
       },
       // Artist page
       {
-        selectorParent: '.gqvfWY',
-        selectorHeader: '.cnrhlb',
-        selectorImagesContainer: '.cnrhlb ~ div:not([class])'
-      },
-      // Artist page's requests tab
-      {
-        selectorParent: '.fKsmTC > section',
-        selectorHeader: '.eGMhPO',
-        selectorImagesContainer: '.eGMhPO ~ ul'
-      },
-      // Artist page's bookmarks tab
-      {
-        selectorParent: '.buChOd',
-        selectorHeader: '.cMIVlY',
-        selectorImagesContainer: '.cMIVlY ~ div:not([class])',
+        selectorParent: ':is(div, section):has(> div:first-child > div:first-child > div:first-child > h2[font-size][color="text2"])',
+        selectorHeader: '& > div:has(> div:first-child > div:first-child > h2[font-size][color="text2"]):has(> div:first-child > div:first-child span)',
+        selectorImagesContainer: '& > div:has(> div:first-child > div:first-child > h2[font-size][color="text2"]):has(> div:first-child > div:first-child span) ~ :has(a[href*="artworks/"]:not([href*="users/"]), a[href*="novel/"]:not([href*="users/"]))',
         sanityCheck: () => {
           // Skip if in own profile.
           return document.querySelector('a[href*="settings/profile"]');
         }
       },
-      // Tags page (illustration/novel)
+      // Tags page
       {
-        selectorParent: '.buChOd',
-        selectorHeader: '.dlidhK',
-        selectorImagesContainer: '.cmMzCq, .dsoOUK'
-      },
-      // "Newest by all" page
-      {
-        selectorParent: '.ldgmym > section',
-        selectorHeader: '.hYDgvb',
-        selectorImagesContainer: '.kDcbyT'
+        selectorParent: 'section:has(> div:first-child > div:first-child > div:first-child > h3[font-size][color="text2"])',
+        selectorHeader: '& > div:first-child > div:has(> div:first-child > h3[font-size][color="text2"]):has(> div:first-child span)',
+        selectorImagesContainer: '& > div:nth-child(2):has(a[href*="artworks/"]:not([href*="users/"]), a[href*="novel/"]:not([href*="users/"]))'
       },
       // Rankings page
       {
@@ -631,15 +612,13 @@
     'aside > section' // expanded view's other works sidebar
   ].join(', ');
 
-  // NOTE Keep in sync with SELECTORS_IMAGE.
   const SELECTORS_IMAGE_SMALL = [
-    '.iyMBlR > li', // following page's grid (novel)
-    '.bDfUjL > li' // tags page's popular works
+    'li:has(a[href*="novel/"])', // novel
+    'aside:has(iframe[src*="premium_lp"]) > ul > li' // tags page's popular works
   ].join(', ');
 
-  // NOTE Keep in sync with SELECTORS_IMAGE.
   const SELECTORS_IMAGE_NO_CONTROLS = [
-    '.bDfUjL > li' // tags page's popular works
+    'aside:has(iframe[src*="premium_lp"]) > ul > li' // tags page's popular works
   ].join(', ');
 
   const SELECTORS_IMAGE_MOBILE = '.works-item';
@@ -738,13 +717,7 @@
       child = childSelector.substring(1).trimStart();
     }
 
-    const formatted = [];
-    const parents = parentSelector.split(', ');
-    for (const parent of parents) {
-      formatted.push(`${parent} ${child}`);
-    }
-
-    return formatted.join(', ');
+    return `:is(${parentSelector}) ${child}`;
   };
 
   const _formatSelectorsMultiViewControls = () => {
@@ -771,10 +744,8 @@
     ':not(.page-count, [size="16"], [size="24"]):has(> img:not([src^="data"]))::after';
 
   const SELECTORS_TOGGLE_BOOKMARKED_HEADER = [
-    '.hwVGXz', // general page
-    '.eYXksB', // artist page's requests tab
-    '.gnbCrF', // tags page (novel)
-    '.eEVUIK' // "newest by all" page
+    'div:has(> div > a[href*="/bookmark"])',
+    'div:has(> a[href*="/new"])'
   ];
 
   const mainStyle = /*css*/`
@@ -897,6 +868,10 @@
     padding-left: 6px;
   }
 
+  [data-pixiv_utils_toggle_bookmarked_hide] {
+    display: none;
+  }
+
   ${_FILTERED_SELECTORS_IMAGE_CONTROLS} {
     display: flex;
     justify-content: flex-end;
@@ -958,6 +933,10 @@
     aspect-ratio: 1 / 1;
   }
 
+  :is(${SELECTORS_IMAGE_SMALL}) .pixiv_utils_blocked_image {
+    min-width: 80px;
+  }
+
   .pixiv_utils_blocked_image svg {
     fill: currentcolor;
   }
@@ -1000,11 +979,8 @@
     display: none !important;
   }
 
-  [data-pixiv_utils_blocked] :is(${CONFIG.SELECTORS_IMAGE_ARTIST_AVATAR}) {
-    display: none !important;
-  }
-
-  [data-pixiv_utils_blocked] :is(${CONFIG.SELECTORS_IMAGE_ARTIST_NAME}) {
+  [data-pixiv_utils_blocked] :is(${CONFIG.SELECTORS_IMAGE_ARTIST_AVATAR}),
+  [data-pixiv_utils_blocked] :is(${CONFIG.SELECTORS_IMAGE_AUXILIARY_ELEMENTS}) {
     display: none !important;
   }
 
@@ -1223,7 +1199,14 @@
   let toggleBookmarkedMode = null;
 
   const isImageBookmarked = element => {
-    return element.querySelector(CONFIG.SELECTORS_IMAGE_BOOKMARKED) !== null;
+    const hasBookmarkedClass = element.querySelector(CONFIG.SELECTORS_IMAGE_BOOKMARKED) !== null;
+    if (!hasBookmarkedClass) {
+      const bookmarkButton = element.querySelector('button > svg:has(path)');
+      if (bookmarkButton) {
+        return window.getComputedStyle(bookmarkButton).getPropertyValue('color') === 'rgb(255, 64, 96)';
+      }
+    }
+    return false;
   };
 
   const getImagePixivData = async element => {
@@ -1441,7 +1424,8 @@
 
   const setImageBlocked = (element, options = {}) => {
     // Skip if already blocked (check for element due to possibility of dynamic update).
-    if (element.querySelector('.pixiv_utils_blocked_image_container')) {
+    const alreadyBlocked = element.querySelector('.pixiv_utils_blocked_image_container');
+    if (!options.priority && alreadyBlocked) {
       return false;
     }
 
@@ -1453,12 +1437,14 @@
       return true;
     }
 
-    const blockedThumb = document.createElement('a');
-    blockedThumb.className = 'pixiv_utils_blocked_image_container';
-    blockedThumb.href = options.link.href;
-    blockedThumb.innerHTML = BLOCKED_IMAGE_HTML;
+    if (!alreadyBlocked) {
+      const blockedThumb = document.createElement('a');
+      blockedThumb.className = 'pixiv_utils_blocked_image_container';
+      blockedThumb.href = options.link.href;
+      blockedThumb.innerHTML = BLOCKED_IMAGE_HTML;
 
-    options.link.after(blockedThumb);
+      options.link.after(blockedThumb);
+    }
 
     return true;
   };
@@ -1467,6 +1453,13 @@
     const blockable = isImageBlockedByData(options.pixivData);
     if (!blockable) {
       return false;
+    }
+
+    // Process in toggle bookmarked sections.
+    if (element.closest('[data-pixiv_utils_toggle_bookmarked_section]')) {
+      if (toggleBookmarkedMode !== 0) {
+        element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
+      }
     }
 
     // Do not ever remove in sections known to have display issues.
@@ -1559,10 +1552,10 @@
     // Process new entries in toggled bookmarked sections.
     const bookmarked = isImageBookmarked(element);
     if (element.closest('[data-pixiv_utils_toggle_bookmarked_section]')) {
-      if (toggleBookmarkedMode === 1) {
-        element.style.display = bookmarked ? 'none' : '';
-      } else if (toggleBookmarkedMode === 2) {
-        element.style.display = bookmarked ? '' : 'none';
+      if (toggleBookmarkedMode === 1 && bookmarked) {
+        element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
+      } else if (toggleBookmarkedMode === 2 && !bookmarked) {
+        element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
       }
     }
 
@@ -1890,6 +1883,7 @@
     } else {
       toggleBookmarkedMode++;
     }
+
     if (toggleBookmarkedMode > _TB_MAX) {
       toggleBookmarkedMode = _TB_MIN;
     } else if (toggleBookmarkedMode < _TB_MIN) {
@@ -1898,31 +1892,26 @@
 
     button.innerHTML = formatToggleBookmarkedButtonHtml(toggleBookmarkedMode);
 
-    let images = Array.from(imagesContainer.querySelectorAll(CONFIG.SELECTORS_IMAGE));
-
-    // Do not process blocked images if they are already forcefully hidden.
-    if (CONFIG.PIXIV_REMOVE_BLOCKED || CONFIG.UTAGS_REMOVE_BLOCKED) {
-      images = images.filter(image => !image.dataset.pixiv_utils_blocked);
-    }
+    const images = Array.from(imagesContainer.querySelectorAll(CONFIG.SELECTORS_IMAGE));
 
     if (toggleBookmarkedMode === 0) {
       for (const image of images) {
-        image.style.display = '';
+        delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
       }
     } else if (toggleBookmarkedMode === 1) {
       for (const image of images) {
         if (image.dataset.pixiv_utils_blocked || isImageBookmarked(image)) {
-          image.style.display = 'none';
+          image.dataset.pixiv_utils_toggle_bookmarked_hide = true;
         } else {
-          image.style.display = '';
+          delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
         }
       }
     } else if (toggleBookmarkedMode === 2) {
       for (const image of images) {
         if (image.dataset.pixiv_utils_blocked || !isImageBookmarked(image)) {
-          image.style.display = 'none';
+          image.dataset.pixiv_utils_toggle_bookmarked_hide = true;
         } else {
-          image.style.display = '';
+          delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
         }
       }
     }
@@ -1937,6 +1926,11 @@
   const doToggleBookmarkedSection = async (element, sectionConfig) => {
     // Skip if this config has a sanity check function, and it passes.
     if (typeof sectionConfig.sanityCheck === 'function' && sectionConfig.sanityCheck()) {
+      return false;
+    }
+
+    const header = element.querySelector(sectionConfig.selectorHeader);
+    if (!header) {
       return false;
     }
 
@@ -1957,11 +1951,6 @@
     // Load latest state from storage for the first time.
     if (toggleBookmarkedMode === null) {
       toggleBookmarkedMode = GM_getValue('PREF_TOGGLE_BOOKMARKED_MODE', _TB_MIN);
-    }
-
-    const header = element.querySelector(sectionConfig.selectorHeader);
-    if (!header) {
-      return false;
     }
 
     // Mark as processed.
@@ -2081,7 +2070,8 @@
         const status = setImageBlocked(image, {
           mobile,
           remove: CONFIG.UTAGS_REMOVE_BLOCKED,
-          link: data.link
+          link: data.link,
+          priority: true
         });
         if (status) {
           setImageTitle(image, {
@@ -2224,7 +2214,7 @@
     }
 
     // Tag Buttons
-    if (PIXIV_BLOCKED_TAGS_VALIDATED && CONFIG.PIXIV_REMOVE_BLOCKED) {
+    if (PIXIV_BLOCKED_TAGS_VALIDATED) {
       // Only process if blocked images are also removed instead of just muted.
       sentinel.on(CONFIG.SELECTORS_TAG_BUTTON, element => {
         doTagButton(element);
