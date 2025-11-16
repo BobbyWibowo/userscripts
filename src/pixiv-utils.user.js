@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.42
+// @version      1.6.43
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -97,10 +97,14 @@
     ENABLE_KEYBINDS: true,
 
     PIXIV_HIGHLIGHTED_TAGS: null,
+    // Disable if using patterns with anchors/lookbehinds that can interact badly when combined
+    PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES: true,
     PIXIV_HIGHLIGHTED_COLOR: '#32cd32',
 
     PIXIV_BLOCK_AI: false,
     PIXIV_BLOCKED_TAGS: null,
+    // Disable if using patterns with anchors/lookbehinds that can interact badly when combined
+    PIXIV_BLOCKED_TAGS_COMBINE_REGEXES: true,
     // Instead of merely masking them à la Pixiv's built-in tags mute.
     PIXIV_REMOVE_BLOCKED: false,
 
@@ -635,13 +639,32 @@
         string: [],
         regexp: []
       };
+
+      const regexpMap = {};
+
       for (const tag of tags) {
         if (typeof tag === 'string') {
           result.string.push(tag);
         } else if (Array.isArray(tag)) {
-          result.regexp.push(new RegExp(tag[0], tag[1] || ''));
+          if (CONFIG.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES) {
+            const flags = tag[1] || '';
+            if (regexpMap[flags] === undefined) {
+              regexpMap[flags] = [];
+            }
+            regexpMap[flags].push(tag[0]);
+          } else {
+            result.regexp.push(new RegExp(tag[0], tag[1] || ''));
+          }
         }
       }
+
+      const regexpMapKeys = Object.keys(regexpMap);
+      if (CONFIG.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES && regexpMapKeys.length) {
+        for (const flags of regexpMapKeys) {
+          result.regexp.push(new RegExp(regexpMap[flags].join('|'), flags));
+        }
+      }
+
       return result;
     };
 
@@ -666,12 +689,28 @@
 
   const PIXIV_BLOCKED_TAGS_STRING = [];
   const PIXIV_BLOCKED_TAGS_REGEXP = [];
+  const PIXIV_BLOCKED_TAGS_REGEXP_MAP = {};
 
   for (const tag of CONFIG.PIXIV_BLOCKED_TAGS) {
     if (typeof tag === 'string') {
       PIXIV_BLOCKED_TAGS_STRING.push(String(tag));
     } else if (Array.isArray(tag)) {
-      PIXIV_BLOCKED_TAGS_REGEXP.push(new RegExp(tag[0], tag[1] || ''));
+      if (CONFIG.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES) {
+        const flags = tag[1] || '';
+        if (PIXIV_BLOCKED_TAGS_REGEXP_MAP[flags] === undefined) {
+          PIXIV_BLOCKED_TAGS_REGEXP_MAP[flags] = [];
+        }
+        PIXIV_BLOCKED_TAGS_REGEXP_MAP[flags].push(tag[0]);
+      } else {
+        PIXIV_BLOCKED_TAGS_REGEXP.push(new RegExp(tag[0], tag[1] || ''));
+      }
+    }
+  }
+
+  const PIXIV_BLOCKED_TAGS_REGEXP_MAP_KEYS = Object.keys(PIXIV_BLOCKED_TAGS_REGEXP_MAP);
+  if (CONFIG.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES && PIXIV_BLOCKED_TAGS_REGEXP_MAP_KEYS.length) {
+    for (const flags of PIXIV_BLOCKED_TAGS_REGEXP_MAP_KEYS) {
+      PIXIV_BLOCKED_TAGS_REGEXP.push(new RegExp(PIXIV_BLOCKED_TAGS_REGEXP_MAP[flags].join('|'), flags));
     }
   }
 
