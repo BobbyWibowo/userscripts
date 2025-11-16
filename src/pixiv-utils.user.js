@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.41
+// @version      1.6.42
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -211,7 +211,8 @@
 
     SELECTORS_TAG_BUTTON: [
       ':is(ul, div) > div:has(> a[href*="tags/"] div[title])',
-      'div > div:has(> a[href*="illustrations/"] div[title^="#"])' // artist page
+      'div > div:has(> a[href*="illustrations/"] div[title^="#"])', // artist page
+      '[data-ga4-label="tags_carousel"] div[style*="gap:"] > div.snap-center' // home page's trending tags
     ],
 
     SELECTORS_DATE: [
@@ -2004,11 +2005,14 @@
 
     const tags = element.querySelectorAll('div[title]');
     if (tags.length) {
-      const tagRaw = tags[tags.length - 1].textContent;
-      if (tagRaw.startsWith('#')) {
-        tag = tagRaw.substring(1);
-      } else {
-        tag = tagRaw;
+      for (let i = 0; i < tags.length; i++) {
+        const raw = tags[i].textContent;
+        // Break early if a title with hashtag (#) on its title is found
+        if (raw.startsWith('#')) {
+          tag = raw.substring(1);
+          break;
+        }
+        tag = raw;
       }
     }
 

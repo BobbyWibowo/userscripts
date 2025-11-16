@@ -13,8 +13,8 @@
   },
   "license": "MIT",
   "scripts": {
-    "lint": "npx eslint src/**/*.js",
-    "serve": "npx http-server -c-1"
+    "lint": "yarn run eslint src/**/*.js",
+    "serve": "yarn run http-server -c-1"
   },
   "devDependencies": {
     "@stylistic/eslint-plugin-js": "^4.2.0",
