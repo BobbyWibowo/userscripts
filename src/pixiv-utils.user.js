@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.43
+// @version      1.6.44
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -215,7 +215,7 @@
 
     SELECTORS_TAG_BUTTON: [
       ':is(ul, div) > div:has(> a[href*="tags/"] div[title])',
-      'div > div:has(> a[href*="illustrations/"] div[title^="#"])', // artist page
+      'div > div:has(> a[href*="users/"] div[title^="#"])', // artist page
       '[data-ga4-label="tags_carousel"] div[style*="gap:"] > div.snap-center' // home page's trending tags
     ],
 
