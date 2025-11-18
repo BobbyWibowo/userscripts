@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.44
+// @version      1.6.45
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -254,6 +254,12 @@
         selectorParent: 'section:has(> div:first-child > div:first-child > div:first-child > h3[font-size][color="text2"])',
         selectorHeader: '& > div:first-child > div:has(> div:first-child > h3[font-size][color="text2"]):has(> div:first-child span)',
         selectorImagesContainer: '& > div:nth-child(2):has(a[href*="artworks/"]:not([href*="users/"]), a[href*="novel/"]:not([href*="users/"]))'
+      },
+      // Discovery page
+      {
+        selectorParent: 'div:has(> .gtm-illust-recommend-zone)',
+        selectorHeader: '& > div:first-child > div.grid > div.flex',
+        selectorImagesContainer: '& > .gtm-illust-recommend-zone'
       },
       // Rankings page
       {
@@ -788,7 +794,8 @@
 
   const SELECTORS_TOGGLE_BOOKMARKED_HEADER = [
     'div:has(> div > a[href*="/bookmark"])',
-    'div:has(> a[href*="/new"])'
+    'div:has(> a[href*="/new"])',
+    'div:has(> a[href*="/discovery"])'
   ];
 
   const mainStyle = /*css*/`
