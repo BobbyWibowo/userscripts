@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.45
+// @version      1.6.46
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -97,14 +97,18 @@
     ENABLE_KEYBINDS: true,
 
     PIXIV_HIGHLIGHTED_TAGS: null,
-    // Disable if using patterns with anchors/lookbehinds that can interact badly when combined
+    // Disable if using patterns with anchors/lookbehinds that can interact badly when combined.
     PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES: true,
+    // Disable if you want to see full list of tags that trigger the highlight on their hover tooltip.
+    PIXIV_HIGHLIGHTED_TAGS_FAST: true,
     PIXIV_HIGHLIGHTED_COLOR: '#32cd32',
 
     PIXIV_BLOCK_AI: false,
     PIXIV_BLOCKED_TAGS: null,
-    // Disable if using patterns with anchors/lookbehinds that can interact badly when combined
+    // Disable if using patterns with anchors/lookbehinds that can interact badly when combined.
     PIXIV_BLOCKED_TAGS_COMBINE_REGEXES: true,
+    // Disable if you want to see full list of tags that trigger the block on their hover tooltip.
+    PIXIV_BLOCKED_TAGS_FAST: true,
     // Instead of merely masking them à la Pixiv's built-in tags mute.
     PIXIV_REMOVE_BLOCKED: false,
 
@@ -1393,6 +1397,11 @@
           if (!result.color && config.color) {
             result.color = config.color;
           }
+          // If fast, immediately break away from this set of tags.
+          // It will still continue to find match with the next sets of tags, if available.
+          if (CONFIG.PIXIV_HIGHLIGHTED_TAGS_FAST) {
+            break;
+          }
         }
       }
     }
@@ -1436,9 +1445,19 @@
       hint: ''
     };
 
+    // If fast, and blocking AI artworks, return immediately.
+    if (CONFIG.PIXIV_BLOCKED_TAGS_FAST && result.blockedAI) {
+      result.hint += 'AI-generated';
+      return true;
+    }
+
     for (const tag of data.tags) {
       if (PIXIV_BLOCKED_TAGS_STRING.includes(tag) || PIXIV_BLOCKED_TAGS_REGEXP.some(t => t.test(tag))) {
         result.blockedTags.push(tag);
+        // If fast, immediately break away with just the first matching tag.
+        if (CONFIG.PIXIV_BLOCKED_TAGS_FAST) {
+          break;
+        }
       }
     }
 
@@ -1670,7 +1689,7 @@
     let footer = '';
 
     if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
-      const highlighted = await doHighlightImage(element, { data, pixivData });
+      const highlighted = doHighlightImage(element, { data, pixivData });
       if (highlighted) {
         footer += `Highlighted by:\n${highlighted.hint}`;
       }
