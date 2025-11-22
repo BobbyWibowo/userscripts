@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.46
+// @version      1.6.47
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -1398,11 +1398,15 @@
             result.color = config.color;
           }
           // If fast, immediately break away from this set of tags.
-          // It will still continue to find match with the next sets of tags, if available.
           if (CONFIG.PIXIV_HIGHLIGHTED_TAGS_FAST) {
             break;
           }
         }
+      }
+      // If fast, and color is already set due to a match from the current config,
+      // do not bother checking the other sets of tags.
+      if (CONFIG.PIXIV_HIGHLIGHTED_TAGS_FAST && result.color) {
+        break;
       }
     }
 
