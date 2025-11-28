@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.48
+// @version      1.6.49
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -229,7 +229,7 @@
       '.reupload-info .tooltip-text' // mobile "updated on" popup
     ],
 
-    // Selectors must be single-line strings.
+    // Keys that starts with "selector", and in array, will automatically be converted to single-line strings.
     SECTIONS_TOGGLE_BOOKMARKED: [
       // "Newest by followed" page
       {
@@ -248,6 +248,16 @@
         selectorParent: ':is(div, section):has(> div:first-child > div:first-child > div:first-child > h2[font-size][color="text2"])',
         selectorHeader: '& > div:has(> div:first-child > div:first-child > h2[font-size][color="text2"]):has(> div:first-child > div:first-child span)',
         selectorImagesContainer: '& > div:has(> div:first-child > div:first-child > h2[font-size][color="text2"]):has(> div:first-child > div:first-child span) ~ :has(a[href*="artworks/"]:not([href*="users/"]), a[href*="novel/"]:not([href*="users/"]))',
+        sanityCheck: () => {
+          // Skip if in own profile.
+          return document.querySelector('a[href*="settings/profile"]');
+        }
+      },
+      // Artist page's requests tab
+      {
+        selectorParent: 'section:has(> div:first-child > div:first-child > div:first-child > div:first-child > h2:not([font-size], [color]))',
+        selectorHeader: '& > div:has(> div:first-child > div:first-child > div:first-child > h2:not([font-size], [color]))',
+        selectorImagesContainer: '& > div:has(> div:first-child > div:first-child > div:first-child > h2:not([font-size], [color])) + ul',
         sanityCheck: () => {
           // Skip if in own profile.
           return document.querySelector('a[href*="settings/profile"]');
@@ -273,9 +283,11 @@
       },
       // Mobile artist page's illustrations/bookmarks tab, following page, tags page
       {
-        selectorParent: '.v-nav-tabs + div:not(.header-buttons), ' +
-          '.nav-tab + div, ' +
-          '.search-nav-config + div',
+        selectorParent: [
+          '.v-nav-tabs + div:not(.header-buttons)',
+          '.nav-tab + div',
+          '.search-nav-config + div'
+        ],
         selectorHeader: '.pager-view-nav',
         selectorImagesContainer: '.works-grid-list',
         sanityCheck: () => {
@@ -795,12 +807,6 @@
   const SELECTORS_IMAGE_HIGHLIGHTED =
     ':not(.page-count, [size="16"], [size="24"]):has(> img:not([src^="data"]))::after';
 
-  const SELECTORS_TOGGLE_BOOKMARKED_HEADER = [
-    'div:has(> div > a[href*="/bookmark"])',
-    'div:has(> a[href*="/new"])',
-    'div:has(> a[href*="/discovery"])'
-  ];
-
   const mainStyle = /*css*/`
   .flex:has(+ .pixiv_utils_edit_bookmark_container) {
     flex-grow: 1;
@@ -891,7 +897,7 @@
     width: 100%;
   }
 
-  :is(${SELECTORS_TOGGLE_BOOKMARKED_HEADER.join(', ')}):has(+ .pixiv_utils_toggle_bookmarked_container) {
+  div:has(+ .pixiv_utils_toggle_bookmarked_container) {
     flex-grow: 1;
     justify-content: flex-end;
   }
@@ -2260,6 +2266,11 @@
     for (const sectionConfig of CONFIG.SECTIONS_TOGGLE_BOOKMARKED) {
       let configValid = true;
       for (const key of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
+        if (Array.isArray(sectionConfig[key])) {
+          sectionConfig[key] = sectionConfig[key].join(', ');
+        } else {
+          sectionConfig[key] = sectionConfig[key] || '';
+        }
         if (!sectionConfig[key] || !isSelectorValid(sectionConfig[key])) {
           console.error(`SECTIONS_TOGGLE_BOOKMARKED contains invalid ${key} =`, sectionConfig[key]);
           configValid = false;
