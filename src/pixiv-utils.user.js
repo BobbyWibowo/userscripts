@@ -624,7 +624,6 @@
 
   /** MAIN UTILS */
 
-  // NOTE Keep in sync with SELECTORS_IMAGE (parent selector).
   const SELECTORS_IMAGE_CONTAINER_SIMPLIFIED = [
     'div[open]:has(a[href*="users/"])', // user profile popup
     'aside > section' // expanded view's other works sidebar
