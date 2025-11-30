@@ -1263,7 +1263,8 @@
   const isImageBookmarked = element => {
     const hasBookmarkedClass = Boolean(element.querySelector(CONFIG.SELECTORS_IMAGE_BOOKMARKED));
     if (!hasBookmarkedClass) {
-      const bookmarkButton = element.querySelector('button > svg:has(path)');
+      const bookmarkButton = element.querySelector('button:not([aria-haspopup="true"]) > svg:has(path), ' +
+        'a[href*="bookmark_add.php"] > svg:has(path)');
       if (bookmarkButton) {
         return window.getComputedStyle(bookmarkButton).getPropertyValue('color') === 'rgb(255, 64, 96)';
       }
@@ -1512,6 +1513,13 @@
 
     element.dataset.pixiv_utils_blocked = true;
 
+    // Process in toggle bookmarked sections.
+    if (element.closest('[data-pixiv_utils_toggle_bookmarked_section]')) {
+      if (toggleBookmarkedMode !== 0) {
+        element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
+      }
+    }
+
     // For mobile, never remove blocked, as it does not behave well with Pixiv's in-place navigation.
     if (options.remove && !options.mobile) {
       element.style.display = 'none';
@@ -1534,13 +1542,6 @@
     const blockable = isImageBlockedByData(options.pixivData);
     if (!blockable) {
       return false;
-    }
-
-    // Process in toggle bookmarked sections.
-    if (element.closest('[data-pixiv_utils_toggle_bookmarked_section]')) {
-      if (toggleBookmarkedMode !== 0) {
-        element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
-      }
     }
 
     // Do not ever remove in sections known to have display issues.
