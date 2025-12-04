@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.51
+// @version      1.6.52
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -773,6 +773,35 @@
     logDebug('Using window.onurlchange polyfill.');
   }
 
+  class SimpleCache {
+    constructor (maxSize) {
+      this.maxSize = maxSize;
+      this.map = new Map();
+    }
+
+    get (key) {
+      if (!this.map.has(key)) {
+        return undefined;
+      }
+
+      const value = this.map.get(key);
+      this.map.delete(key);
+      this.map.set(key, value); // refresh for LRU
+      return value;
+    }
+
+    set (key, value) {
+      if (this.map.has(key)) {
+        this.map.delete(key);
+      } else if (this.map.size >= this.maxSize) {
+        const firstKey = this.map.keys().next().value;
+        this.map.delete(firstKey); // evict LRU
+      }
+
+      this.map.set(key, value);
+    }
+  }
+
   /** MAIN STYLES **/
 
   const formatChildSelector = (parentSelector, childSelector) => {
@@ -1272,7 +1301,7 @@
     return hasBookmarkedClass;
   };
 
-  const getImagePixivData = async element => {
+  const extractImagePixivData = async element => {
     const data = {
       title: null,
       ai: null,
@@ -1364,6 +1393,19 @@
     data.tags = data.tags.map(tag => typeof tag !== 'string' ? tag.name : tag);
 
     return data;
+  };
+
+  const PIXIV_DATA_CACHE = new SimpleCache(480);
+
+  const getImagePixivData = async (id, element) => {
+    const cache = PIXIV_DATA_CACHE.get(id);
+    if (cache !== undefined) {
+      return cache;
+    }
+
+    const pixivData = await extractImagePixivData(element);
+    PIXIV_DATA_CACHE.set(id, pixivData);
+    return pixivData;
   };
 
   const setImageTitle = (element, options = {}) => {
@@ -1686,7 +1728,7 @@
       element.style.removeProperty('--pixiv_utils_highlight_color');
     }
 
-    const pixivData = await getImagePixivData(element);
+    const pixivData = await getImagePixivData(data.id, element);
 
     // Only block images if not in own profile, and not bookmarked.
     const skipReason = getImageBlockSkipReason(element, { isOwnProfile, bookmarked });
@@ -1794,7 +1836,7 @@
 
     const pixivDataSource = element.querySelector('div[data-ga4-label="thumbnail_link"]');
     if (pixivDataSource) {
-      const pixivData = await getImagePixivData(pixivDataSource);
+      const pixivData = await getImagePixivData(data.id, pixivDataSource);
       if (pixivData) {
         // Only block images if not bookmarked.
         const skipReason = getImageBlockSkipReason(element, {
@@ -1864,7 +1906,12 @@
       return false;
     }
 
-    const pixivData = await getImagePixivData(image);
+    const data = findItemData(image, true);
+    if (data.id === null) {
+      return false;
+    }
+
+    const pixivData = await getImagePixivData(data.id, image);
     if (pixivData && PIXIV_BLOCKED_TAGS_VALIDATED) {
       // Only block image if not bookmarked.
       const skipReason = getImageBlockSkipReason(image, {
@@ -1882,7 +1929,6 @@
       const target = image.querySelector('.work-main-image');
       if (!image.dataset.pixiv_utils_last_id) {
         initElementObserver(target, mutations => {
-          const data = findItemData(image, true);
           if (data.id !== image.dataset.pixiv_utils_last_id) {
             options.forced = true;
             doExpandedViewControls(image, options);
@@ -1894,7 +1940,6 @@
           attributeFilter: ['href', 'src']
         });
       }
-      const data = findItemData(image, true);
       image.dataset.pixiv_utils_last_id = data.id;
     }
 
@@ -2140,7 +2185,7 @@
         bookmarked: isImageBookmarked(image)
       });
 
-      const pixivData = await getImagePixivData(image);
+      const pixivData = await getImagePixivData(data.id, image);
 
       if (skipReason.length) {
         setImageTitle(image, {
