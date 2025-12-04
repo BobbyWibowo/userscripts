@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.52
+// @version      1.6.53
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -2246,6 +2246,39 @@
     return false;
   };
 
+  const isPartialElementInViewport = element => {
+    if (element.style.display === 'none') {
+      return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+
+    const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+    const windowWidth = window.innerWidth || document.documentElement.clientWidth;
+
+    const vertInView = (rect.top <= windowHeight) && ((rect.top + rect.height) >= 0);
+    const horzInView = (rect.left <= windowWidth) && ((rect.left + rect.width) >= 0);
+
+    return (vertInView && horzInView);
+  };
+
+  let imagesIntersectionObserver = null;
+
+  const initImagesIntersectionObserver = () => {
+    if (imagesIntersectionObserver !== null) {
+      imagesIntersectionObserver.disconnect();
+    }
+
+    imagesIntersectionObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          doImage(entry.target, { isHome, isOwnProfile });
+          imagesIntersectionObserver.unobserve(entry.target);
+        }
+      }
+    }, { delay: 0, threshold: 0 });
+  };
+
   let isHome = false;
   let isOwnProfile = false;
 
@@ -2268,7 +2301,19 @@
 
     // Reset page type.
     isHome = isOwnProfile = false;
+
+    // Re-init IntersectionObserver for images.
+    initImagesIntersectionObserver();
   });
+
+  const processNewImage = element => {
+    if (isPartialElementInViewport(element)) {
+      doImage(element, { isHome, isOwnProfile });
+    } else {
+      // If not in viewport, observe intersection.
+      imagesIntersectionObserver.observe(element);
+    }
+  };
 
   /** SENTINEL */
 
@@ -2282,6 +2327,9 @@
 
     // Immediately attempt to determine page type.
     determinePageType();
+
+    // Init IntersectionObserver for images.
+    initImagesIntersectionObserver();
 
     sentinel.on(CONFIG.SELECTORS_HOME, () => {
       isHome = true;
@@ -2303,7 +2351,7 @@
       CONFIG.SELECTORS_IMAGE,
       CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE
     ], element => {
-      doImage(element, { isHome, isOwnProfile });
+      processNewImage(element);
     });
 
     // Multi View Entries
