@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.53
+// @version      1.6.54
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -1696,7 +1696,7 @@
           if (element.dataset.tx !== element.dataset.pixiv_utils_last_tx ||
             element.classList.contains('grid') !== lastGrid) {
             options.forced = true;
-            doImage(element, options);
+            processNewElement(doImage, element, options);
           }
         }, {
           attributes: true,
@@ -1976,7 +1976,7 @@
       // Re-process expanded view's artist bottom bar.
       const images = document.querySelectorAll(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE);
       for (const image of images) {
-        await doImage(image, { forced: true });
+        processNewElement(doImage, image, { forced: true });
       }
 
       return true;
@@ -2271,9 +2271,11 @@
 
     imagesIntersectionObserver = new IntersectionObserver(entries => {
       for (const entry of entries) {
-        if (entry.isIntersecting) {
-          doImage(entry.target, { isHome, isOwnProfile });
+        const opts = entry.target.pixiv_utils_intersection_observer;
+        if (entry.isIntersecting && typeof opts.func === 'function') {
+          opts.func(entry.target, opts.options);
           imagesIntersectionObserver.unobserve(entry.target);
+          delete entry.target.pixiv_utils_intersection_observer;
         }
       }
     }, { delay: 0, threshold: 0 });
@@ -2306,11 +2308,12 @@
     initImagesIntersectionObserver();
   });
 
-  const processNewImage = element => {
+  const processNewElement = (func, element, options = {}) => {
     if (isPartialElementInViewport(element)) {
-      doImage(element, { isHome, isOwnProfile });
+      return func(element, options);
     } else {
       // If not in viewport, observe intersection.
+      element.pixiv_utils_intersection_observer = { func, options };
       imagesIntersectionObserver.observe(element);
     }
   };
@@ -2351,12 +2354,12 @@
       CONFIG.SELECTORS_IMAGE,
       CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE
     ], element => {
-      processNewImage(element);
+      processNewElement(doImage, element, { isHome, isOwnProfile });
     });
 
     // Multi View Entries
     sentinel.on(CONFIG.SELECTORS_MULTI_VIEW, element => {
-      doMultiView(element, { isHome });
+      processNewElement(doMultiView, element, { isHome });
     });
 
     // Toggle Bookmarked Sections
@@ -2400,7 +2403,7 @@
     if (PIXIV_BLOCKED_TAGS_VALIDATED) {
       // Only process if blocked images are also removed instead of just muted.
       sentinel.on(CONFIG.SELECTORS_TAG_BUTTON, element => {
-        doTagButton(element);
+        processNewElement(doTagButton, element);
       });
     }
 
@@ -2412,7 +2415,7 @@
       ], element => {
         const date = element.querySelector(SELECTORS_DATE_ORIGINAL);
         if (date) {
-          convertDate(date);
+          processNewElement(convertDate, date);
         }
       });
     }
