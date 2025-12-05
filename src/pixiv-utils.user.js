@@ -2246,20 +2246,28 @@
     return false;
   };
 
-  const isPartialElementInViewport = element => {
+  const isElementPassedOrVisible = element => {
     if (element.style.display === 'none') {
       return false;
     }
 
     const rect = element.getBoundingClientRect();
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
 
-    const windowHeight = window.innerHeight || document.documentElement.clientHeight;
-    const windowWidth = window.innerWidth || document.documentElement.clientWidth;
+    // If element is already above the viewport, treat as visible.
+    // We do not want the UI to jump around if user scrolls up after navigating back/forth between pages.
+    if (rect.bottom < 0) {
+      return true;
+    }
 
-    const vertInView = (rect.top <= windowHeight) && ((rect.top + rect.height) >= 0);
-    const horzInView = (rect.left <= windowWidth) && ((rect.left + rect.width) >= 0);
-
-    return (vertInView && horzInView);
+    // Standard partial-visibility check.
+    return (
+      rect.top < windowHeight &&
+      rect.bottom > 0 &&
+      rect.left < windowWidth &&
+      rect.right > 0
+    );
   };
 
   let imagesIntersectionObserver = null;
@@ -2309,7 +2317,7 @@
   });
 
   const processNewElement = (func, element, options = {}) => {
-    if (isPartialElementInViewport(element)) {
+    if (isElementPassedOrVisible(element)) {
       return func(element, options);
     } else {
       // If not in viewport, observe intersection.
