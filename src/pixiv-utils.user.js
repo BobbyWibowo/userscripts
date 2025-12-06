@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.54
+// @version      1.6.55
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -101,6 +101,9 @@
     PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES: true,
     // Disable if you want to see full list of tags that trigger the highlight on their hover tooltip.
     PIXIV_HIGHLIGHTED_TAGS_FAST: true,
+    // Enable if you want artworks with highlighted tags to not be blocked if they contain blocked tags.
+    // This does not work on artworks by artists who are blocked with UTags.
+    PIXIV_HIGHLIGHTED_BYPASS_BLOCK: false,
     PIXIV_HIGHLIGHTED_COLOR: '#32cd32',
 
     PIXIV_BLOCK_AI: false,
@@ -1473,24 +1476,19 @@
     return result;
   };
 
-  const doHighlightImage = (element, options = {}) => {
+  const doHighlightImage = (element, obj = {}) => {
     // Skip if already highlighted.
     if (element.dataset.pixiv_utils_highlight) {
       return false;
     }
 
-    const highlighted = isImageHighlightedByData(options.pixivData);
-    if (!highlighted) {
-      return false;
-    }
-
     element.dataset.pixiv_utils_highlight = true;
 
-    if (highlighted.color) {
-      element.style.setProperty('--pixiv_utils_highlight_color', highlighted.color);
+    if (obj.options.color) {
+      element.style.setProperty('--pixiv_utils_highlight_color', obj.options.color);
     }
 
-    return highlighted;
+    return true;
   };
 
   const isImageBlockedByData = data => {
@@ -1532,7 +1530,7 @@
     return result;
   };
 
-  const getImageBlockSkipReason = (element, options = {}) => {
+  const getImageBlockSkipReason = (options = {}) => {
     const skipReason = [];
 
     if (options.isOwnProfile) {
@@ -1541,6 +1539,10 @@
 
     if (options.bookmarked) {
       skipReason.push('Image is bookmarked');
+    }
+
+    if (options.highlighted) {
+      skipReason.push('Image is highlighted');
     }
 
     return skipReason;
@@ -1580,12 +1582,7 @@
     return true;
   };
 
-  const doBlockImage = async (element, options = {}) => {
-    const blockable = isImageBlockedByData(options.pixivData);
-    if (!blockable) {
-      return false;
-    }
-
+  const doBlockImage = (element, obj = {}) => {
     // Do not ever remove in sections known to have display issues.
     let remove = CONFIG.PIXIV_REMOVE_BLOCKED;
     if (element.closest(SELECTORS_IMAGE_CONTAINER_SIMPLIFIED) ||
@@ -1593,26 +1590,27 @@
       remove = false;
     }
 
-    if (options.skipReason) {
-      logDebug(`Image is blockable, but skipped (reason: ${options.skipReason})`, element);
-    } else {
-      const status = setImageBlocked(element, {
-        mobile: element.matches(SELECTORS_IMAGE_MOBILE),
-        remove,
-        link: options.data.link
-      });
-
-      if (status) {
-        setImageTitle(element, {
-          data: options.data,
-          pixivData: options.pixivData,
-          footer: `Blocked by:\n${blockable.hint}`
-        });
-        logDebug(`Image blocked (${blockable.hint.replace('\n', ', ')})`, element);
-      }
+    if (obj.skipReason) {
+      logDebug(`Image is blockable, but skipped (reason: ${obj.skipReason})`, element);
+      return false;
     }
 
-    return blockable;
+    const status = setImageBlocked(element, {
+      mobile: element.matches(SELECTORS_IMAGE_MOBILE),
+      remove,
+      link: obj.data.link
+    });
+
+    if (status) {
+      setImageTitle(element, {
+        data: obj.data,
+        pixivData: obj.pixivData,
+        footer: `Blocked by:\n${obj.options.hint}`
+      });
+      logDebug(`Image blocked (${obj.options.hint.replace('\n', ', ')})`, element);
+    }
+
+    return true;
   };
 
   const addImageArtist = async element => {
@@ -1730,29 +1728,41 @@
 
     const pixivData = await getImagePixivData(data.id, element);
 
-    // Only block images if not in own profile, and not bookmarked.
-    const skipReason = getImageBlockSkipReason(element, { isOwnProfile, bookmarked });
-
-    let blockable = false;
-    if (PIXIV_BLOCKED_TAGS_VALIDATED) {
-      blockable = await doBlockImage(element, { data, pixivData, skipReason: skipReason.join(', ') });
-      if (blockable && !skipReason.length) {
-        return true;
-      }
-    }
-
     let footer = '';
 
+    let highlightOpts = false;
     if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
-      const highlighted = doHighlightImage(element, { data, pixivData });
-      if (highlighted) {
-        footer += `Highlighted by:\n${highlighted.hint}`;
+      highlightOpts = isImageHighlightedByData(pixivData);
+      if (highlightOpts) {
+        doHighlightImage(element, { options: highlightOpts });
+        footer += `Highlighted by:\n${highlightOpts.hint}`;
       }
     }
 
-    if (blockable) {
-      footer += `\nBlockable by:\n${blockable.hint}` +
-        `\nSkipped due to:\n${skipReason.join('\n')}`;
+    if (PIXIV_BLOCKED_TAGS_VALIDATED) {
+      const blockOpts = isImageBlockedByData(pixivData);
+      if (blockOpts) {
+        // Only block image if not in own profile, not bookmarked,
+        // or optionally, not highlighted.
+        const skipReason = getImageBlockSkipReason({
+          isOwnProfile,
+          bookmarked,
+          highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
+        });
+
+        const blocked = doBlockImage(element, {
+          options: blockOpts,
+          data,
+          pixivData,
+          skipReason: skipReason.join(', ')
+        });
+        if (blocked) {
+          return true;
+        }
+
+        footer += `\nBlockable by:\n${blockOpts.hint}` +
+          `\nSkipped due to:\n${skipReason.join('\n')}`;
+      }
     }
 
     setImageTitle(element, { data, pixivData, footer: footer.trim() });
@@ -1816,15 +1826,16 @@
     return true;
   };
 
-  const doBlockMultiView = async (element, options = {}) => {
-    const blocked = isImageBlockedByData(options.pixivData);
-    if (!blocked) {
+  const doBlockMultiView = async (element, obj = {}) => {
+    if (obj.skipReason) {
+      logDebug(`Multi view is blockable, but skipped (reason: ${obj.skipReason})`, element);
       return false;
     }
 
     // For multi view artwork, always hide the whole entry instead.
     element.parentNode.style.display = 'none';
-    logDebug(`Multi view entry removed (${blocked.hint})`, element);
+    logDebug(`Multi view entry removed (${obj.options.hint})`, element);
+
     return true;
   };
 
@@ -1838,23 +1849,37 @@
     if (pixivDataSource) {
       const pixivData = await getImagePixivData(data.id, pixivDataSource);
       if (pixivData) {
-        // Only block images if not bookmarked.
-        const skipReason = getImageBlockSkipReason(element, {
-          bookmarked: isImageBookmarked(element)
-        });
+        let footer = '';
 
-        let blockable = false;
-        if (PIXIV_BLOCKED_TAGS_VALIDATED) {
-          blockable = await doBlockMultiView(element, { pixivData, skipReason: skipReason.join(', ') });
-          if (blockable && !skipReason.length) {
-            return true;
+        let highlightOpts = false;
+        if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
+          highlightOpts = isImageHighlightedByData(pixivData);
+          if (highlightOpts) {
+            // doHighlightImage(element, { options: highlightOpts });
+            footer += `Highlighted by:\n${highlightOpts.hint}`;
           }
         }
 
-        let footer = '';
-        if (blockable) {
-          footer += `Blockable by:\n${blockable.hint}` +
-          `\nSkipped due to:\n${skipReason.join('\n')}`;
+        if (PIXIV_BLOCKED_TAGS_VALIDATED) {
+          const blockOpts = isImageBlockedByData(options.pixivData);
+          if (blockOpts) {
+            // Only block image if not bookmarked, or optionally, not highlighted.
+            const skipReason = getImageBlockSkipReason({
+              bookmarked: isImageBookmarked(element),
+              highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
+            });
+
+            const blocked = await doBlockMultiView(element, {
+              options: blockOpts,
+              skipReason: skipReason.join(', ')
+            });
+            if (blocked) {
+              return true;
+            }
+
+            footer += `\nBlockable by:\n${blockOpts.hint}` +
+              `\nSkipped due to:\n${skipReason.join('\n')}`;
+          }
         }
 
         setImageTitle(element, { data, pixivData, footer });
@@ -1881,23 +1906,19 @@
     return true;
   };
 
-  const doBlockExpandedView = async (element, options = {}) => {
+  const doBlockExpandedView = (element, obj = {}) => {
     // Reset blocked status if necessary.
     delete element.dataset.pixiv_utils_expanded_view_blocked;
 
-    const blocked = isImageBlockedByData(options.pixivData);
-    if (!blocked) {
+    if (obj.skipReason) {
+      logDebug(`Expanded view is blockable, but skipped (reason: ${obj.skipReason})`, element);
       return false;
     }
 
-    if (options.skipReason) {
-      logDebug(`Expanded view is blockable, but skipped (reason: ${options.skipReason})`, element);
-      return false;
-    } else {
-      element.dataset.pixiv_utils_expanded_view_blocked = true;
-      logDebug(`Expanded view blocked (${blocked.hint})`, element);
-      return true;
-    }
+    element.dataset.pixiv_utils_expanded_view_blocked = true;
+    logDebug(`Expanded view blocked (${obj.options.hint})`, element);
+
+    return true;
   };
 
   const doExpandedViewControls = async (element, options = {}) => {
@@ -1912,16 +1933,41 @@
     }
 
     const pixivData = await getImagePixivData(data.id, image);
-    if (pixivData && PIXIV_BLOCKED_TAGS_VALIDATED) {
-      // Only block image if not bookmarked.
-      const skipReason = getImageBlockSkipReason(image, {
-        bookmarked: isImageBookmarked(image)
-      });
+    if (pixivData) {
+      let footer = '';
 
-      await doBlockExpandedView(image, {
-        pixivData,
-        skipReason: skipReason.join(', ')
-      });
+      let highlightOpts = false;
+      if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
+        highlightOpts = isImageHighlightedByData(pixivData);
+        if (highlightOpts) {
+          // doHighlightImage(image, { options: highlightOpts });
+          footer += `Highlighted by:\n${highlightOpts.hint}`;
+        }
+      }
+
+      if (PIXIV_BLOCKED_TAGS_VALIDATED) {
+        const blockOpts = isImageBlockedByData(pixivData);
+        if (blockOpts) {
+          // Only block image if not bookmarked, or optionally, not highlighted.
+          const skipReason = getImageBlockSkipReason({
+            bookmarked: isImageBookmarked(image),
+            highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
+          });
+
+          const blocked = doBlockExpandedView(image, {
+            options: blockOpts,
+            skipReason: skipReason.join(', ')
+          });
+          if (blocked) {
+            return true;
+          }
+
+          footer += `\nBlockable by:\n${blockOpts.hint}` +
+            `\nSkipped due to:\n${skipReason.join('\n')}`;
+        }
+      }
+
+      setImageTitle(image, { data, pixivData, footer: footer.trim() });
     }
 
     // Init MutationObserver for dynamic expanded view.
@@ -2180,7 +2226,7 @@
       }
 
       // Only block images if not in own profile, and not bookmarked.
-      const skipReason = getImageBlockSkipReason(image, {
+      const skipReason = getImageBlockSkipReason({
         isOwnProfile,
         bookmarked: isImageBookmarked(image)
       });
