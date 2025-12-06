@@ -2297,21 +2297,18 @@
       return false;
     }
 
-    const rect = element.getBoundingClientRect();
-    const windowHeight = window.innerHeight;
-    const windowWidth = window.innerWidth;
-
     // If element is already above the viewport, treat as visible.
     // We do not want the UI to jump around if user scrolls up after navigating back/forth between pages.
+    const rect = element.getBoundingClientRect();
     if (rect.bottom < 0) {
       return true;
     }
 
     // Standard partial-visibility check.
     return (
-      rect.top < windowHeight &&
+      rect.top < window.innerHeight &&
       rect.bottom > 0 &&
-      rect.left < windowWidth &&
+      rect.left < window.innerWidth &&
       rect.right > 0
     );
   };
