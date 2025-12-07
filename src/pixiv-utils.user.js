@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.55
+// @version      1.6.56
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -1861,7 +1861,7 @@
         }
 
         if (PIXIV_BLOCKED_TAGS_VALIDATED) {
-          const blockOpts = isImageBlockedByData(options.pixivData);
+          const blockOpts = isImageBlockedByData(pixivData);
           if (blockOpts) {
             // Only block image if not bookmarked, or optionally, not highlighted.
             const skipReason = getImageBlockSkipReason({
