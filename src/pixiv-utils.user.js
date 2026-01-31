@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.57
+// @version      1.6.58
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -116,9 +116,7 @@
     PIXIV_REMOVE_BLOCKED: false,
 
     UTAGS_INTEGRATION: true,
-    UTAGS_BLOCKED_TAGS: null,
-    // Instead of merely masking them à la Pixiv's built-in tags mute.
-    UTAGS_REMOVE_BLOCKED: false
+    UTAGS_BLOCKED_TAGS: null
   };
 
   /* Hard-coded preset values.
@@ -389,8 +387,7 @@
       'PIXIV_BLOCKED_TAGS',
       'PIXIV_REMOVE_BLOCKED',
       'UTAGS_INTEGRATION',
-      'UTAGS_BLOCKED_TAGS',
-      'UTAGS_REMOVE_BLOCKED'
+      'UTAGS_BLOCKED_TAGS'
     ];
   } else {
     logDebug = log;
@@ -2245,7 +2242,7 @@
       } else {
         const status = setImageBlocked(image, {
           mobile,
-          remove: CONFIG.UTAGS_REMOVE_BLOCKED,
+          remove: false,
           link: data.link,
           priority: true
         });
