@@ -446,7 +446,7 @@
     if (attr) {
       date = new Date(attr);
     } else {
-      let dateText = element.innerText.trim();
+      let dateText = element.textContent.trim();
       if (!dateText.includes(':')) {
         dateHasHMS = false;
       }
@@ -604,7 +604,7 @@
 
     container.querySelector('#pixiv-utils-settings-clear').addEventListener('click', () => {
       textarea.value = '';
-      container.querySelector('#pixiv-utils-settings-json-title').innerText = 'Import settings:';
+      container.querySelector('#pixiv-utils-settings-json-title').textContent = 'Import settings:';
     });
 
     container.querySelector('#pixiv-utils-settings-import').addEventListener('click', () => {
@@ -1201,7 +1201,7 @@
 
     const button = document.createElement('a');
     button.className = 'pixiv_utils_edit_bookmark';
-    button.innerText = CONFIG.TEXT_EDIT_BOOKMARK;
+    button.textContent = CONFIG.TEXT_EDIT_BOOKMARK;
 
     if (CONFIG.TEXT_EDIT_BOOKMARK_TOOLTIP) {
       button.title = CONFIG.TEXT_EDIT_BOOKMARK_TOOLTIP;
