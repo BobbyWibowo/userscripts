@@ -1395,7 +1395,7 @@
     return data;
   };
 
-  const PIXIV_DATA_CACHE = new SimpleCache(480);
+  const PIXIV_DATA_CACHE = new SimpleCache(96);
 
   const getImagePixivData = async (id, element) => {
     const cache = PIXIV_DATA_CACHE.get(id);
