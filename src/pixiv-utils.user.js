@@ -1239,7 +1239,7 @@
 
   const findItemData = (element, tryImg = false) => {
     const methods = [
-      { func: findIllustImg, regex: /\/(\d+)_p0/, img: true },
+      { func: findIllustImg, regex: /\/(\d+)(-[a-z0-9]+)?_p0/, img: true },
       { func: findArtworkUrl, regex: /artworks\/(\d+)/ },
       { func: findIllustUrl, regex: /illust_id=(\d+)/ },
       { func: findNovelUrl, regex: /novel\/show\.php\?id=(\d+)/, novel: true },
