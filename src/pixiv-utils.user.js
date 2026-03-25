@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.59
+// @version      1.6.60
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -140,6 +140,7 @@
       'div[open] a[href*="users/"] ~ div > div:has(a[href*="artworks/"] img[src])', // user profile popup
       'div[open] div:has(a[href*="users/"]) + div > div:has(a[href*="artworks/"] img[src])', // user profile popup (alt)
       '.ranking-items > .ranking-item', // rankings page
+      'div[style*="main-ranking"] ol > li', // rankings page (new)
       '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
       '.works-item:not(.works-item-illust):has(.thumb:not([src^="data"]))', // mobile (novel)
       '.works-item-novel-editor-recommend:has(.cover:not([style^="data"]))', // mobile's novels page's editor's picks
@@ -152,6 +153,7 @@
       '.gtm-illust-recommend-title', // discovery page's grid
       '.gtm-followlatestpage-thumbnail-link', // following page
       'h2:has(> .title)', // rankings page
+      'a[href*="artworks/"]:has(> div[title])', // rankings page (new)
       '.illust-info > a[class*="c-text"]' // mobile list view
     ],
 
@@ -1357,6 +1359,11 @@
               for (const child of children) {
                 if (child.props?.thumbnail) {
                   source = child.props.thumbnail;
+                  break;
+                } else if (child.props?.content) {
+                  // Rankings page
+                  // TODO This doesn't seem to have "is AI?" prop
+                  source = child.props.content;
                   break;
                 }
               }
