@@ -2512,7 +2512,8 @@
 
     const onCooldown = {};
 
-    const processKeyEvent = (id, element) => {
+    // Default to 1 second cooldown in between keybind event.
+    const processKeyEvent = (id, element, cooldown = 1000) => {
       if (!element) {
         return false;
       }
@@ -2522,9 +2523,13 @@
         return false;
       }
 
-      onCooldown[id] = true;
+      if (cooldown > 0) {
+        onCooldown[id] = true;
+        setTimeout(() => { onCooldown[id] = false; }, cooldown);
+      }
+
       element.click();
-      setTimeout(() => { onCooldown[id] = false; }, 1000);
+      logDebug(`${id} keybind processed`, element);
     };
 
     document.addEventListener('keydown', event => {
@@ -2536,19 +2541,22 @@
         return;
       }
 
-      // "Shift+B" for Edit Bookmark.
-      // Pixiv has built-in keybind "B" for just bookmarking.
       if (event.keyCode === 66) {
-        // "Ctrl+B" and "Alt+B": Ignore.
+        // "Shift+B" for Edit Bookmark.
+        // Pixiv has built-in keybind "B" for just bookmarking.
+
+        // Ignore "Ctrl" and "Alt".
         if (event.ctrlKey || event.altKey) {
           return;
         }
+
         // "Shift+B": Edit bookmark.
         if (event.shiftKey) {
           event.stopPropagation();
           const element = document.querySelector(selectors.editBookmark);
           return processKeyEvent('bookmarkEdit', element);
         }
+
         // "B": Scroll to image, only if it has not been scrolled away.
         // In conjunction with Pixiv's built-in keybind.
         const largeImage = document.querySelector('img[src*="p0_master"], img[src*="p0_original"]');
@@ -2557,6 +2565,35 @@
           if (rect?.top > 0) {
             largeImage.scrollIntoView({ behavior: 'smooth' });
           }
+        }
+      } else if (event.keyCode === 37 || event.keyCode === 39) {
+        // "Arrow Left" for navigating pages.
+
+        // Ignore "Ctrl", "Alt", and "Shift".
+        if (event.ctrlKey || event.altKey || event.shiftKey) {
+          return;
+        }
+
+        let element;
+        if (currentUrl.indexOf('/users/') >= 0) {
+          // On artist profile pages.
+          if (event.keyCode === 37) {
+            element = document.querySelector('a[aria-label="Previous"][href]:not([hidden]), a[href]:not([hidden]):has(> pixiv-icon[name$="Prev"]');
+          } else if (event.keyCode === 39) {
+            element = document.querySelector('a[aria-label="Next"][href]:not([hidden]), a[href]:not([hidden]):has(> pixiv-icon[name$="Next"]');
+          }
+        } else if (currentUrl.indexOf('/tags/') >= 0 ||
+          currentUrl.indexOf('bookmark_new_illust.php') >= 0) {
+          // On tags and "Newest by followed" pages.
+          if (event.keyCode === 37) {
+            element = document.querySelector('nav > a[aria-disabled="false"][href*="?p="]:first-child');
+          } else if (event.keyCode === 39) {
+            element = document.querySelector('nav > a[aria-disabled="false"][href*="?p="]:last-child');
+          }
+        }
+
+        if (element) {
+          return processKeyEvent('pageNavigate', element, 100);
         }
       }
     });
