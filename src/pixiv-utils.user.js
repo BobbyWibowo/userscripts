@@ -141,6 +141,7 @@
       'div[open] div:has(a[href*="users/"]) + div > div:has(a[href*="artworks/"] img[src])', // user profile popup (alt)
       '.ranking-items > .ranking-item', // rankings page
       'div[style*="main-ranking"] ol > li', // rankings page (new)
+      'div[data-ga4-label="works_content"] div[data-ga4-label="thumbnail"]', // tags page (new)
       '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
       '.works-item:not(.works-item-illust):has(.thumb:not([src^="data"]))', // mobile (novel)
       '.works-item-novel-editor-recommend:has(.cover:not([style^="data"]))', // mobile's novels page's editor's picks
@@ -271,6 +272,12 @@
         selectorParent: 'section:has(> div:first-child > div:first-child > div:first-child > h3[font-size][color="text2"])',
         selectorHeader: '& > div:first-child > div:has(> div:first-child > h3[font-size][color="text2"]):has(> div:first-child span)',
         selectorImagesContainer: '& > div:nth-child(2):has(a[href*="artworks/"]:not([href*="users/"]), a[href*="novel/"]:not([href*="users/"]))'
+      },
+      // Tags page (new)
+      {
+        selectorParent: 'div[data-ga4-label="works_content"]',
+        selectorHeader: '& > div:first-child > div:first-child',
+        selectorImagesContainer: '& > div:first-child ~ div'
       },
       // Discovery page
       {
