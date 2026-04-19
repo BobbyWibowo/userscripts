@@ -630,7 +630,7 @@
 
     container.querySelector('#pixiv-utils-settings-exit').addEventListener('click', () => {
       // Reload current page with hashes removed.
-      window.location.href = window.location.href.split('#')[0];
+      window.location.href = currentUrl.split('#')[0];
     });
 
     document.body.append(container);
@@ -2016,11 +2016,11 @@
     let id = null;
     let isNovel = false;
 
-    let match = window.location.href.match(/artworks\/(\d+)/);
+    let match = currentUrl.match(/artworks\/(\d+)/);
     if (match && match[1]) {
       id = match[1];
     } else {
-      match = window.location.href.match(/novel\/show\.php\?id=(\d+)/);
+      match = currentUrl.match(/novel\/show\.php\?id=(\d+)/);
       if (match && match[1]) {
         id = match[1];
         isNovel = true;
