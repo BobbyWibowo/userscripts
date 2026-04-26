@@ -229,6 +229,7 @@
 
     SELECTORS_DATE: [
       'main > section:has(figure) figcaption div > time:first-of-type',
+      'body > div[id^="react-aria"][role="tooltip"] > div:first-of-type', // "updated on" tooltip
       '.times', // mobile
       '.reupload-info .tooltip-text' // mobile "updated on" popup
     ],
@@ -2479,7 +2480,7 @@
       ], element => {
         const date = element.querySelector(SELECTORS_DATE_ORIGINAL);
         if (date) {
-          processNewElement(convertDate, date);
+          convertDate(date);
         }
       });
     }
