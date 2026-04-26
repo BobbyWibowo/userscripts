@@ -1919,15 +1919,18 @@
   };
 
   const doBlockExpandedView = (element, obj = {}) => {
-    // Reset blocked status if necessary.
-    delete element.dataset.pixiv_utils_expanded_view_blocked;
-
     if (obj.skipReason) {
       logDebug(`Expanded view is blockable, but skipped (reason: ${obj.skipReason})`, element);
       return false;
     }
 
     element.dataset.pixiv_utils_expanded_view_blocked = true;
+
+    setImageTitle(element, {
+      data: obj.data,
+      pixivData: obj.pixivData,
+      footer: `Blocked by:\n${obj.options.hint}`
+    });
     logDebug(`Expanded view blocked (${obj.options.hint})`, element);
 
     return true;
@@ -1944,6 +1947,8 @@
       return false;
     }
 
+    let blocked = false;
+
     const pixivData = await getImagePixivData(data.id, image);
     if (pixivData) {
       let footer = '';
@@ -1958,6 +1963,9 @@
       }
 
       if (PIXIV_BLOCKED_TAGS_VALIDATED) {
+        // Always reset expanded view's blocked status first.
+        delete image.dataset.pixiv_utils_expanded_view_blocked;
+
         const blockOpts = isImageBlockedByData(pixivData);
         if (blockOpts) {
           // Only block image if not bookmarked, or optionally, not highlighted.
@@ -1966,20 +1974,23 @@
             highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
           });
 
-          const blocked = doBlockExpandedView(image, {
+          blocked = doBlockExpandedView(image, {
             options: blockOpts,
+            data,
+            pixivData,
             skipReason: skipReason.join(', ')
           });
-          if (blocked) {
-            return true;
-          }
 
-          footer += `\nBlockable by:\n${blockOpts.hint}` +
-            `\nSkipped due to:\n${skipReason.join('\n')}`;
+          if (!blocked) {
+            footer += `\nBlockable by:\n${blockOpts.hint}` +
+              `\nSkipped due to:\n${skipReason.join('\n')}`;
+          }
         }
       }
 
-      setImageTitle(image, { data, pixivData, footer: footer.trim() });
+      if (!blocked) {
+        setImageTitle(image, { data, pixivData, footer: footer.trim() });
+      }
     }
 
     // Init MutationObserver for dynamic expanded view.
