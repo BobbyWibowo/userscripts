@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.62
+// @version      1.6.63
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -174,7 +174,7 @@
     ],
 
     SELECTORS_IMAGE_CONTROLS: [
-      'div:has(> button > svg > path)',
+      'div:has(> [data-ga4-label="bookmark_button"], > .gtm-illust-recommend-bookmark)',
       '._layout-thumbnail', // rankings page
       '.imgoverlay', // mobile's feed page
       '.bookmark', // mobile
@@ -200,7 +200,7 @@
 
     SELECTORS_MULTI_VIEW: '[data-ga4-label="work_content"]:has(a[href])',
 
-    SELECTORS_MULTI_VIEW_CONTROLS: '& > .w-full:last-child > .flex:first-child > .flex-row:first-child',
+    SELECTORS_MULTI_VIEW_CONTROLS: 'div:has(> [data-ga4-label="bookmark_button"])',
 
     SELECTORS_FOLLOW_BUTTON_CONTAINER: [
       'div:has(> div:first-child > h1):has(> div:nth-child(2) > [data-click-label="follow"])', // artist page's header
@@ -648,7 +648,7 @@
 
   const SELECTORS_IMAGE_CONTAINER_SIMPLIFIED = [
     'div[open]:has(a[href*="users/"])', // user profile popup
-    'aside > section' // expanded view's other works sidebar
+    'aside > section > nav' // expanded view's other works sidebar
   ].join(', ');
 
   const SELECTORS_IMAGE_SMALL = [
@@ -851,6 +851,11 @@
     flex-grow: 1;
   }
 
+  ${CONFIG.SELECTORS_MULTI_VIEW_CONTROLS} > .flex:has(+ .pixiv_utils_edit_bookmark_container) {
+    flex-grow: 0;
+    padding-right: 4px;
+  }
+
   .ranking-item.muted .pixiv_utils_edit_bookmark_container {
     display: none;
   }
@@ -889,6 +894,10 @@
     line-height: 24px;
     margin-top: 5px;
     margin-right: 7px;
+  }
+
+  ${CONFIG.SELECTORS_MULTI_VIEW_CONTROLS} .pixiv_utils_edit_bookmark {
+    margin-right: 0 !important;
   }
 
   :is(._layout-thumbnail, .novel-right-contents, .imgoverlay) .pixiv_utils_edit_bookmark {
