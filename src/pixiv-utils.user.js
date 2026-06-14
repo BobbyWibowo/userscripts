@@ -2588,7 +2588,7 @@
           }
         }
       } else if (event.keyCode === 37 || event.keyCode === 39) {
-        // "Arrow Left" for navigating pages.
+        // "Arrow Left" and "Arrow Right" for navigating pages.
 
         // Ignore "Ctrl", "Alt", and "Shift".
         if (event.ctrlKey || event.altKey || event.shiftKey) {
