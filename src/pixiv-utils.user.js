@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.64
+// @version      1.6.65
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -133,7 +133,7 @@
 
     SELECTORS_IMAGE: [
       'ul > li:has(a[href*="artworks/"] img[src], a[href*="artworks/"] figure)', // desktop
-      'ul > div:has(a[href*="artworks/"] img[src])',
+      'ul > div:has(a[href*="artworks/"] img[src]):not(:has(ul))',
       'ul > li:has(a[href*="novel/"])', // desktop (novel)
       'nav:not([style]) > div:has(a[href*="artworks/"] img[src])',
       'nav:not([style]) > div:has(a[href*="novel/"])',
@@ -175,6 +175,7 @@
 
     SELECTORS_IMAGE_CONTROLS: [
       'div:has(> [data-ga4-label="bookmark_button"], > .gtm-illust-recommend-bookmark)',
+      '[data-ga4-label="thumbnail_link"] ~ div:has(> button[type="button"] > svg)',
       '._layout-thumbnail', // rankings page
       '.imgoverlay', // mobile's feed page
       '.bookmark', // mobile
@@ -281,11 +282,13 @@
         selectorImagesContainer: '& > div:first-child ~ div'
       },
       // Discovery page
+      /* // NOTE: Disabled because Discovery page is supposed to only show non-bookmarked works anyway.
       {
         selectorParent: 'div:has(> .gtm-illust-recommend-zone)',
         selectorHeader: '& > div:first-child > div.grid > div.flex',
         selectorImagesContainer: '& > .gtm-illust-recommend-zone'
       },
+      */
       // Rankings page
       {
         selectorParent: '#wrapper ._unit',
@@ -2610,6 +2613,13 @@
             element = document.querySelector('nav > a[aria-disabled="false"][href*="?p="]:first-child');
           } else if (event.keyCode === 39) {
             element = document.querySelector('nav > a[aria-disabled="false"][href*="?p="]:last-child');
+          }
+        } else if (currentUrl.indexOf('/ranking.php') >= 0) {
+          // On rankings pages.
+          if (event.keyCode === 37) {
+            element = document.querySelector('div > a:has(> div.icon-v1-prev)');
+          } else if (event.keyCode === 39) {
+            element = document.querySelector('div > a:has(> div.icon-v1-next)');
           }
         }
 
