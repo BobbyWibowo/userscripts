@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.66
+// @version      1.6.67
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -750,7 +750,9 @@
 
   logDebug('PIXIV_BLOCKED_TAGS_STRING = ', PIXIV_BLOCKED_TAGS_STRING);
   logDebug('PIXIV_BLOCKED_TAGS_REGEXP = ', PIXIV_BLOCKED_TAGS_REGEXP);
-  const PIXIV_BLOCKED_TAGS_VALIDATED = PIXIV_BLOCKED_TAGS_STRING.length || PIXIV_BLOCKED_TAGS_REGEXP.length;
+  const PIXIV_BLOCKED_TAGS_VALIDATED = PIXIV_BLOCKED_TAGS_STRING.length ||
+    PIXIV_BLOCKED_TAGS_REGEXP.length ||
+    CONFIG.PIXIV_BLOCK_AI;
 
   const SELECTORS_UTAGS = CONFIG.UTAGS_BLOCKED_TAGS.map(s => `[data-utags_tag="${s}"]`).join(', ');
   logDebug('SELECTORS_UTAGS =', SELECTORS_UTAGS);
@@ -1525,7 +1527,7 @@
     // If fast, and blocking AI artworks, return immediately.
     if (CONFIG.PIXIV_BLOCKED_TAGS_FAST && result.blockedAI) {
       result.hint += 'AI-generated';
-      return true;
+      return result;
     }
 
     for (const tag of data.tags) {
