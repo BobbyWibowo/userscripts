@@ -1616,7 +1616,7 @@
 
     // For mobile, never remove blocked, as it does not behave well with Pixiv's in-place navigation.
     if (options.remove && !options.mobile) {
-      element.style.display = 'none';
+      element.style.setProperty('display', 'none', 'important');
       return true;
     }
 
@@ -1716,7 +1716,7 @@
     }
 
     if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome && data.novel) {
-      element.style.display = 'none';
+      element.style.setProperty('display', 'none', 'important');
       logDebug('Novel recommendation removed from home', element);
       return true;
     }
@@ -1883,7 +1883,7 @@
     }
 
     // For multi view artwork, always hide the whole entry instead.
-    element.parentNode.style.display = 'none';
+    element.parentNode.style.setProperty('display', 'none', 'important');
     logDebug(`Multi view entry removed (${obj.options.hint})`, element);
 
     return true;
@@ -1937,7 +1937,7 @@
     }
 
     if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome && data.novel) {
-      element.parentNode.style.display = 'none';
+      element.parentNode.style.setProperty('display', 'none', 'important');
       logDebug('Novel recommendation removed from home', element);
       return true;
     }
@@ -2253,7 +2253,7 @@
     const blocked = PIXIV_BLOCKED_TAGS_STRING.includes(tag) || PIXIV_BLOCKED_TAGS_REGEXP.some(t => t.test(tag));
 
     if (blocked) {
-      element.style.display = 'none';
+      element.style.setProperty('display', 'none', 'important');
       logDebug(`Tag button blocked (${tag})`);
     }
 
@@ -2325,14 +2325,14 @@
     const multiView = element.closest(CONFIG.SELECTORS_MULTI_VIEW);
     if (multiView) {
       // For multi view artwork, always hide the whole entry instead.
-      multiView.parentNode.style.display = 'none';
+      multiView.parentNode.style.setProperty('display', 'none', 'important');
       logDebug(`Multi view entry removed (UTag: ${utag})`, multiView);
       return true;
     }
 
     const recommendedUserContainer = element.closest(CONFIG.SELECTORS_RECOMMENDED_USER_CONTAINER);
     if (recommendedUserContainer) {
-      recommendedUserContainer.style.display = 'none';
+      recommendedUserContainer.style.setProperty('display', 'none', 'important');
       logDebug(`Recommended user removed (UTag: ${utag})`, recommendedUserContainer);
       return true;
     }
