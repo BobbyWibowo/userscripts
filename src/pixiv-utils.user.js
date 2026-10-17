@@ -11,6 +11,7 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=pixiv.net
 // @run-at       document-start
 // @grant        GM_addStyle
+// @grant        GM_getResourceText
 // @grant        GM_getValue
 // @grant        GM_getValues
 // @grant        GM_listValues
@@ -18,10 +19,13 @@
 // @grant        GM_setValues
 // @grant        window.onurlchange
 // @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
+// @require      https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js
+// @require      https://cdn.jsdelivr.net/npm/tippy.js@6.3.7/dist/tippy.umd.min.js
+// @resource     tippyCss https://cdn.jsdelivr.net/npm/tippy.js@6.3.7/dist/tippy.min.css
 // @noframes
 // ==/UserScript==
 
-/* global sentinel */
+/* global sentinel, tippy */
 
 (function () {
   'use strict';
@@ -116,7 +120,17 @@
     PIXIV_REMOVE_BLOCKED: false,
 
     UTAGS_INTEGRATION: true,
-    UTAGS_BLOCKED_TAGS: null
+    UTAGS_BLOCKED_TAGS: null,
+
+    // Disable if you prefer native tooltips.
+    TIPPY_TOOLTIPS: true,
+    TIPPY_TOOLTIPS_OPTIONS: {
+      delay: [500, 0],
+      followCursor: 'initial',
+      offset: [0, 25],
+      placement: 'bottom',
+      theme: 'multiline'
+    }
   };
 
   /* Hard-coded preset values.
@@ -1459,7 +1473,13 @@
     title = title.trim();
 
     if (title.length) {
-      element.title = title.trim();
+      if (CONFIG.TIPPY_TOOLTIPS) {
+        tippy(element, {
+          content: title.trim()
+        });
+      } else {
+        element.title = title.trim();
+      }
     }
   };
 
@@ -2415,6 +2435,24 @@
     }
 
     window.addEventListener('hashchange', checkHashForSettingsPage);
+
+    // Init Tippy.js for tooltips.
+    if (CONFIG.TIPPY_TOOLTIPS) {
+      GM_addStyle(GM_getResourceText('tippyCss'));
+
+      GM_addStyle(/*css*/`
+        .tippy-box[data-theme~='pixiv-utils'] {
+          background-color: #3a3a3a;
+          color: #d6d6d6;
+
+          .tippy-content {
+            white-space: pre-line;
+          }
+        }
+      `);
+
+      tippy.setDefaultProps(CONFIG.TIPPY_TOOLTIPS_OPTIONS);
+    }
 
     // Immediately attempt to determine page type.
     determinePageType();
