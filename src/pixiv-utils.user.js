@@ -299,13 +299,11 @@
         selectorImagesContainer: '& > div:first-child ~ div'
       },
       // Discovery page
-      /* // NOTE: Disabled because Discovery page is supposed to only show non-bookmarked works anyway.
       {
         selectorParent: 'div:has(> .gtm-illust-recommend-zone)',
         selectorHeader: '& > div:first-child > div.grid > div.flex',
         selectorImagesContainer: '& > .gtm-illust-recommend-zone'
       },
-      */
       // Rankings page
       {
         selectorParent: '#wrapper ._unit',
