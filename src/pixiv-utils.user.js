@@ -55,6 +55,9 @@
   const ENV_DEFAULTS = {
     MODE: 'PROD',
 
+    ENABLE_EDIT_BOOKMARK: true,
+    ENABLE_TOGGLE_BOOKMARKED: true,
+
     TEXT_EDIT_BOOKMARK: '✏️',
     TEXT_EDIT_BOOKMARK_TOOLTIP: 'Edit bookmark',
 
@@ -406,6 +409,8 @@
   if (CONFIG.MODE === 'PROD') {
     // In PROD mode, only print some.
     logKeys = [
+      'ENABLE_EDIT_BOOKMARK',
+      'ENABLE_TOGGLE_BOOKMARKED',
       'DATE_CONVERSION',
       'REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME',
       'ENABLE_KEYBINDS',
@@ -1891,7 +1896,9 @@
         oldEditBookmarkButton.remove();
       }
 
-      imageControls.prepend(editBookmarkButton(data.id, data.novel));
+      if (CONFIG.ENABLE_EDIT_BOOKMARK) {
+        imageControls.prepend(editBookmarkButton(data.id, data.novel));
+      }
     }
 
     return true;
@@ -1973,7 +1980,9 @@
       return false;
     }
 
-    multiViewControls.lastChild.before(editBookmarkButton(data.id, data.novel));
+    if (CONFIG.ENABLE_EDIT_BOOKMARK) {
+      multiViewControls.lastChild.before(editBookmarkButton(data.id, data.novel));
+    }
     return true;
   };
 
@@ -2099,7 +2108,9 @@
     }
 
     if (id !== null) {
-      element.append(editBookmarkButton(id, isNovel));
+      if (CONFIG.ENABLE_EDIT_BOOKMARK) {
+        element.append(editBookmarkButton(id, isNovel));
+      }
 
       // Re-process expanded view's artist bottom bar.
       const images = document.querySelectorAll(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE);
@@ -2516,40 +2527,42 @@
     });
 
     // Toggle Bookmarked Sections
-    for (const sectionConfig of CONFIG.SECTIONS_TOGGLE_BOOKMARKED) {
-      let configValid = true;
-      for (const key of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
-        if (Array.isArray(sectionConfig[key])) {
-          sectionConfig[key] = sectionConfig[key].join(', ');
-        } else {
-          sectionConfig[key] = sectionConfig[key] || '';
+    if (CONFIG.ENABLE_TOGGLE_BOOKMARKED) {
+      for (const sectionConfig of CONFIG.SECTIONS_TOGGLE_BOOKMARKED) {
+        let configValid = true;
+        for (const key of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
+          if (Array.isArray(sectionConfig[key])) {
+            sectionConfig[key] = sectionConfig[key].join(', ');
+          } else {
+            sectionConfig[key] = sectionConfig[key] || '';
+          }
+          if (!sectionConfig[key] || !isSelectorValid(sectionConfig[key])) {
+            console.error(`SECTIONS_TOGGLE_BOOKMARKED contains invalid ${key} =`, sectionConfig[key]);
+            configValid = false;
+            break;
+          }
         }
-        if (!sectionConfig[key] || !isSelectorValid(sectionConfig[key])) {
-          console.error(`SECTIONS_TOGGLE_BOOKMARKED contains invalid ${key} =`, sectionConfig[key]);
-          configValid = false;
-          break;
+
+        if (!configValid) {
+          continue;
         }
+
+        sentinel.on(sectionConfig.selectorParent, element => {
+          doToggleBookmarkedSection(element, sectionConfig);
+        });
+
+        const formattedSelector = formatChildSelector(
+          sectionConfig.selectorParent,
+          sectionConfig.selectorImagesContainer
+        );
+
+        sentinel.on(formattedSelector, element => {
+          const parent = element.closest(sectionConfig.selectorParent);
+          if (parent && !element.dataset.pixiv_utils_toggle_bookmarked_section) {
+            doToggleBookmarkedSection(parent, sectionConfig);
+          }
+        });
       }
-
-      if (!configValid) {
-        continue;
-      }
-
-      sentinel.on(sectionConfig.selectorParent, element => {
-        doToggleBookmarkedSection(element, sectionConfig);
-      });
-
-      const formattedSelector = formatChildSelector(
-        sectionConfig.selectorParent,
-        sectionConfig.selectorImagesContainer
-      );
-
-      sentinel.on(formattedSelector, element => {
-        const parent = element.closest(sectionConfig.selectorParent);
-        if (parent && !element.dataset.pixiv_utils_toggle_bookmarked_section) {
-          doToggleBookmarkedSection(parent, sectionConfig);
-        }
-      });
     }
 
     // Tag Buttons
