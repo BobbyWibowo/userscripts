@@ -1400,6 +1400,10 @@
                   // Rankings page
                   // TODO This doesn't seem to have "is AI?" prop
                   source = child.props.content;
+                  // Some multi-view entries
+                  if (source.thumbnails?.length) {
+                    source = source.thumbnails[0];
+                  }
                   break;
                 }
               }
