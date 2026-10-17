@@ -123,7 +123,7 @@
     UTAGS_BLOCKED_TAGS: null,
 
     // Disable if you prefer native tooltips.
-    TIPPY_TOOLTIPS: true,
+    ENABLE_TIPPY_TOOLTIPS: true,
     TIPPY_TOOLTIPS_OPTIONS: {
       delay: [500, 0],
       followCursor: 'initial',
@@ -414,7 +414,8 @@
       'PIXIV_BLOCKED_TAGS',
       'PIXIV_REMOVE_BLOCKED',
       'UTAGS_INTEGRATION',
-      'UTAGS_BLOCKED_TAGS'
+      'UTAGS_BLOCKED_TAGS',
+      'ENABLE_TIPPY_TOOLTIPS'
     ];
   } else {
     logDebug = log;
@@ -1498,7 +1499,7 @@
     title = title.trim();
 
     if (title.length) {
-      if (CONFIG.TIPPY_TOOLTIPS) {
+      if (CONFIG.ENABLE_TIPPY_TOOLTIPS) {
         element.dataset.title = title;
         tippy(element, { content: title });
       } else {
@@ -2461,7 +2462,7 @@
     window.addEventListener('hashchange', checkHashForSettingsPage);
 
     // Init Tippy.js for tooltips.
-    if (CONFIG.TIPPY_TOOLTIPS) {
+    if (CONFIG.ENABLE_TIPPY_TOOLTIPS) {
       GM_addStyle(GM_getResourceText('tippyCss'));
 
       GM_addStyle(/*css*/`
