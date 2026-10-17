@@ -1363,6 +1363,13 @@
         data.title = _data.title;
         data.ai = _data.ai_type === 2;
         data.tags = _data.tags;
+
+        if (Number.isFinite(_data.upload_timestamp)) {
+          try {
+            const dateString = DATE_FORMAT.format(new Date(_data.upload_timestamp * 1000));
+            data.createDate = dateString;
+          } catch {}
+        }
       }
     } else {
       const reactFiberKey = Object.keys(element).find(k => k.startsWith('__reactFiber'));
@@ -1421,6 +1428,16 @@
             data.title = source.title;
             data.ai = source.aiType === 2;
             data.tags = source.tags;
+
+            const date = Number.isFinite(source.illust_upload_timestamp)
+              ? (source.illust_upload_timestamp * 1000)
+              : source.createDate;
+            if (date !== undefined) {
+              try {
+                const dateString = DATE_FORMAT.format(new Date(date));
+                data.createDate = dateString;
+              } catch {}
+            }
           }
 
           if (data.tags === null && step < MAX_STEPS) {
@@ -1470,6 +1487,10 @@
       title += `\n${options.pixivData.tags.join(', ')}`;
     }
 
+    if (options.pixivData.createDate) {
+      title += `\n${options.pixivData.createDate}`;
+    }
+
     if (options.footer) {
       title += `\n${options.footer}`;
     }
@@ -1478,11 +1499,10 @@
 
     if (title.length) {
       if (CONFIG.TIPPY_TOOLTIPS) {
-        tippy(element, {
-          content: title.trim()
-        });
+        element.dataset.title = title;
+        tippy(element, { content: title });
       } else {
-        element.title = title.trim();
+        element.title = title;
       }
     }
   };
