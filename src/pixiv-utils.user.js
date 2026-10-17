@@ -129,7 +129,7 @@
       followCursor: 'initial',
       offset: [0, 25],
       placement: 'bottom',
-      theme: 'multiline'
+      theme: 'pixiv-utils'
     }
   };
 
