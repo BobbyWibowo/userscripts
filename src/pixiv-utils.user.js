@@ -2466,7 +2466,7 @@
 
       GM_addStyle(/*css*/`
         .tippy-box[data-theme~='pixiv-utils'] {
-          background-color: #3a3a3a;
+          background-color: rgba(58, 58, 58, 0.88);
           color: #d6d6d6;
 
           .tippy-content {
