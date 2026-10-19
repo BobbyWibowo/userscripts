@@ -34,6 +34,7 @@ export default [
         GM_getValue: 'readonly',
         GM_getValues: 'readonly',
         GM_listValues: 'readonly',
+        GM_registerMenuCommand: 'readonly',
         GM_setValue: 'readonly',
         GM_setValues: 'readonly'
       }
