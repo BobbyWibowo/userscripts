@@ -37,14 +37,17 @@
     fractionalSecondDigits: 3
   });
 
-  const log = (message, ...args) => {
-    const prefix = `[${_LOG_TIME_FORMAT.format(Date.now())}]: `;
+  const _log = (prefix, message, ...args) => {
     if (typeof message === 'string') {
       return console.log(prefix + message, ...args);
     } else {
       return console.log(prefix, message, ...args);
     }
   };
+
+  const tlog = (...args) => _log(`[${_LOG_TIME_FORMAT.format(Date.now())}]: `, ...args);
+
+  const log = (...args) => _log('[Pixiv Utils]: ', ...args);
 
   /** CONFIG **/
 
@@ -426,7 +429,7 @@
       'ENABLE_TIPPY_TOOLTIPS'
     ];
   } else {
-    logDebug = log;
+    logDebug = tlog;
   }
 
   for (const key of logKeys) {
@@ -1004,7 +1007,7 @@
   }
 
   .pixiv_utils_toggle_bookmarked span {
-    padding-left: 6px;
+    padding: 0 4px;
   }
 
   :not(#higher_specificity) [data-pixiv_utils_toggle_bookmarked_hide] {
@@ -1819,7 +1822,7 @@
 
     // Reset other statuses if forced.
     if (options.forced) {
-      delete element.title;
+      element.removeAttribute('title');
       delete element.dataset.pixiv_utils_highlight;
       element.style.removeProperty('--pixiv_utils_highlight_color');
     }
@@ -2642,7 +2645,7 @@
       }
 
       if (onCooldown[id]) {
-        log(`"${id}" keybind still on cooldown.`);
+        tlog(`"${id}" keybind still on cooldown.`);
         return false;
       }
 
