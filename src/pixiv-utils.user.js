@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.68
+// @version      1.6.69
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -1359,7 +1359,8 @@
     const data = {
       title: null,
       ai: null,
-      tags: null
+      tags: null,
+      createDate: null
     };
 
     if (element.__vue__) {
@@ -1372,12 +1373,12 @@
         if (key === 'item') {
           const awaited = await waitFor(() => !_data.notLoaded, element);
           if (!awaited) {
-            return false;
+            return data;
           }
         }
 
         data.title = _data.title;
-        data.ai = _data.ai_type === 2;
+        data.ai = _data.ai_type == null ? null : _data.ai_type === 2;
         data.tags = _data.tags;
 
         if (Number.isFinite(_data.upload_timestamp)) {
@@ -1442,7 +1443,7 @@
 
           if (source !== null) {
             data.title = source.title;
-            data.ai = source.aiType === 2;
+            data.ai = source.aiType == null ? null : source.aiType === 2;
             data.tags = source.tags;
 
             const date = Number.isFinite(source.illust_upload_timestamp)
@@ -1465,27 +1466,35 @@
       }
     }
 
-    if (!data.tags) {
+    // Missing tags or AI status means the extracted metadata may be incomplete.
+    // Allow this result to be used, but retry extraction instead of caching it.
+    data.complete = Array.isArray(data.tags) && data.ai !== null;
+    if (!Array.isArray(data.tags)) {
       data.tags = [];
     }
 
     // Re-map extended tags data.
-    data.tags = data.tags.map(tag => typeof tag !== 'string' ? tag.name : tag);
+    data.tags = data.tags
+      .map(tag => typeof tag === 'string' ? tag : tag?.name)
+      .filter(tag => typeof tag === 'string');
 
     return data;
   };
 
   const PIXIV_DATA_CACHE = new SimpleCache(96);
 
-  const getImagePixivData = async (id, element) => {
-    const cache = PIXIV_DATA_CACHE.get(id);
+  const getImagePixivData = async (id, element, isNovel = false) => {
+    const cacheKey = `${isNovel ? 'novel' : 'illust'}:${id}`;
+    const cache = PIXIV_DATA_CACHE.get(cacheKey);
     if (cache !== undefined) {
       return cache;
     }
 
     const pixivData = await extractImagePixivData(element);
-    PIXIV_DATA_CACHE.set(id, pixivData);
-    return pixivData;
+    if (pixivData?.complete) {
+      PIXIV_DATA_CACHE.set(cacheKey, pixivData);
+    }
+    return pixivData || {};
   };
 
   const setImageTitle = (element, options = {}) => {
@@ -1827,7 +1836,7 @@
       element.style.removeProperty('--pixiv_utils_highlight_color');
     }
 
-    const pixivData = await getImagePixivData(data.id, element);
+    const pixivData = await getImagePixivData(data.id, element, data.novel);
 
     let footer = '';
 
@@ -1950,7 +1959,7 @@
 
     const pixivDataSource = element.querySelector('div[data-ga4-label="thumbnail_link"]');
     if (pixivDataSource) {
-      const pixivData = await getImagePixivData(data.id, pixivDataSource);
+      const pixivData = await getImagePixivData(data.id, pixivDataSource, data.novel);
       if (pixivData) {
         let footer = '';
 
@@ -2042,7 +2051,7 @@
 
     let blocked = false;
 
-    const pixivData = await getImagePixivData(data.id, image);
+    const pixivData = await getImagePixivData(data.id, image, data.novel);
     if (pixivData) {
       let footer = '';
 
@@ -2349,7 +2358,7 @@
         bookmarked: isImageBookmarked(image)
       });
 
-      const pixivData = await getImagePixivData(data.id, image);
+      const pixivData = await getImagePixivData(data.id, image, data.novel);
 
       if (skipReason.length) {
         setImageTitle(image, {
