@@ -1507,13 +1507,25 @@
 
     title = title.trim();
 
-    if (title.length) {
-      if (CONFIG.ENABLE_TIPPY_TOOLTIPS) {
-        element.dataset.title = title;
-        tippy(element, { content: title });
+    if (!title.length) {
+      delete element.dataset.title;
+      element.removeAttribute('title');
+      element._tippy?.destroy();
+      return;
+    }
+
+    if (CONFIG.ENABLE_TIPPY_TOOLTIPS) {
+      element.removeAttribute('title');
+      element.dataset.title = title;
+      if (element._tippy) {
+        element._tippy.setContent(title);
       } else {
-        element.title = title;
+        tippy(element, { content: title });
       }
+    } else {
+      delete element.dataset.title;
+      element._tippy?.destroy();
+      element.title = title;
     }
   };
 
