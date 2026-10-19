@@ -621,7 +621,7 @@
     container.innerHTML = /*html*/`
       <p>Bobby's Pixiv Utils</p>
       <p id="pixiv-utils-settings-json-title">Stored settings:</p>
-      <textarea id="pixiv-utils-settings-json" rows="20">${valuesString}</textarea>
+      <textarea id="pixiv-utils-settings-json" rows="20"></textarea>
       <button id="pixiv-utils-settings-export">Export to clipboard</button>
       <p>To import settings, first clear the texarea, paste your copied settings, then import.</p>
       <p>This allows partial import, thus keys missing from the import value will not be removed from your stored settings.</p>
@@ -630,13 +630,14 @@
       <button id="pixiv-utils-settings-exit">Exit</button>
     `;
 
+    const textarea = container.querySelector('#pixiv-utils-settings-json');
+    textarea.value = valuesString;
+
     container.querySelector('#pixiv-utils-settings-export').addEventListener('click', () => {
       navigator.clipboard.writeText(valuesString).then(() => {
         alert('Stored settings exported to clipboard.');
       });
     });
-
-    const textarea = container.querySelector('#pixiv-utils-settings-json');
 
     container.querySelector('#pixiv-utils-settings-clear').addEventListener('click', () => {
       textarea.value = '';
@@ -1725,10 +1726,13 @@
 
     const div = document.createElement('div');
     div.className = 'pixiv_utils_image_artist_container';
-    div.innerHTML = /*html*/`
-      <a class="pixiv_utils_image_artist" href="https://www.pixiv.net/users/${userId}">${userName}</a>
-    `;
 
+    const link = document.createElement('a');
+    link.className = 'pixiv_utils_image_artist';
+    link.href = `https://www.pixiv.net/users/${encodeURIComponent(userId)}`;
+    link.textContent = userName;
+
+    div.append(link);
     element.append(div);
     return true;
   };
@@ -2129,11 +2133,11 @@
 
   const formatToggleBookmarkedButtonHtml = mode => {
     if (mode === 0) {
-      return /*html*/`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL}<span>`;
+      return /*html*/`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL}</span>`;
     } else if (mode === 1) {
-      return /*html*/`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED}<span>`;
+      return /*html*/`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED}</span>`;
     } else if (mode === 2) {
-      return /*html*/`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED}<span>`;
+      return /*html*/`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED}</span>`;
     }
   };
 
