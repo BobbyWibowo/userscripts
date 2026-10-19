@@ -2642,7 +2642,9 @@
     };
 
     document.addEventListener('keydown', event => {
-      event = event || window.event;
+      if (event.defaultPrevented || event.repeat || event.metaKey) {
+        return;
+      }
 
       // Ignore keybinds when currently focused to an input/textarea/editable element.
       if (document.activeElement &&
@@ -2650,7 +2652,7 @@
         return;
       }
 
-      if (event.keyCode === 66) {
+      if (event.key === 'b' || event.key === 'B') {
         // "Shift+B" for Edit Bookmark.
         // Pixiv has built-in keybind "B" for just bookmarking.
 
@@ -2675,7 +2677,7 @@
             largeImage.scrollIntoView({ behavior: 'smooth' });
           }
         }
-      } else if (event.keyCode === 37 || event.keyCode === 39) {
+      } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         // "Arrow Left" and "Arrow Right" for navigating pages.
 
         // Ignore "Ctrl", "Alt", and "Shift".
@@ -2686,24 +2688,24 @@
         let element;
         if (currentUrl.indexOf('/users/') >= 0) {
           // On artist profile pages.
-          if (event.keyCode === 37) {
+          if (event.key === 'ArrowLeft') {
             element = document.querySelector('a[aria-label="Previous"][href]:not([hidden]), a[href]:not([hidden]):has(> pixiv-icon[name$="Prev"]');
-          } else if (event.keyCode === 39) {
+          } else if (event.key === 'ArrowRight') {
             element = document.querySelector('a[aria-label="Next"][href]:not([hidden]), a[href]:not([hidden]):has(> pixiv-icon[name$="Next"]');
           }
         } else if (currentUrl.indexOf('/tags/') >= 0 ||
           currentUrl.indexOf('bookmark_new_illust.php') >= 0) {
           // On tags and "Newest by followed" pages.
-          if (event.keyCode === 37) {
+          if (event.key === 'ArrowLeft') {
             element = document.querySelector('nav > a[aria-disabled="false"][href*="?p="]:first-child');
-          } else if (event.keyCode === 39) {
+          } else if (event.key === 'ArrowRight') {
             element = document.querySelector('nav > a[aria-disabled="false"][href*="?p="]:last-child');
           }
         } else if (currentUrl.indexOf('/ranking.php') >= 0) {
           // On rankings pages.
-          if (event.keyCode === 37) {
+          if (event.key === 'ArrowLeft') {
             element = document.querySelector('div > a:has(> div.icon-v1-prev)');
-          } else if (event.keyCode === 39) {
+          } else if (event.key === 'ArrowRight') {
             element = document.querySelector('div > a:has(> div.icon-v1-next)');
           }
         }
