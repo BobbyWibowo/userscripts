@@ -2573,8 +2573,7 @@
     }
 
     // Tag Buttons
-    if (PIXIV_BLOCKED_TAGS_VALIDATED) {
-      // Only process if blocked images are also removed instead of just muted.
+    if (PIXIV_BLOCKED_TAGS_STRING.length || PIXIV_BLOCKED_TAGS_REGEXP.length) {
       sentinel.on(CONFIG.SELECTORS_TAG_BUTTON, element => {
         processNewElement(doTagButton, element);
       });
