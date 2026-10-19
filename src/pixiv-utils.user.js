@@ -1523,7 +1523,7 @@
     title = title.trim();
 
     if (!title.length) {
-      delete element.dataset.title;
+      delete element.dataset.pixiv_utils_tooltip;
       element.removeAttribute('title');
       element._tippy?.destroy();
       return;
@@ -1531,14 +1531,11 @@
 
     if (CONFIG.ENABLE_TIPPY_TOOLTIPS) {
       element.removeAttribute('title');
-      element.dataset.title = title;
-      if (element._tippy) {
-        element._tippy.setContent(title);
-      } else {
-        tippy(element, { content: title });
-      }
+      // Store the content for lazy delegated initialization and future updates.
+      element.dataset.pixiv_utils_tooltip = title;
+      element._tippy?.setContent(title);
     } else {
-      delete element.dataset.title;
+      delete element.dataset.pixiv_utils_tooltip;
       element._tippy?.destroy();
       element.title = title;
     }
@@ -2522,6 +2519,12 @@
       `);
 
       tippy.setDefaultProps(CONFIG.TIPPY_TOOLTIPS_OPTIONS);
+
+      // Create tooltip instances only when an artwork is hovered or focused.
+      tippy.delegate(document.body, {
+        target: '[data-pixiv_utils_tooltip]',
+        content: element => element.dataset.pixiv_utils_tooltip
+      });
     }
 
     // Immediately attempt to determine page type.
