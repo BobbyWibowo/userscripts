@@ -697,7 +697,7 @@
   for (const config of CONFIG.PIXIV_HIGHLIGHTED_TAGS) {
     const buildTags = tags => {
       const result = {
-        string: [],
+        string: new Set(),
         regexp: []
       };
 
@@ -705,7 +705,7 @@
 
       for (const tag of tags) {
         if (typeof tag === 'string') {
-          result.string.push(tag);
+          result.string.add(tag);
         } else if (Array.isArray(tag)) {
           if (CONFIG.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES) {
             const flags = tag[1] || '';
@@ -740,7 +740,7 @@
       Object.assign(_config, buildTags([config]));
     }
 
-    if (_config.string.length || _config.regexp.length) {
+    if (_config.string.size || _config.regexp.length) {
       PIXIV_HIGHLIGHTED_TAGS_FORMATTED.push(_config);
     }
   }
@@ -748,13 +748,13 @@
   logDebug('PIXIV_HIGHLIGHTED_TAGS_FORMATTED = ', PIXIV_HIGHLIGHTED_TAGS_FORMATTED);
   const PIXIV_HIGHLIGHTED_TAGS_VALIDATED = PIXIV_HIGHLIGHTED_TAGS_FORMATTED.length;
 
-  const PIXIV_BLOCKED_TAGS_STRING = [];
+  const PIXIV_BLOCKED_TAGS_STRING = new Set();
   const PIXIV_BLOCKED_TAGS_REGEXP = [];
   const PIXIV_BLOCKED_TAGS_REGEXP_MAP = {};
 
   for (const tag of CONFIG.PIXIV_BLOCKED_TAGS) {
     if (typeof tag === 'string') {
-      PIXIV_BLOCKED_TAGS_STRING.push(String(tag));
+      PIXIV_BLOCKED_TAGS_STRING.add(tag);
     } else if (Array.isArray(tag)) {
       if (CONFIG.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES) {
         const flags = tag[1] || '';
@@ -777,7 +777,7 @@
 
   logDebug('PIXIV_BLOCKED_TAGS_STRING = ', PIXIV_BLOCKED_TAGS_STRING);
   logDebug('PIXIV_BLOCKED_TAGS_REGEXP = ', PIXIV_BLOCKED_TAGS_REGEXP);
-  const PIXIV_BLOCKED_TAGS_VALIDATED = PIXIV_BLOCKED_TAGS_STRING.length ||
+  const PIXIV_BLOCKED_TAGS_VALIDATED = PIXIV_BLOCKED_TAGS_STRING.size ||
     PIXIV_BLOCKED_TAGS_REGEXP.length ||
     CONFIG.PIXIV_BLOCK_AI;
 
@@ -1550,7 +1550,7 @@
 
     for (const config of PIXIV_HIGHLIGHTED_TAGS_FORMATTED) {
       for (const tag of data.tags) {
-        if (config.string?.includes(tag) || config.regexp?.some(t => t.test(tag))) {
+        if (config.string.has(tag) || config.regexp.some(t => t.test(tag))) {
           result.highlightedTags.push(tag);
           if (!result.color && config.color) {
             result.color = config.color;
@@ -1609,7 +1609,7 @@
     }
 
     for (const tag of data.tags) {
-      if (PIXIV_BLOCKED_TAGS_STRING.includes(tag) || PIXIV_BLOCKED_TAGS_REGEXP.some(t => t.test(tag))) {
+      if (PIXIV_BLOCKED_TAGS_STRING.has(tag) || PIXIV_BLOCKED_TAGS_REGEXP.some(t => t.test(tag))) {
         result.blockedTags.push(tag);
         // If fast, immediately break away with just the first matching tag.
         if (CONFIG.PIXIV_BLOCKED_TAGS_FAST) {
@@ -2313,7 +2313,7 @@
       return false;
     }
 
-    const blocked = PIXIV_BLOCKED_TAGS_STRING.includes(tag) || PIXIV_BLOCKED_TAGS_REGEXP.some(t => t.test(tag));
+    const blocked = PIXIV_BLOCKED_TAGS_STRING.has(tag) || PIXIV_BLOCKED_TAGS_REGEXP.some(t => t.test(tag));
 
     if (blocked) {
       element.style.setProperty('display', 'none', 'important');
@@ -2603,7 +2603,7 @@
     }
 
     // Tag Buttons
-    if (PIXIV_BLOCKED_TAGS_STRING.length || PIXIV_BLOCKED_TAGS_REGEXP.length) {
+    if (PIXIV_BLOCKED_TAGS_STRING.size || PIXIV_BLOCKED_TAGS_REGEXP.length) {
       sentinel.on(CONFIG.SELECTORS_TAG_BUTTON, element => {
         processNewElement(doTagButton, element);
       });
