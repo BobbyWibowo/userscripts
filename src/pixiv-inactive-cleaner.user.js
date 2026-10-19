@@ -3,7 +3,10 @@
 // @namespace    https://github.com/BobbyWibowo
 // @version      0.4.0
 // @description  Find and optionally unfollow Pixiv artists whose latest artwork is older than a chosen cutoff.
-// @match        https://www.pixiv.net/*
+// @author       Bobby Wibowo
+// @license      MIT
+// @match        *://www.pixiv.net/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=pixiv.net
 // @run-at       document-idle
 // @grant        GM_registerMenuCommand
 // @grant        GM_getValue
