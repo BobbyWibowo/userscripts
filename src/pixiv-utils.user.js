@@ -348,15 +348,20 @@
 
   const ENV = {};
 
-  // Store default values.
+  // Store missing or nullish defaults in a single batch.
+  const storedValues = GM_getValues(Object.keys(ENV_DEFAULTS));
+  const missingValues = {};
   for (const key of Object.keys(ENV_DEFAULTS)) {
-    const stored = GM_getValue(key);
+    const stored = storedValues[key];
     if (stored === null || stored === undefined) {
       ENV[key] = ENV_DEFAULTS[key];
-      GM_setValue(key, ENV_DEFAULTS[key]);
+      missingValues[key] = ENV_DEFAULTS[key];
     } else {
       ENV[key] = stored;
     }
+  }
+  if (Object.keys(missingValues).length) {
+    GM_setValues(missingValues);
   }
 
   const _DOCUMENT_FRAGMENT = document.createDocumentFragment();
