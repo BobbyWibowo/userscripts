@@ -1202,16 +1202,19 @@
       const find = () => {
         const result = func(element);
         if (result) {
-          if (interval) {
+          if (interval !== null) {
             delete waitForIntervals[interval];
             clearInterval(interval);
           }
-          return resolve(result);
+          resolve(result);
+          return true;
         }
+        return false;
       };
-      find();
-      interval = setInterval(find, WAIT_FOR_POLL);
-      waitForIntervals[interval] = { func, element, resolve };
+      if (!find()) {
+        interval = setInterval(find, WAIT_FOR_POLL);
+        waitForIntervals[interval] = { func, element, resolve };
+      }
     });
   };
 
