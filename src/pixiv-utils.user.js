@@ -130,10 +130,13 @@
 
     // Disable if you prefer native tooltips.
     ENABLE_TIPPY_TOOLTIPS: true,
+    // Mouse tooltips appear only after the cursor has stopped moving.
+    TIPPY_TOOLTIPS_STATIONARY_DELAY: 500, // ms
+    TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE: 3, // px
     TIPPY_TOOLTIPS_OPTIONS: {
-      delay: [500, 0],
+      delay: [500, 0], // ms
       followCursor: 'initial',
-      offset: [0, 25],
+      offset: [0, 25], // px
       placement: 'bottom',
       theme: 'pixiv-utils'
     }
@@ -2520,10 +2523,102 @@
 
       tippy.setDefaultProps(CONFIG.TIPPY_TOOLTIPS_OPTIONS);
 
-      // Create tooltip instances only when an artwork is hovered or focused.
+      // Keep delegated Tippy initialization, but delay mouse tooltips until the cursor is still.
+      const tooltipSelector = '[data-pixiv_utils_tooltip]';
+      const stationaryDelay = Math.max(0, Number(CONFIG.TIPPY_TOOLTIPS_STATIONARY_DELAY) || 0);
+      const movementTolerance = Math.max(0, Number(CONFIG.TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE) || 0);
+      const movementToleranceSquared = movementTolerance * movementTolerance;
+
+      let hoveredTooltip = null;
+      let stationaryTimer = null;
+      let cursorStationary = false;
+      let lastMouseX = 0;
+      let lastMouseY = 0;
+
+      const stopStationaryTimer = () => {
+        clearTimeout(stationaryTimer);
+        stationaryTimer = null;
+        document.body.removeEventListener('pointermove', trackMouseMovement);
+      };
+
+      const trackMouseMovement = event => {
+        if (event.pointerType !== 'mouse') {
+          return;
+        }
+
+        const dx = event.clientX - lastMouseX;
+        const dy = event.clientY - lastMouseY;
+        if (dx * dx + dy * dy < movementToleranceSquared) {
+          return;
+        }
+
+        lastMouseX = event.clientX;
+        lastMouseY = event.clientY;
+        startStationaryTimer();
+      };
+
+      const startStationaryTimer = () => {
+        clearTimeout(stationaryTimer);
+        cursorStationary = false;
+        stationaryTimer = setTimeout(() => {
+          stationaryTimer = null;
+          document.body.removeEventListener('pointermove', trackMouseMovement);
+
+          if (!hoveredTooltip?.isConnected ||
+            !hoveredTooltip.contains(document.elementFromPoint(lastMouseX, lastMouseY)) ||
+            !hoveredTooltip.dataset.pixiv_utils_tooltip) {
+            hoveredTooltip = null;
+            return;
+          }
+
+          cursorStationary = true;
+          hoveredTooltip._tippy?.show();
+        }, stationaryDelay);
+      };
+
+      document.body.addEventListener('pointerover', event => {
+        // Keep Tippy's normal touch and pen behavior.
+        if (event.pointerType !== 'mouse') {
+          stopStationaryTimer();
+          hoveredTooltip = null;
+          cursorStationary = false;
+          return;
+        }
+
+        const target = event.target.closest(tooltipSelector);
+        if (!target || target === hoveredTooltip) {
+          return;
+        }
+
+        stopStationaryTimer();
+        hoveredTooltip = target;
+        lastMouseX = event.clientX;
+        lastMouseY = event.clientY;
+        document.body.addEventListener('pointermove', trackMouseMovement, { passive: true });
+        startStationaryTimer();
+      });
+
+      document.body.addEventListener('pointerout', event => {
+        if (event.pointerType === 'mouse' && hoveredTooltip?.contains(event.target) &&
+          !hoveredTooltip.contains(event.relatedTarget)) {
+          stopStationaryTimer();
+          hoveredTooltip = null;
+          cursorStationary = false;
+        }
+      });
+
+      // Create individual tooltips on first interaction, including on touch and keyboard focus.
       tippy.delegate(document.body, {
-        target: '[data-pixiv_utils_tooltip]',
-        content: element => element.dataset.pixiv_utils_tooltip
+        target: tooltipSelector,
+        content: element => element.dataset.pixiv_utils_tooltip,
+        onShow: instance => {
+          // Cancel Tippy's normal mouse-hover show until our stationary timer fires.
+          // Do not interfere with keyboard focus or touch-triggered tooltips.
+          if (instance.reference === hoveredTooltip && !cursorStationary &&
+            !instance.reference.contains(document.activeElement)) {
+            return false;
+          }
+        }
       });
     }
 
