@@ -519,7 +519,7 @@
     }
 
     duplicateDate.dataset.pixiv_utils_date_timestamp = timestamp;
-    duplicateDate.innerHTML = prefix + dateString;
+    duplicateDate.textContent = prefix + dateString;
     return true;
   };
 
@@ -2180,14 +2180,15 @@
     return false;
   };
 
-  const formatToggleBookmarkedButtonHtml = mode => {
-    if (mode === 0) {
-      return /*html*/`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL}</span>`;
-    } else if (mode === 1) {
-      return /*html*/`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED}</span>`;
-    } else if (mode === 2) {
-      return /*html*/`${CONFIG.TEXT_TOGGLE_BOOKMARKED}<span>${CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED}</span>`;
-    }
+  const updateToggleBookmarkedButton = (button, mode) => {
+    const label = mode === 0
+      ? CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL
+      : mode === 1
+        ? CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED
+        : CONFIG.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED;
+    const span = document.createElement('span');
+    span.textContent = label;
+    button.replaceChildren(document.createTextNode(CONFIG.TEXT_TOGGLE_BOOKMARKED), span);
   };
 
   let toggling = false;
@@ -2212,7 +2213,7 @@
       toggleBookmarkedMode = _TB_MAX;
     }
 
-    button.innerHTML = formatToggleBookmarkedButtonHtml(toggleBookmarkedMode);
+    updateToggleBookmarkedButton(button, toggleBookmarkedMode);
 
     const images = Array.from(imagesContainer.querySelectorAll(CONFIG.SELECTORS_IMAGE));
 
@@ -2291,7 +2292,7 @@
 
     const button = document.createElement('a');
     button.className = 'pixiv_utils_toggle_bookmarked';
-    button.innerHTML = formatToggleBookmarkedButtonHtml(toggleBookmarkedMode);
+    updateToggleBookmarkedButton(button, toggleBookmarkedMode);
 
     if (CONFIG.TEXT_TOGGLE_BOOKMARKED_TOOLTIP) {
       button.title = CONFIG.TEXT_TOGGLE_BOOKMARKED_TOOLTIP;
