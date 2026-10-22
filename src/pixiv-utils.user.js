@@ -17,15 +17,17 @@
 // @grant        GM_listValues
 // @grant        GM_setValue
 // @grant        GM_setValues
+// @grant        GM_registerMenuCommand
 // @grant        window.onurlchange
 // @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
 // @require      https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js
 // @require      https://cdn.jsdelivr.net/npm/tippy.js@6.3.7/dist/tippy.umd.min.js
+// @require      https://cdn.jsdelivr.net/npm/@kobzi/gmconfig@1.0.0/dist/gmConfig.iife.js
 // @resource     tippyCss https://cdn.jsdelivr.net/npm/tippy.js@6.3.7/dist/tippy.min.css
 // @noframes
 // ==/UserScript==
 
-/* global sentinel, tippy */
+/* global sentinel, tippy, gmConfig */
 
 (function () {
   'use strict';
@@ -57,18 +59,19 @@
    */
   const ENV_DEFAULTS = {
     MODE: 'PROD',
+    SETTINGS_LANGUAGE: 'auto',
 
     ENABLE_EDIT_BOOKMARK: true,
     ENABLE_TOGGLE_BOOKMARKED: true,
 
-    TEXT_EDIT_BOOKMARK: '✏️',
-    TEXT_EDIT_BOOKMARK_TOOLTIP: 'Edit bookmark',
+    TEXT_EDIT_BOOKMARK: null,
+    TEXT_EDIT_BOOKMARK_TOOLTIP: null,
 
-    TEXT_TOGGLE_BOOKMARKED: '❤️',
-    TEXT_TOGGLE_BOOKMARKED_TOOLTIP: 'Cycle bookmarked display (Right-Click to cycle back)',
-    TEXT_TOGGLE_BOOKMARKED_SHOW_ALL: 'Show all',
-    TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED: 'Show bookmarked',
-    TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED: 'Show not bookmarked',
+    TEXT_TOGGLE_BOOKMARKED: null,
+    TEXT_TOGGLE_BOOKMARKED_TOOLTIP: null,
+    TEXT_TOGGLE_BOOKMARKED_SHOW_ALL: null,
+    TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED: null,
+    TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED: null,
 
     SELECTORS_HOME: null,
     SELECTORS_OWN_PROFILE: null,
@@ -126,7 +129,7 @@
     PIXIV_REMOVE_BLOCKED: false,
 
     UTAGS_INTEGRATION: true,
-    UTAGS_BLOCKED_TAGS: null,
+    UTAGS_BLOCKED_TAGS: [],
 
     // Disable if you prefer native tooltips.
     ENABLE_TIPPY_TOOLTIPS: true,
@@ -354,21 +357,856 @@
 
   const ENV = {};
 
-  // Store missing or nullish defaults in a single batch.
-  const storedValues = GM_getValues(Object.keys(ENV_DEFAULTS));
+  // GM_getValues returns undefined for missing keys, but null is a valid override.
+  // Use GM_listValues to distinguish a missing key from one deliberately set to null.
+  const defaultKeys = Object.keys(ENV_DEFAULTS);
+  const existingKeys = new Set(GM_listValues());
+  const storedValues = GM_getValues(defaultKeys);
   const missingValues = {};
-  for (const key of Object.keys(ENV_DEFAULTS)) {
-    const stored = storedValues[key];
-    if (stored === null || stored === undefined) {
+  for (const key of defaultKeys) {
+    if (!existingKeys.has(key)) {
       ENV[key] = ENV_DEFAULTS[key];
       missingValues[key] = ENV_DEFAULTS[key];
     } else {
-      ENV[key] = stored;
+      // Retain the old nullish fallback for non-null defaults without rewriting storage.
+      ENV[key] = storedValues[key] ?? ENV_DEFAULTS[key];
     }
   }
-  if (Object.keys(missingValues).length) {
-    GM_setValues(missingValues);
-  }
+  if (Object.keys(missingValues).length) GM_setValues(missingValues);
+
+  // Settings UI and button text translations. Fill ja/zh/zh-Hant as available;
+  // missing/empty translations automatically fall back to en per individual string.
+  const I18N = {
+    en: {
+      'tab.General': 'General',
+      'tab.Bookmarks': 'Bookmarks',
+      'tab.Filtering': 'Filtering',
+      'tab.Highlights': 'Highlights',
+      'tab.Tooltips': 'Tooltips',
+      'tab.UTags': 'UTags',
+      'tab.Advanced': 'Advanced',
+      'tab.Backup': 'Backup',
+      settingsTitle: "Bobby's Pixiv Utils - Settings",
+      'language.auto': 'Automatic (browser language)',
+      'language.en': 'English',
+      'language.ja': 'Japanese',
+      'language.zh': 'Chinese (Simplified)',
+      'language.zh-Hant': 'Chinese (Traditional)',
+      'label.MODE': 'Debug mode',
+      'label.SETTINGS_LANGUAGE': 'Settings language',
+      'label.PIXIV_BLOCKED_TAGS': 'Blocked Pixiv tags',
+      'label.PIXIV_HIGHLIGHTED_TAGS': 'Highlighted tags',
+      'label.PIXIV_HIGHLIGHTED_COLOR': 'Highlighted color',
+      'label.SECTIONS_TOGGLE_BOOKMARKED': 'Sections toggle bookmarked',
+      'label.BACKUP_TOOLS': 'Import / Export existing settings',
+      'rule.new': 'New rule',
+      'rule.tagPattern': 'Tag or pattern',
+      'rule.regex': 'RegExp',
+      'rule.flags': 'Flags',
+      'rule.patternPlaceholder': 'Literal tag or regular expression',
+      'rule.regexInfo': 'RegExp flags: i (case-insensitive), m, s, u or v (u/v cannot be combined). Avoid g/y because repeated matches can be inconsistent. Combining patterns may affect numeric backreferences.',
+      'rule.add': 'Add tag',
+      'rule.addGroup': 'Add tag / colored group',
+      'rule.addInGroup': 'Add tag in group',
+      'rule.type': 'Rule type',
+      'rule.single': 'Single tag / regex',
+      'rule.colored': 'Colored group',
+      'rule.groupColor': 'Group highlight color (optional)',
+      'rule.groupTags': 'Tags in this group',
+      'rule.collapse': 'Collapse group tags',
+      'rule.expand': 'Expand group tags',
+      'rule.listRequired': 'Expected a list of rules.',
+      'rule.needsText': '{location}: a rule needs text.',
+      'rule.groupLocation': 'Group {number}',
+      'rule.location': 'Rule {number}',
+      'rule.blockedLocation': 'Blocked rules',
+      'rule.groupNeedsTags': 'Group {number} needs a tags list.',
+      'rule.combinedRegex': 'Combined regex ({flags}): {error}',
+      'rule.noFlags': 'no flags',
+      'date.unspecified': 'Default / unspecified',
+      'date.systemTimezone': 'System timezone',
+      'date.example': 'Example: {value}',
+      'date.invalid': 'Invalid combination: {error}',
+      'date.expectedObject': 'Expected a date formatting options object.',
+      'text.explicitEmpty': 'Use an explicit empty string',
+      'text.fallback': 'Leave blank to use the preset localized text. Select the checkbox to force an empty string.',
+      'sections.add': 'Add section',
+      'sections.parent': 'Parent selector',
+      'sections.header': 'Header selector',
+      'sections.images': 'Images container selector',
+      'sections.info': 'Additional sections only. Built-in sections and their custom sanity checks are unchanged. One selector per line; multiple selectors are supported.',
+      'utags.add': 'Add blocked UTag',
+      'utags.tag': 'UTag',
+      'utags.info': 'Custom additions to the built-in \'block\' and \'hide\' tags.',
+      'backup.intro': 'Export fills the editor with all existing GM storage values, including preferences. Import accepts a partial settings object; omitted keys are preserved.',
+      'backup.placeholder': 'Export settings, choose a JSON file, or paste a JSON object here...',
+      'backup.aria': 'Settings JSON',
+      'backup.export': 'Export',
+      'backup.copy': 'Copy all',
+      'backup.download': 'Download',
+      'backup.choose': 'Choose JSON file',
+      'backup.import': 'Import from editor',
+      'backup.emptyCopy': 'Nothing to copy. Export settings first.',
+      'backup.copied': 'Text copied to clipboard.',
+      'backup.clipboardFailed': 'Clipboard access failed. The text is selected for manual copying.',
+      'backup.emptyDownload': 'Nothing to download. Export settings first.',
+      'backup.fileError': 'Unable to read file: {error}',
+      'backup.emptyImport': 'Paste settings JSON or select a JSON file first.',
+      'backup.importConfirm': 'Import {count} setting(s)?\n\nMatching stored keys will be overwritten. Unspecified keys remain unchanged. Any unsaved edits in the settings panel will be discarded.',
+      'backup.imported': 'Settings imported. Reload the page for all changes to take effect.',
+      'backup.importError': 'Unable to import settings: {error}',
+      'backup.objectError': 'Expected a JSON object.',
+      'backup.emptyObject': 'The imported object is empty.',
+      'field.debugInfo': 'Enable debug logging (stores MODE as DEBUG; unchecked stores PROD).',
+      'field.languageInfo': 'Automatically detects the preferred supported browser language, or use this override. Incomplete translations fall back to English.',
+      'field.highlightInfo': 'This also serves as fallback in colored groups that do not have color set. Tip: "transparent" disables colored borders while keeping highlighted-tag blocking bypass functionality.',
+      'field.tippyJson': 'JSON object passed directly to Tippy.js.',
+      'field.dateInfo': 'All controls serialize to the existing DATE_CONVERSION_OPTIONS object.',
+      'field.selectorInfo': 'These selectors are custom additions to the built-in presets. Enter one selector per line.',
+      'field.keybindInfo': 'Shift+B: Open Edit Bookmark.\nB: Scroll to the artwork (Pixiv handles bookmarking).\nLeft/Right Arrow: Navigate supported listing pages.\n\nIgnored in text fields and with Ctrl/Alt/Meta.',
+      'field.blockAiInfo': 'Only artworks self-declared as AI-generated by their artists can be identified and blocked by this option.',
+      'field.delayInfo': 'Wait time after the mouse stops (milliseconds).',
+      'field.toleranceInfo': 'Mouse movement threshold in pixels.',
+      'validation.object': 'Expected a JSON object.',
+      'validation.arrayNull': 'Expected an array or null.',
+      'validation.arrayObjects': 'Expected an array of objects.',
+      'validation.string': 'Expected a string.',
+      'action.reload': 'Reload page',
+      'action.save': 'Save',
+      'action.saved': 'Saved ✓',
+      'action.cancel': 'Cancel',
+      'action.reset': 'Reset',
+      'action.importExport': 'Import / Export',
+      'action.close': 'Close',
+      'message.save': 'Settings saved. Reload the page for all changes to take effect.',
+      'message.reset': 'Settings reset. Reload the page for all changes to take effect.',
+      'message.resetConfirm': 'Reset every configurable setting to its default?',
+      'message.openError': 'Failed to open settings: {error}',
+      'message.validation': '{key}: {error}',
+      'text.TEXT_EDIT_BOOKMARK': '✏️',
+      'text.TEXT_EDIT_BOOKMARK_TOOLTIP': 'Edit bookmark',
+      'text.TEXT_TOGGLE_BOOKMARKED': '❤️',
+      'text.TEXT_TOGGLE_BOOKMARKED_TOOLTIP': 'Cycle bookmarked display (Right-Click to cycle back)',
+      'text.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL': 'Show all',
+      'text.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED': 'Show bookmarked',
+      'text.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED': 'Show not bookmarked',
+      'label.ENABLE_EDIT_BOOKMARK': 'Edit bookmark',
+      'label.ENABLE_TOGGLE_BOOKMARKED': 'Toggle bookmarked',
+      'label.TEXT_EDIT_BOOKMARK': 'Edit bookmark',
+      'label.TEXT_EDIT_BOOKMARK_TOOLTIP': 'Edit bookmark tooltip',
+      'label.TEXT_TOGGLE_BOOKMARKED': 'Toggle bookmarked',
+      'label.TEXT_TOGGLE_BOOKMARKED_TOOLTIP': 'Toggle bookmarked tooltip',
+      'label.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL': 'Toggle bookmarked show all',
+      'label.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED': 'Toggle bookmarked show bookmarked',
+      'label.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED': 'Toggle bookmarked show not bookmarked',
+      'label.SELECTORS_HOME': 'Selectors home',
+      'label.SELECTORS_OWN_PROFILE': 'Selectors own profile',
+      'label.SELECTORS_IMAGE': 'Selectors image',
+      'label.SELECTORS_IMAGE_TITLE': 'Selectors image title',
+      'label.SELECTORS_IMAGE_ARTIST_AVATAR': 'Selectors image artist avatar',
+      'label.SELECTORS_IMAGE_AUXILIARY_ELEMENTS': 'Selectors image auxiliary elements',
+      'label.SELECTORS_IMAGE_CONTROLS': 'Selectors image controls',
+      'label.SELECTORS_IMAGE_BOOKMARKED': 'Selectors image bookmarked',
+      'label.SELECTORS_EXPANDED_VIEW_IMAGE': 'Selectors expanded view image',
+      'label.SELECTORS_EXPANDED_VIEW_CONTROLS': 'Selectors expanded view controls',
+      'label.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE': 'Selectors expanded view artist bottom image',
+      'label.SELECTORS_MULTI_VIEW': 'Selectors multi view',
+      'label.SELECTORS_MULTI_VIEW_CONTROLS': 'Selectors multi view controls',
+      'label.SELECTORS_FOLLOW_BUTTON_CONTAINER': 'Selectors follow button container',
+      'label.SELECTORS_FOLLOW_BUTTON': 'Selectors follow button',
+      'label.SELECTORS_RECOMMENDED_USER_CONTAINER': 'Selectors recommended user container',
+      'label.SELECTORS_TAG_BUTTON': 'Selectors tag button',
+      'label.DATE_CONVERSION': 'Date conversion',
+      'label.DATE_CONVERSION_LOCALES': 'Date conversion locales',
+      'label.DATE_CONVERSION_OPTIONS': 'Date conversion options',
+      'label.SELECTORS_DATE': 'Selectors date',
+      'label.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME': 'Remove novel recommendations from home',
+      'label.ENABLE_KEYBINDS': 'Keybinds',
+      'label.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES': 'Combine RegExp highlight patterns (improves performance)',
+      'label.PIXIV_HIGHLIGHTED_TAGS_FAST': 'Highlight as soon as the first tag matches (improves performance, but an artwork\'s tooltip will not list other tags that may highlight the artwork too)',
+      'label.PIXIV_HIGHLIGHTED_BYPASS_BLOCK': 'Highlighted artworks bypass blocking (does not bypass UTag blocking)',
+      'label.PIXIV_BLOCK_AI': 'Block AI artworks',
+      'label.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES': 'Combine RegExp block patterns (improves performance)',
+      'label.PIXIV_BLOCKED_TAGS_FAST': 'Block as soon as the first tag matches (improves performance, but an artwork\'s tooltip will not list other tags that may block the artwork too)',
+      'label.PIXIV_REMOVE_BLOCKED': 'Remove blocked instead of masking à la Pixiv\'s built-in tags mute',
+      'label.UTAGS_INTEGRATION': 'Utags integration',
+      'label.UTAGS_BLOCKED_TAGS': 'Utags blocked tags',
+      'label.ENABLE_TIPPY_TOOLTIPS': 'Tippy tooltips',
+      'label.TIPPY_TOOLTIPS_STATIONARY_DELAY': 'Stationary delay',
+      'label.TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE': 'Movement tolerance',
+      'label.TIPPY_TOOLTIPS_OPTIONS': 'Options',
+      'date.weekday': 'Weekday',
+      'date.era': 'Era',
+      'date.year': 'Year',
+      'date.month': 'Month',
+      'date.day': 'Day',
+      'date.dayPeriod': 'Day period',
+      'date.hour': 'Hour',
+      'date.minute': 'Minute',
+      'date.second': 'Second',
+      'date.fractionalSecondDigits': 'Fractional second digits',
+      'date.hour12': 'Hour12',
+      'date.hourCycle': 'Hour cycle',
+      'date.timeZoneName': 'Time zone name',
+      'date.dateStyle': 'Date style',
+      'date.timeStyle': 'Time style',
+      'date.localeMatcher': 'Locale matcher',
+      'date.formatMatcher': 'Format matcher',
+      'date.timeZone': 'Time zone',
+      'date.calendar': 'Calendar',
+      'date.numberingSystem': 'Numbering system',
+      'date.choice.long': 'long',
+      'date.choice.short': 'short',
+      'date.choice.narrow': 'narrow',
+      'date.choice.numeric': 'numeric',
+      'date.choice.2-digit': '2-digit',
+      'date.choice.1': '1',
+      'date.choice.2': '2',
+      'date.choice.3': '3',
+      'date.choice.true': 'true',
+      'date.choice.false': 'false',
+      'date.choice.h11': 'h11',
+      'date.choice.h12': 'h12',
+      'date.choice.h23': 'h23',
+      'date.choice.h24': 'h24',
+      'date.choice.shortOffset': 'shortOffset',
+      'date.choice.longOffset': 'longOffset',
+      'date.choice.shortGeneric': 'shortGeneric',
+      'date.choice.longGeneric': 'longGeneric',
+      'date.choice.full': 'full',
+      'date.choice.medium': 'medium',
+      'date.choice.lookup': 'lookup',
+      'date.choice.best fit': 'best fit',
+      'date.choice.basic': 'basic',
+    },
+    ja: {
+      'tab.General': '',
+      'tab.Bookmarks': '',
+      'tab.Filtering': '',
+      'tab.Highlights': '',
+      'tab.Tooltips': '',
+      'tab.UTags': '',
+      'tab.Advanced': '',
+      'tab.Backup': '',
+      settingsTitle: '',
+      'language.auto': '',
+      'language.en': '',
+      'language.ja': '',
+      'language.zh': '',
+      'language.zh-Hant': '',
+      'label.MODE': '',
+      'label.SETTINGS_LANGUAGE': '',
+      'label.PIXIV_BLOCKED_TAGS': '',
+      'label.PIXIV_HIGHLIGHTED_TAGS': '',
+      'label.PIXIV_HIGHLIGHTED_COLOR': '',
+      'label.SECTIONS_TOGGLE_BOOKMARKED': '',
+      'label.BACKUP_TOOLS': '',
+      'rule.new': '',
+      'rule.tagPattern': '',
+      'rule.regex': '',
+      'rule.flags': '',
+      'rule.patternPlaceholder': '',
+      'rule.regexInfo': '',
+      'rule.add': '',
+      'rule.addGroup': '',
+      'rule.addInGroup': '',
+      'rule.type': '',
+      'rule.single': '',
+      'rule.colored': '',
+      'rule.groupColor': '',
+      'rule.groupTags': '',
+      'rule.collapse': '',
+      'rule.expand': '',
+      'rule.listRequired': '',
+      'rule.needsText': '',
+      'rule.groupLocation': '',
+      'rule.location': '',
+      'rule.blockedLocation': '',
+      'rule.groupNeedsTags': '',
+      'rule.combinedRegex': '',
+      'rule.noFlags': '',
+      'date.unspecified': '',
+      'date.systemTimezone': '',
+      'date.example': '',
+      'date.invalid': '',
+      'date.expectedObject': '',
+      'text.explicitEmpty': '',
+      'text.fallback': '',
+      'sections.add': '',
+      'sections.parent': '',
+      'sections.header': '',
+      'sections.images': '',
+      'sections.info': '',
+      'utags.add': '',
+      'utags.tag': '',
+      'utags.info': '',
+      'backup.intro': '',
+      'backup.placeholder': '',
+      'backup.aria': '',
+      'backup.export': '',
+      'backup.copy': '',
+      'backup.download': '',
+      'backup.choose': '',
+      'backup.import': '',
+      'backup.emptyCopy': '',
+      'backup.copied': '',
+      'backup.clipboardFailed': '',
+      'backup.emptyDownload': '',
+      'backup.fileError': '',
+      'backup.emptyImport': '',
+      'backup.importConfirm': '',
+      'backup.imported': '',
+      'backup.importError': '',
+      'backup.objectError': '',
+      'backup.emptyObject': '',
+      'field.debugInfo': '',
+      'field.languageInfo': '',
+      'field.highlightInfo': '',
+      'field.tippyJson': '',
+      'field.dateInfo': '',
+      'field.selectorInfo': '',
+      'field.keybindInfo': '',
+      'field.blockAiInfo': '',
+      'field.delayInfo': '',
+      'field.toleranceInfo': '',
+      'validation.object': '',
+      'validation.arrayNull': '',
+      'validation.arrayObjects': '',
+      'validation.string': '',
+      'action.reload': '',
+      'action.save': '',
+      'action.saved': '',
+      'action.cancel': '',
+      'action.reset': '',
+      'action.importExport': '',
+      'action.close': '',
+      'message.save': '',
+      'message.reset': '',
+      'message.resetConfirm': '',
+      'message.openError': '',
+      'message.validation': '',
+      'text.TEXT_EDIT_BOOKMARK': '',
+      'text.TEXT_EDIT_BOOKMARK_TOOLTIP': '',
+      'text.TEXT_TOGGLE_BOOKMARKED': '',
+      'text.TEXT_TOGGLE_BOOKMARKED_TOOLTIP': '',
+      'text.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL': '',
+      'text.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED': '',
+      'text.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED': '',
+      'label.ENABLE_EDIT_BOOKMARK': '',
+      'label.ENABLE_TOGGLE_BOOKMARKED': '',
+      'label.TEXT_EDIT_BOOKMARK': '',
+      'label.TEXT_EDIT_BOOKMARK_TOOLTIP': '',
+      'label.TEXT_TOGGLE_BOOKMARKED': '',
+      'label.TEXT_TOGGLE_BOOKMARKED_TOOLTIP': '',
+      'label.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL': '',
+      'label.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED': '',
+      'label.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED': '',
+      'label.SELECTORS_HOME': '',
+      'label.SELECTORS_OWN_PROFILE': '',
+      'label.SELECTORS_IMAGE': '',
+      'label.SELECTORS_IMAGE_TITLE': '',
+      'label.SELECTORS_IMAGE_ARTIST_AVATAR': '',
+      'label.SELECTORS_IMAGE_AUXILIARY_ELEMENTS': '',
+      'label.SELECTORS_IMAGE_CONTROLS': '',
+      'label.SELECTORS_IMAGE_BOOKMARKED': '',
+      'label.SELECTORS_EXPANDED_VIEW_IMAGE': '',
+      'label.SELECTORS_EXPANDED_VIEW_CONTROLS': '',
+      'label.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE': '',
+      'label.SELECTORS_MULTI_VIEW': '',
+      'label.SELECTORS_MULTI_VIEW_CONTROLS': '',
+      'label.SELECTORS_FOLLOW_BUTTON_CONTAINER': '',
+      'label.SELECTORS_FOLLOW_BUTTON': '',
+      'label.SELECTORS_RECOMMENDED_USER_CONTAINER': '',
+      'label.SELECTORS_TAG_BUTTON': '',
+      'label.DATE_CONVERSION': '',
+      'label.DATE_CONVERSION_LOCALES': '',
+      'label.DATE_CONVERSION_OPTIONS': '',
+      'label.SELECTORS_DATE': '',
+      'label.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME': '',
+      'label.ENABLE_KEYBINDS': '',
+      'label.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES': '',
+      'label.PIXIV_HIGHLIGHTED_TAGS_FAST': '',
+      'label.PIXIV_HIGHLIGHTED_BYPASS_BLOCK': '',
+      'label.PIXIV_BLOCK_AI': '',
+      'label.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES': '',
+      'label.PIXIV_BLOCKED_TAGS_FAST': '',
+      'label.PIXIV_REMOVE_BLOCKED': '',
+      'label.UTAGS_INTEGRATION': '',
+      'label.UTAGS_BLOCKED_TAGS': '',
+      'label.ENABLE_TIPPY_TOOLTIPS': '',
+      'label.TIPPY_TOOLTIPS_STATIONARY_DELAY': '',
+      'label.TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE': '',
+      'label.TIPPY_TOOLTIPS_OPTIONS': '',
+      'date.weekday': '',
+      'date.era': '',
+      'date.year': '',
+      'date.month': '',
+      'date.day': '',
+      'date.dayPeriod': '',
+      'date.hour': '',
+      'date.minute': '',
+      'date.second': '',
+      'date.fractionalSecondDigits': '',
+      'date.hour12': '',
+      'date.hourCycle': '',
+      'date.timeZoneName': '',
+      'date.dateStyle': '',
+      'date.timeStyle': '',
+      'date.localeMatcher': '',
+      'date.formatMatcher': '',
+      'date.timeZone': '',
+      'date.calendar': '',
+      'date.numberingSystem': '',
+      'date.choice.long': '',
+      'date.choice.short': '',
+      'date.choice.narrow': '',
+      'date.choice.numeric': '',
+      'date.choice.2-digit': '',
+      'date.choice.1': '',
+      'date.choice.2': '',
+      'date.choice.3': '',
+      'date.choice.true': '',
+      'date.choice.false': '',
+      'date.choice.h11': '',
+      'date.choice.h12': '',
+      'date.choice.h23': '',
+      'date.choice.h24': '',
+      'date.choice.shortOffset': '',
+      'date.choice.longOffset': '',
+      'date.choice.shortGeneric': '',
+      'date.choice.longGeneric': '',
+      'date.choice.full': '',
+      'date.choice.medium': '',
+      'date.choice.lookup': '',
+      'date.choice.best fit': '',
+      'date.choice.basic': '',
+    },
+    zh: {
+      'tab.General': '',
+      'tab.Bookmarks': '',
+      'tab.Filtering': '',
+      'tab.Highlights': '',
+      'tab.Tooltips': '',
+      'tab.UTags': '',
+      'tab.Advanced': '',
+      'tab.Backup': '',
+      settingsTitle: '',
+      'language.auto': '',
+      'language.en': '',
+      'language.ja': '',
+      'language.zh': '',
+      'language.zh-Hant': '',
+      'label.MODE': '',
+      'label.SETTINGS_LANGUAGE': '',
+      'label.PIXIV_BLOCKED_TAGS': '',
+      'label.PIXIV_HIGHLIGHTED_TAGS': '',
+      'label.PIXIV_HIGHLIGHTED_COLOR': '',
+      'label.SECTIONS_TOGGLE_BOOKMARKED': '',
+      'label.BACKUP_TOOLS': '',
+      'rule.new': '',
+      'rule.tagPattern': '',
+      'rule.regex': '',
+      'rule.flags': '',
+      'rule.patternPlaceholder': '',
+      'rule.regexInfo': '',
+      'rule.add': '',
+      'rule.addGroup': '',
+      'rule.addInGroup': '',
+      'rule.type': '',
+      'rule.single': '',
+      'rule.colored': '',
+      'rule.groupColor': '',
+      'rule.groupTags': '',
+      'rule.collapse': '',
+      'rule.expand': '',
+      'rule.listRequired': '',
+      'rule.needsText': '',
+      'rule.groupLocation': '',
+      'rule.location': '',
+      'rule.blockedLocation': '',
+      'rule.groupNeedsTags': '',
+      'rule.combinedRegex': '',
+      'rule.noFlags': '',
+      'date.unspecified': '',
+      'date.systemTimezone': '',
+      'date.example': '',
+      'date.invalid': '',
+      'date.expectedObject': '',
+      'text.explicitEmpty': '',
+      'text.fallback': '',
+      'sections.add': '',
+      'sections.parent': '',
+      'sections.header': '',
+      'sections.images': '',
+      'sections.info': '',
+      'utags.add': '',
+      'utags.tag': '',
+      'utags.info': '',
+      'backup.intro': '',
+      'backup.placeholder': '',
+      'backup.aria': '',
+      'backup.export': '',
+      'backup.copy': '',
+      'backup.download': '',
+      'backup.choose': '',
+      'backup.import': '',
+      'backup.emptyCopy': '',
+      'backup.copied': '',
+      'backup.clipboardFailed': '',
+      'backup.emptyDownload': '',
+      'backup.fileError': '',
+      'backup.emptyImport': '',
+      'backup.importConfirm': '',
+      'backup.imported': '',
+      'backup.importError': '',
+      'backup.objectError': '',
+      'backup.emptyObject': '',
+      'field.debugInfo': '',
+      'field.languageInfo': '',
+      'field.highlightInfo': '',
+      'field.tippyJson': '',
+      'field.dateInfo': '',
+      'field.selectorInfo': '',
+      'field.keybindInfo': '',
+      'field.blockAiInfo': '',
+      'field.delayInfo': '',
+      'field.toleranceInfo': '',
+      'validation.object': '',
+      'validation.arrayNull': '',
+      'validation.arrayObjects': '',
+      'validation.string': '',
+      'action.reload': '',
+      'action.save': '',
+      'action.saved': '',
+      'action.cancel': '',
+      'action.reset': '',
+      'action.importExport': '',
+      'action.close': '',
+      'message.save': '',
+      'message.reset': '',
+      'message.resetConfirm': '',
+      'message.openError': '',
+      'message.validation': '',
+      'text.TEXT_EDIT_BOOKMARK': '',
+      'text.TEXT_EDIT_BOOKMARK_TOOLTIP': '',
+      'text.TEXT_TOGGLE_BOOKMARKED': '',
+      'text.TEXT_TOGGLE_BOOKMARKED_TOOLTIP': '',
+      'text.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL': '',
+      'text.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED': '',
+      'text.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED': '',
+      'label.ENABLE_EDIT_BOOKMARK': '',
+      'label.ENABLE_TOGGLE_BOOKMARKED': '',
+      'label.TEXT_EDIT_BOOKMARK': '',
+      'label.TEXT_EDIT_BOOKMARK_TOOLTIP': '',
+      'label.TEXT_TOGGLE_BOOKMARKED': '',
+      'label.TEXT_TOGGLE_BOOKMARKED_TOOLTIP': '',
+      'label.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL': '',
+      'label.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED': '',
+      'label.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED': '',
+      'label.SELECTORS_HOME': '',
+      'label.SELECTORS_OWN_PROFILE': '',
+      'label.SELECTORS_IMAGE': '',
+      'label.SELECTORS_IMAGE_TITLE': '',
+      'label.SELECTORS_IMAGE_ARTIST_AVATAR': '',
+      'label.SELECTORS_IMAGE_AUXILIARY_ELEMENTS': '',
+      'label.SELECTORS_IMAGE_CONTROLS': '',
+      'label.SELECTORS_IMAGE_BOOKMARKED': '',
+      'label.SELECTORS_EXPANDED_VIEW_IMAGE': '',
+      'label.SELECTORS_EXPANDED_VIEW_CONTROLS': '',
+      'label.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE': '',
+      'label.SELECTORS_MULTI_VIEW': '',
+      'label.SELECTORS_MULTI_VIEW_CONTROLS': '',
+      'label.SELECTORS_FOLLOW_BUTTON_CONTAINER': '',
+      'label.SELECTORS_FOLLOW_BUTTON': '',
+      'label.SELECTORS_RECOMMENDED_USER_CONTAINER': '',
+      'label.SELECTORS_TAG_BUTTON': '',
+      'label.DATE_CONVERSION': '',
+      'label.DATE_CONVERSION_LOCALES': '',
+      'label.DATE_CONVERSION_OPTIONS': '',
+      'label.SELECTORS_DATE': '',
+      'label.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME': '',
+      'label.ENABLE_KEYBINDS': '',
+      'label.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES': '',
+      'label.PIXIV_HIGHLIGHTED_TAGS_FAST': '',
+      'label.PIXIV_HIGHLIGHTED_BYPASS_BLOCK': '',
+      'label.PIXIV_BLOCK_AI': '',
+      'label.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES': '',
+      'label.PIXIV_BLOCKED_TAGS_FAST': '',
+      'label.PIXIV_REMOVE_BLOCKED': '',
+      'label.UTAGS_INTEGRATION': '',
+      'label.UTAGS_BLOCKED_TAGS': '',
+      'label.ENABLE_TIPPY_TOOLTIPS': '',
+      'label.TIPPY_TOOLTIPS_STATIONARY_DELAY': '',
+      'label.TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE': '',
+      'label.TIPPY_TOOLTIPS_OPTIONS': '',
+      'date.weekday': '',
+      'date.era': '',
+      'date.year': '',
+      'date.month': '',
+      'date.day': '',
+      'date.dayPeriod': '',
+      'date.hour': '',
+      'date.minute': '',
+      'date.second': '',
+      'date.fractionalSecondDigits': '',
+      'date.hour12': '',
+      'date.hourCycle': '',
+      'date.timeZoneName': '',
+      'date.dateStyle': '',
+      'date.timeStyle': '',
+      'date.localeMatcher': '',
+      'date.formatMatcher': '',
+      'date.timeZone': '',
+      'date.calendar': '',
+      'date.numberingSystem': '',
+      'date.choice.long': '',
+      'date.choice.short': '',
+      'date.choice.narrow': '',
+      'date.choice.numeric': '',
+      'date.choice.2-digit': '',
+      'date.choice.1': '',
+      'date.choice.2': '',
+      'date.choice.3': '',
+      'date.choice.true': '',
+      'date.choice.false': '',
+      'date.choice.h11': '',
+      'date.choice.h12': '',
+      'date.choice.h23': '',
+      'date.choice.h24': '',
+      'date.choice.shortOffset': '',
+      'date.choice.longOffset': '',
+      'date.choice.shortGeneric': '',
+      'date.choice.longGeneric': '',
+      'date.choice.full': '',
+      'date.choice.medium': '',
+      'date.choice.lookup': '',
+      'date.choice.best fit': '',
+      'date.choice.basic': '',
+    },
+    'zh-Hant': {
+      'tab.General': '',
+      'tab.Bookmarks': '',
+      'tab.Filtering': '',
+      'tab.Highlights': '',
+      'tab.Tooltips': '',
+      'tab.UTags': '',
+      'tab.Advanced': '',
+      'tab.Backup': '',
+      settingsTitle: '',
+      'language.auto': '',
+      'language.en': '',
+      'language.ja': '',
+      'language.zh': '',
+      'language.zh-Hant': '',
+      'label.MODE': '',
+      'label.SETTINGS_LANGUAGE': '',
+      'label.PIXIV_BLOCKED_TAGS': '',
+      'label.PIXIV_HIGHLIGHTED_TAGS': '',
+      'label.PIXIV_HIGHLIGHTED_COLOR': '',
+      'label.SECTIONS_TOGGLE_BOOKMARKED': '',
+      'label.BACKUP_TOOLS': '',
+      'rule.new': '',
+      'rule.tagPattern': '',
+      'rule.regex': '',
+      'rule.flags': '',
+      'rule.patternPlaceholder': '',
+      'rule.regexInfo': '',
+      'rule.add': '',
+      'rule.addGroup': '',
+      'rule.addInGroup': '',
+      'rule.type': '',
+      'rule.single': '',
+      'rule.colored': '',
+      'rule.groupColor': '',
+      'rule.groupTags': '',
+      'rule.collapse': '',
+      'rule.expand': '',
+      'rule.listRequired': '',
+      'rule.needsText': '',
+      'rule.groupLocation': '',
+      'rule.location': '',
+      'rule.blockedLocation': '',
+      'rule.groupNeedsTags': '',
+      'rule.combinedRegex': '',
+      'rule.noFlags': '',
+      'date.unspecified': '',
+      'date.systemTimezone': '',
+      'date.example': '',
+      'date.invalid': '',
+      'date.expectedObject': '',
+      'text.explicitEmpty': '',
+      'text.fallback': '',
+      'sections.add': '',
+      'sections.parent': '',
+      'sections.header': '',
+      'sections.images': '',
+      'sections.info': '',
+      'utags.add': '',
+      'utags.tag': '',
+      'utags.info': '',
+      'backup.intro': '',
+      'backup.placeholder': '',
+      'backup.aria': '',
+      'backup.export': '',
+      'backup.copy': '',
+      'backup.download': '',
+      'backup.choose': '',
+      'backup.import': '',
+      'backup.emptyCopy': '',
+      'backup.copied': '',
+      'backup.clipboardFailed': '',
+      'backup.emptyDownload': '',
+      'backup.fileError': '',
+      'backup.emptyImport': '',
+      'backup.importConfirm': '',
+      'backup.imported': '',
+      'backup.importError': '',
+      'backup.objectError': '',
+      'backup.emptyObject': '',
+      'field.debugInfo': '',
+      'field.languageInfo': '',
+      'field.highlightInfo': '',
+      'field.tippyJson': '',
+      'field.dateInfo': '',
+      'field.selectorInfo': '',
+      'field.keybindInfo': '',
+      'field.blockAiInfo': '',
+      'field.delayInfo': '',
+      'field.toleranceInfo': '',
+      'validation.object': '',
+      'validation.arrayNull': '',
+      'validation.arrayObjects': '',
+      'validation.string': '',
+      'action.reload': '',
+      'action.save': '',
+      'action.saved': '',
+      'action.cancel': '',
+      'action.reset': '',
+      'action.importExport': '',
+      'action.close': '',
+      'message.save': '',
+      'message.reset': '',
+      'message.resetConfirm': '',
+      'message.openError': '',
+      'message.validation': '',
+      'text.TEXT_EDIT_BOOKMARK': '',
+      'text.TEXT_EDIT_BOOKMARK_TOOLTIP': '',
+      'text.TEXT_TOGGLE_BOOKMARKED': '',
+      'text.TEXT_TOGGLE_BOOKMARKED_TOOLTIP': '',
+      'text.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL': '',
+      'text.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED': '',
+      'text.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED': '',
+      'label.ENABLE_EDIT_BOOKMARK': '',
+      'label.ENABLE_TOGGLE_BOOKMARKED': '',
+      'label.TEXT_EDIT_BOOKMARK': '',
+      'label.TEXT_EDIT_BOOKMARK_TOOLTIP': '',
+      'label.TEXT_TOGGLE_BOOKMARKED': '',
+      'label.TEXT_TOGGLE_BOOKMARKED_TOOLTIP': '',
+      'label.TEXT_TOGGLE_BOOKMARKED_SHOW_ALL': '',
+      'label.TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED': '',
+      'label.TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED': '',
+      'label.SELECTORS_HOME': '',
+      'label.SELECTORS_OWN_PROFILE': '',
+      'label.SELECTORS_IMAGE': '',
+      'label.SELECTORS_IMAGE_TITLE': '',
+      'label.SELECTORS_IMAGE_ARTIST_AVATAR': '',
+      'label.SELECTORS_IMAGE_AUXILIARY_ELEMENTS': '',
+      'label.SELECTORS_IMAGE_CONTROLS': '',
+      'label.SELECTORS_IMAGE_BOOKMARKED': '',
+      'label.SELECTORS_EXPANDED_VIEW_IMAGE': '',
+      'label.SELECTORS_EXPANDED_VIEW_CONTROLS': '',
+      'label.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE': '',
+      'label.SELECTORS_MULTI_VIEW': '',
+      'label.SELECTORS_MULTI_VIEW_CONTROLS': '',
+      'label.SELECTORS_FOLLOW_BUTTON_CONTAINER': '',
+      'label.SELECTORS_FOLLOW_BUTTON': '',
+      'label.SELECTORS_RECOMMENDED_USER_CONTAINER': '',
+      'label.SELECTORS_TAG_BUTTON': '',
+      'label.DATE_CONVERSION': '',
+      'label.DATE_CONVERSION_LOCALES': '',
+      'label.DATE_CONVERSION_OPTIONS': '',
+      'label.SELECTORS_DATE': '',
+      'label.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME': '',
+      'label.ENABLE_KEYBINDS': '',
+      'label.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES': '',
+      'label.PIXIV_HIGHLIGHTED_TAGS_FAST': '',
+      'label.PIXIV_HIGHLIGHTED_BYPASS_BLOCK': '',
+      'label.PIXIV_BLOCK_AI': '',
+      'label.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES': '',
+      'label.PIXIV_BLOCKED_TAGS_FAST': '',
+      'label.PIXIV_REMOVE_BLOCKED': '',
+      'label.UTAGS_INTEGRATION': '',
+      'label.UTAGS_BLOCKED_TAGS': '',
+      'label.ENABLE_TIPPY_TOOLTIPS': '',
+      'label.TIPPY_TOOLTIPS_STATIONARY_DELAY': '',
+      'label.TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE': '',
+      'label.TIPPY_TOOLTIPS_OPTIONS': '',
+      'date.weekday': '',
+      'date.era': '',
+      'date.year': '',
+      'date.month': '',
+      'date.day': '',
+      'date.dayPeriod': '',
+      'date.hour': '',
+      'date.minute': '',
+      'date.second': '',
+      'date.fractionalSecondDigits': '',
+      'date.hour12': '',
+      'date.hourCycle': '',
+      'date.timeZoneName': '',
+      'date.dateStyle': '',
+      'date.timeStyle': '',
+      'date.localeMatcher': '',
+      'date.formatMatcher': '',
+      'date.timeZone': '',
+      'date.calendar': '',
+      'date.numberingSystem': '',
+      'date.choice.long': '',
+      'date.choice.short': '',
+      'date.choice.narrow': '',
+      'date.choice.numeric': '',
+      'date.choice.2-digit': '',
+      'date.choice.1': '',
+      'date.choice.2': '',
+      'date.choice.3': '',
+      'date.choice.true': '',
+      'date.choice.false': '',
+      'date.choice.h11': '',
+      'date.choice.h12': '',
+      'date.choice.h23': '',
+      'date.choice.h24': '',
+      'date.choice.shortOffset': '',
+      'date.choice.longOffset': '',
+      'date.choice.shortGeneric': '',
+      'date.choice.longGeneric': '',
+      'date.choice.full': '',
+      'date.choice.medium': '',
+      'date.choice.lookup': '',
+      'date.choice.best fit': '',
+      'date.choice.basic': '',
+    },
+  };
+
+  const browserSettingsLocale = () => {
+    for (const code of navigator.languages?.length ? navigator.languages : [navigator.language || 'en']) {
+      const language = String(code).toLowerCase();
+      const primary = language.split('-')[0];
+      if (primary === 'ja' || primary === 'en') return primary;
+      if (primary === 'zh') {
+        return /^zh-(?:tw|hk|mo|hant)(?:-|$)/.test(language) ? 'zh-Hant' : 'zh';
+      }
+    }
+    return 'en';
+  };
+  const resolveSettingsLocale = choice => ['en', 'ja', 'zh', 'zh-Hant'].includes(choice)
+    ? choice
+    : browserSettingsLocale();
+  let settingsUiLocale = resolveSettingsLocale(ENV.SETTINGS_LANGUAGE);
+  const tr = (key, replacements = {}, locale = settingsUiLocale) => {
+    const template = I18N[locale]?.[key] || I18N.en[key] || key;
+    return template.replace(/\{(\w+)\}/g, (match, name) =>
+      Object.hasOwn(replacements, name) ? String(replacements[name]) : match);
+  };
 
   const _DOCUMENT_FRAGMENT = document.createDocumentFragment();
   const queryCheck = selector => _DOCUMENT_FRAGMENT.querySelector(selector);
@@ -411,6 +1249,12 @@
         CONFIG[key] = ENV[key];
       }
     }
+  }
+
+  // Runtime UI text comes from i18n only when a TEXT_* override is nullish.
+  // An explicitly stored empty string is a deliberate override, not a fallback.
+  for (const key of Object.keys(ENV_DEFAULTS)) {
+    if (key.startsWith('TEXT_') && CONFIG[key] == null) CONFIG[key] = tr(`text.${key}`);
   }
 
   let logDebug = () => {};
@@ -537,6 +1381,1049 @@
     });
   };
 
+  /** SETTINGS PANEL (gmConfig 1.0.0, existing per-key GM storage) **/
+
+  // The library has no public storage adapter. Its TypeScript-private _load method and
+  // public save method can be overridden without changing the distributed library.
+  // Keep @kobzi/gmconfig pinned to 1.0.0: these method names are not public API.
+  const settingsJson = value => JSON.stringify(value, null, 2);
+  const regexRuleTitle = rule => rule.regex
+    ? `/${String(rule.value || '').replace(/(^|[^\\])\//g, '$1\\/')}/${rule.flags || ''}`
+    : rule.value || tr('rule.new');
+  const isPlainObject = value => value !== null && typeof value === 'object' &&
+    !Array.isArray(value);
+
+  const editorTag = value => Array.isArray(value)
+    ? { value: value[0], regex: true, flags: value[1] || '' }
+    : { value, regex: false, flags: '' };
+  const storedTag = value => value.regex ? [value.value, value.flags || ''] : value.value;
+
+  const tagsToEditor = (value, highlighted = false) => {
+    if (typeof value === 'string') value = value.split(',').map(s => s.trim()).filter(Boolean);
+    if (!Array.isArray(value)) return [];
+    if (!highlighted) return value.map(editorTag);
+    return value.map(entry => isPlainObject(entry)
+      ? {
+          type: 'group',
+          value: '',
+          regex: false,
+          flags: '',
+          color: entry.color || '',
+          tags: Array.isArray(entry.tags) ? entry.tags.map(editorTag) : []
+        }
+      : { type: 'tag', color: '', tags: [], ...editorTag(entry) });
+  };
+
+  const tagsFromEditor = (value, highlighted = false) => {
+    if (!Array.isArray(value)) return [];
+    if (!highlighted) return value.map(storedTag);
+    return value.map(entry => entry.type === 'group'
+      ? {
+          tags: (entry.tags || []).map(storedTag),
+          ...(entry.color ? { color: entry.color } : {})
+        }
+      : storedTag(entry));
+  };
+
+  const sectionSelectorKeys = ['selectorParent', 'selectorHeader', 'selectorImagesContainer'];
+  const sectionsToEditor = value => Array.isArray(value)
+    ? value.map(entry =>
+      Object.fromEntries(sectionSelectorKeys.map(key => [key,
+        Array.isArray(entry[key]) ? entry[key].join('\n') : entry[key] || ''])))
+    : [];
+  const sectionsFromEditor = (value, previous) => {
+    if (!value.length && previous == null) return null;
+    return value.map(entry => Object.fromEntries(sectionSelectorKeys.map(key => {
+      const lines = entry[key].split('\n').map(v => v.trim()).filter(Boolean);
+      // Preserve selector arrays across edits and reordering; never reformat CSS commas.
+      const matching = Array.isArray(previous) && previous.find(item =>
+        Array.isArray(item[key]) && item[key].join('\n') === entry[key]);
+      return [key, matching || lines.length > 1 ? lines : lines.join(', ')];
+    })));
+  };
+  const utagsToEditor = value => (Array.isArray(value)
+    ? value
+    : typeof value === 'string' ? value.split(',').map(v => v.trim()).filter(Boolean) : [])
+    .map(value => ({ value }));
+  const utagsFromEditor = value => value.map(rule => rule.value);
+
+  const localizedTextField = key => ({
+    render: () => {
+      const root = document.createElement('div');
+      root.className = 'pixiv-utils-text-editor';
+      const input = document.createElement('input');
+      input.id = key;
+      input.type = 'text';
+      input.className = 'gc-c';
+      input.placeholder = tr(`text.${key}`);
+      const label = document.createElement('label');
+      label.className = 'pixiv-utils-empty-override';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      const span = document.createElement('span');
+      span.textContent = tr('text.explicitEmpty');
+      label.append(checkbox, span);
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) input.value = '';
+        input.disabled = checkbox.checked;
+        // A change on the checkbox still needs to update gmConfig's dirty state.
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      root.append(input, label);
+      root._textInput = input;
+      root._emptyOverride = checkbox;
+      return root;
+    },
+    get: element => element._emptyOverride.checked ? '' : element._textInput.value || null,
+    set: (element, value) => {
+      element._emptyOverride.checked = value === '';
+      element._textInput.value = value || '';
+      element._textInput.disabled = value === '';
+    }
+  });
+
+  const validateTagRules = (value, highlighted = false, combine = true) => {
+    if (!Array.isArray(value)) return tr('rule.listRequired');
+    const compiledGroups = new Map();
+    const check = (rules, location) => {
+      for (const rule of rules) {
+        if (!rule || typeof rule.value !== 'string') return tr('rule.needsText', { location });
+        if (!rule.regex) continue;
+        const flags = rule.flags || '';
+        try { RegExp(rule.value, flags); } catch (error) { return `${location}: ${error.message}`; }
+        // Mirrors the runtime's grouping by the exact flags string.
+        if (combine) {
+          if (!compiledGroups.has(flags)) compiledGroups.set(flags, []);
+          compiledGroups.get(flags).push(rule.value);
+        }
+      }
+      return '';
+    };
+    let error = '';
+    if (highlighted) {
+      for (const [index, entry] of value.entries()) {
+        if (entry.type === 'group') {
+          if (!Array.isArray(entry.tags)) return tr('rule.groupNeedsTags', { number: index + 1 });
+          error = check(entry.tags, tr('rule.groupLocation', { number: index + 1 }));
+        } else {
+          error = check([entry], tr('rule.location', { number: index + 1 }));
+        }
+        if (error) return error;
+      }
+    } else if ((error = check(value, tr('rule.blockedLocation')))) return error;
+    if (combine) {
+      for (const [flags, sources] of compiledGroups) {
+        try { RegExp(sources.join('|'), flags); } catch (err) { return tr('rule.combinedRegex', { flags: flags || tr('rule.noFlags'), error: err.message }); }
+      }
+    }
+    return '';
+  };
+
+  const tagRuleSchema = () => ({
+    value: {
+      type: 'text',
+      label: tr('rule.tagPattern'),
+      default: '',
+      row: 'rule',
+      placeholder: tr('rule.patternPlaceholder')
+    },
+    regex: { type: 'checkbox', label: tr('rule.regex'), default: false, row: 'rule' },
+    flags: {
+      type: 'text',
+      label: tr('rule.flags'),
+      default: '',
+      row: 'rule',
+      placeholder: 'i',
+      depends: v => Boolean(v.regex)
+    }
+  });
+
+  const dateOptionChoices = {
+    weekday: ['', 'long', 'short', 'narrow'],
+    era: ['', 'long', 'short', 'narrow'],
+    year: ['', 'numeric', '2-digit'],
+    month: ['', 'numeric', '2-digit', 'long', 'short', 'narrow'],
+    day: ['', 'numeric', '2-digit'],
+    dayPeriod: ['', 'narrow', 'short', 'long'],
+    hour: ['', 'numeric', '2-digit'],
+    minute: ['', 'numeric', '2-digit'],
+    second: ['', 'numeric', '2-digit'],
+    fractionalSecondDigits: ['', '1', '2', '3'],
+    hour12: ['', 'true', 'false'],
+    hourCycle: ['', 'h11', 'h12', 'h23', 'h24'],
+    timeZoneName: ['', 'short', 'long', 'shortOffset', 'longOffset', 'shortGeneric', 'longGeneric'],
+    dateStyle: ['', 'full', 'long', 'medium', 'short'],
+    timeStyle: ['', 'full', 'long', 'medium', 'short'],
+    localeMatcher: ['', 'lookup', 'best fit'],
+    formatMatcher: ['', 'basic', 'best fit']
+  };
+  const dateTextOptions = ['timeZone', 'calendar', 'numberingSystem'];
+  const dateKnownOptions = [...Object.keys(dateOptionChoices), ...dateTextOptions];
+
+  const dateOptionsField = {
+    render: field => {
+      const root = document.createElement('div');
+      root.id = 'DATE_CONVERSION_OPTIONS';
+      root.className = 'pixiv-utils-date-editor';
+      root._extraDateOptions = {};
+      for (const key of dateKnownOptions) {
+        const label = document.createElement('label');
+        label.textContent = tr(`date.${key}`);
+        let input;
+        if (key in dateOptionChoices) {
+          input = document.createElement('select');
+          for (const option of dateOptionChoices[key]) {
+            const el = document.createElement('option');
+            el.value = option;
+            el.textContent = option === '' ? tr('date.unspecified') : tr(`date.choice.${option}`);
+            input.append(el);
+          }
+        } else {
+          input = document.createElement('input');
+          input.type = 'text';
+          input.placeholder = key === 'timeZone' ? tr('date.systemTimezone') : tr('date.unspecified');
+        }
+        input.dataset.dateOption = key;
+        label.append(input);
+        root.append(label);
+      }
+      const preview = document.createElement('output');
+      preview.className = 'pixiv-utils-date-preview';
+      root.append(preview);
+      const read = () => {
+        const result = { ...root._extraDateOptions };
+        for (const input of root.querySelectorAll('[data-date-option]')) {
+          const key = input.dataset.dateOption;
+          if (input.value !== '') {
+            result[key] = key === 'hour12'
+              ? input.value === 'true'
+              : key === 'fractionalSecondDigits' ? Number(input.value) : input.value;
+          }
+        }
+        return result;
+      };
+      const updatePreview = () => {
+        try {
+          const options = read();
+          preview.textContent = tr('date.example', {
+            value: new Intl.DateTimeFormat(
+              CONFIG.DATE_CONVERSION_LOCALES, options).format(new Date('2026-10-22T12:34:56Z'))
+          });
+          preview.title = '';
+        } catch (error) {
+          preview.textContent = tr('date.invalid', { error: error.message });
+        }
+      };
+      root._readDate = read;
+      root._updatePreview = updatePreview;
+      root.addEventListener('input', updatePreview);
+      root.addEventListener('change', updatePreview);
+      return root;
+    },
+    get: element => element._readDate(),
+    set: (element, value) => {
+      const options = isPlainObject(value) ? value : {};
+      element._extraDateOptions = Object.fromEntries(
+        Object.entries(options).filter(([key]) => !dateKnownOptions.includes(key)));
+      for (const input of element.querySelectorAll('[data-date-option]')) {
+        const v = options[input.dataset.dateOption];
+        input.value = v == null ? '' : String(v);
+      }
+      element._updatePreview();
+    },
+    validate: value => {
+      if (!isPlainObject(value)) return tr('date.expectedObject');
+      try { Intl.DateTimeFormat(CONFIG.DATE_CONVERSION_LOCALES, value); } catch (error) { return error.message; }
+      return '';
+    }
+  };
+
+  const jsonObjectField = (nullable = false) => ({
+    type: 'textarea',
+    rows: 9,
+    attrs: { spellcheck: 'false' },
+    validate: value => {
+      try {
+        const parsed = JSON.parse(value);
+        if (nullable ? (parsed !== null && !Array.isArray(parsed)) : !isPlainObject(parsed)) {
+          return tr(nullable ? 'validation.arrayNull' : 'validation.object');
+        }
+        if (nullable && Array.isArray(parsed) &&
+          !parsed.every(entry => isPlainObject(entry))) return tr('validation.arrayObjects');
+      } catch (error) { return error.message; }
+      return '';
+    }
+  });
+
+  // UI serialization only. No storage changes occur until Save, Reset or Import.
+  const settingToEditor = (key, value) => {
+    if (key === 'MODE') return value === 'DEBUG';
+    if (key === 'SECTIONS_TOGGLE_BOOKMARKED') return sectionsToEditor(value);
+    if (key === 'UTAGS_BLOCKED_TAGS') return utagsToEditor(value);
+    if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
+      return tagsToEditor(value, key === 'PIXIV_HIGHLIGHTED_TAGS');
+    }
+    if (key === 'TIPPY_TOOLTIPS_OPTIONS') return settingsJson(value);
+    if (key.startsWith('SELECTORS_')) return Array.isArray(value) ? value.join('\n') : value || '';
+    return value;
+  };
+
+  const editorToSetting = (key, value, previous) => {
+    if (key === 'MODE') return value ? 'DEBUG' : 'PROD';
+    if (key === 'SECTIONS_TOGGLE_BOOKMARKED') return sectionsFromEditor(value, previous);
+    if (key === 'UTAGS_BLOCKED_TAGS') return utagsFromEditor(value);
+    if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
+      return tagsFromEditor(value, key === 'PIXIV_HIGHLIGHTED_TAGS');
+    }
+    if (key === 'TIPPY_TOOLTIPS_OPTIONS') return JSON.parse(value);
+    if (key.startsWith('SELECTORS_')) {
+      return Array.isArray(previous)
+        ? value.split('\n').map(s => s.trim()).filter(Boolean)
+        : value || null;
+    }
+    return value;
+  };
+
+  const settingsTab = key => {
+    if (key === 'SETTINGS_LANGUAGE' || key === 'DATE_CONVERSION' || key.startsWith('DATE_CONVERSION_') ||
+      key === 'ENABLE_KEYBINDS' || key === 'REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME') return 'General';
+    if (key.includes('BOOKMARK') && !key.startsWith('SELECTORS_') &&
+      key !== 'SECTIONS_TOGGLE_BOOKMARKED') return 'Bookmarks';
+    if (key.startsWith('PIXIV_HIGHLIGHTED')) return 'Highlights';
+    if (key.startsWith('PIXIV_')) return 'Filtering';
+    if (key.startsWith('TIPPY_') || key === 'ENABLE_TIPPY_TOOLTIPS') return 'Tooltips';
+    if (key.startsWith('UTAGS_')) return 'UTags';
+    return 'Advanced';
+  };
+  const makeSettingsDefinitions = () => {
+    const definitions = {};
+    const tabOrder = ['General', 'Bookmarks', 'Filtering', 'Highlights', 'Tooltips', 'UTags', 'Advanced'];
+    const options = Object.entries(ENV_DEFAULTS).sort(([a], [b]) =>
+      Number(b === 'SETTINGS_LANGUAGE') - Number(a === 'SETTINGS_LANGUAGE') ||
+      tabOrder.indexOf(settingsTab(a)) - tabOrder.indexOf(settingsTab(b)) ||
+      Number(b === 'PIXIV_HIGHLIGHTED_COLOR') - Number(a === 'PIXIV_HIGHLIGHTED_COLOR'));
+    for (const [key, fallback] of options) {
+      const field = { label: tr(`label.${key}`), tab: tr(`tab.${settingsTab(key)}`), default: settingToEditor(key, fallback) };
+      if (key === 'MODE') {
+        field.type = 'checkbox';
+        field.label = tr('label.MODE');
+        field.description = tr('field.debugInfo');
+      } else if (key === 'SETTINGS_LANGUAGE') {
+        field.type = 'select';
+        field.options = {
+          auto: tr('language.auto'),
+          en: tr('language.en'),
+          ja: tr('language.ja'),
+          zh: tr('language.zh'),
+          'zh-Hant': tr('language.zh-Hant')
+        };
+        field.description = tr('field.languageInfo');
+      } else if (key.startsWith('TEXT_')) {
+        Object.assign(field, localizedTextField(key));
+      } else if (typeof fallback === 'boolean') field.type = 'checkbox';
+      else if (typeof fallback === 'number') { field.type = 'number'; field.min = 0; } else if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
+        const highlighted = key === 'PIXIV_HIGHLIGHTED_TAGS';
+        field.type = 'list';
+        field.addLabel = tr(highlighted ? 'rule.addGroup' : 'rule.add');
+        field.reorder = true;
+        field.itemTitle = (r, i) => `${i + 1}. ${r.type === 'group' ? tr('rule.colored') : regexRuleTitle(r)}`;
+        field.item = highlighted
+          ? {
+              type: {
+                type: 'select',
+                label: tr('rule.type'),
+                default: 'tag',
+                options: { tag: tr('rule.single'), group: tr('rule.colored') }
+              },
+              value: { ...tagRuleSchema().value, depends: r => r.type !== 'group' },
+              regex: { ...tagRuleSchema().regex, depends: r => r.type !== 'group' },
+              flags: { ...tagRuleSchema().flags, depends: r => r.type !== 'group' && r.regex },
+              color: {
+                type: 'text',
+                label: tr('rule.groupColor'),
+                default: '',
+                placeholder: '#32cd32',
+                depends: r => r.type === 'group'
+              },
+              tags: {
+                type: 'list',
+                label: tr('rule.groupTags'),
+                default: [],
+                item: tagRuleSchema(),
+                itemTitle: (r, i) => `${i + 1}. ${regexRuleTitle(r)}`,
+                addLabel: tr('rule.addInGroup'),
+                reorder: true,
+                depends: r => r.type === 'group'
+              }
+            }
+          : tagRuleSchema();
+        field.validate = value => validateTagRules(value, highlighted,
+          Boolean(document.querySelector('.gc-p')
+            ? (key === 'PIXIV_BLOCKED_TAGS'
+                ? document.querySelector('.gc-p input[id="PIXIV_BLOCKED_TAGS_COMBINE_REGEXES"]')?.checked
+                : document.querySelector('.gc-p input[id="PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES"]')?.checked)
+            : ENV[key === 'PIXIV_BLOCKED_TAGS'
+              ? 'PIXIV_BLOCKED_TAGS_COMBINE_REGEXES'
+              : 'PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES']));
+        field.description = tr('rule.regexInfo');
+      } else if (key === 'DATE_CONVERSION_OPTIONS') {
+        Object.assign(field, dateOptionsField);
+        field.description = tr('field.dateInfo');
+      } else if (key === 'TIPPY_TOOLTIPS_OPTIONS') {
+        Object.assign(field, jsonObjectField());
+        field.description = tr('field.tippyJson');
+      } else if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
+        field.type = 'list';
+        field.addLabel = tr('sections.add');
+        field.reorder = true;
+        field.itemTitle = (entry, index) => `${index + 1}. ${entry.selectorParent || tr('sections.parent')}`;
+        field.item = {
+          selectorParent: {
+            type: 'textarea',
+            rows: 2,
+            required: true,
+            default: '',
+            label: tr('sections.parent')
+          },
+          selectorHeader: {
+            type: 'textarea',
+            rows: 2,
+            required: true,
+            default: '',
+            label: tr('sections.header')
+          },
+          selectorImagesContainer: {
+            type: 'textarea',
+            rows: 2,
+            required: true,
+            default: '',
+            label: tr('sections.images')
+          }
+        };
+        field.description = tr('sections.info');
+        field.validate = value => {
+          for (const entry of value) {
+            const values = [entry.selectorParent, entry.selectorHeader, entry.selectorImagesContainer];
+            if (values.some(v => !v?.trim())) return tr('sections.info');
+          }
+          return '';
+        };
+      } else if (key === 'UTAGS_BLOCKED_TAGS') {
+        field.type = 'list';
+        field.addLabel = tr('utags.add');
+        field.reorder = true;
+        field.itemTitle = (entry, index) => `${index + 1}. ${entry.value || tr('utags.tag')}`;
+        field.item = {
+          value: { type: 'text', label: tr('utags.tag'), default: '', required: true }
+        };
+        field.description = tr('utags.info');
+        field.validate = value => value.some(entry => !entry.value?.trim()) ? tr('validation.string') : '';
+      } else if (key.startsWith('SELECTORS_')) {
+        field.type = 'textarea'; field.rows = 3;
+      } else if (typeof fallback === 'string') {
+        field.type = 'text';
+        if (key === 'PIXIV_HIGHLIGHTED_COLOR') field.description = tr('field.highlightInfo');
+      } else {
+        field.type = 'textarea'; field.rows = 5;
+        field.validate = value => { try { JSON.parse(value); } catch (e) { return e.message; } return ''; };
+      }
+      if (key === 'ENABLE_KEYBINDS') field.description = tr('field.keybindInfo');
+      if (key === 'PIXIV_BLOCK_AI') field.description = tr('field.blockAiInfo');
+      if (key === 'TIPPY_TOOLTIPS_STATIONARY_DELAY') field.description = tr('field.delayInfo');
+      if (key === 'TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE') field.description = tr('field.toleranceInfo');
+      definitions[key] = field;
+    }
+    // Backup controls are managed locally and never persisted as configuration values.
+    definitions.BACKUP_TOOLS = {
+      tab: 'Backup',
+      label: tr('label.BACKUP_TOOLS'),
+      save: false,
+      default: '',
+      ...backupField
+    };
+    return definitions;
+  };
+
+  // Validate a backup as one unit before writing any GM storage keys. Existing
+  // per-key storage and partial-import semantics are preserved.
+  const validateBackupSettings = imported => {
+    if (!isPlainObject(imported)) throw new TypeError(tr('backup.objectError'));
+    const get = key => Object.hasOwn(imported, key) ? imported[key] : GM_getValue(key, ENV_DEFAULTS[key]);
+    const textRuleValid = value => typeof value === 'string' ||
+      (Array.isArray(value) && value.length === 2 && typeof value[0] === 'string' &&
+        typeof value[1] === 'string' && (() => {
+        try { RegExp(value[0], value[1]); return true; } catch { return false; }
+      })());
+    const validateTagArray = (key, value, highlighted) => {
+      if (value === null) return;
+      // Keep compatibility with legacy comma-separated custom-tag settings.
+      if (typeof value === 'string') value = value.split(',').map(tag => tag.trim()).filter(Boolean);
+      if (!Array.isArray(value)) throw new TypeError(`${key}: expected a list, string, or null.`);
+      for (const entry of value) {
+        if (highlighted && isPlainObject(entry)) {
+          if (!Array.isArray(entry.tags) || !entry.tags.every(textRuleValid) ||
+            (entry.color !== undefined && typeof entry.color !== 'string')) {
+            throw new TypeError(`${key}: invalid colored group.`);
+          }
+        } else if (!textRuleValid(entry)) {
+          throw new TypeError(`${key}: invalid literal tag or regex [pattern, flags].`);
+        }
+      }
+      const error = validateTagRules(tagsToEditor(value, highlighted), highlighted,
+        Boolean(get(`${key}_COMBINE_REGEXES`)));
+      if (error) throw new TypeError(`${key}: ${error}`);
+    };
+    for (const [key, value] of Object.entries(imported)) {
+      if (['__proto__', 'constructor', 'prototype'].includes(key)) {
+        throw new TypeError(`Unsafe setting name: ${key}`);
+      }
+      if (!Object.hasOwn(ENV_DEFAULTS, key)) {
+        // Preserve old/extra preference keys in backups; only known config keys
+        // have schemas. This retains the original partial-import semantics.
+        if (key === 'PREF_TOGGLE_BOOKMARKED_MODE' &&
+          (!Number.isInteger(value) || value < 0 || value > 2)) {
+          throw new TypeError(`${key}: expected an integer between 0 and 2.`);
+        }
+        continue;
+      }
+      const def = ENV_DEFAULTS[key];
+      if (key === 'MODE') {
+        if (!['DEBUG', 'PROD'].includes(value)) throw new TypeError('MODE: expected DEBUG or PROD.');
+      } else if (key === 'SETTINGS_LANGUAGE') {
+        if (!['auto', 'en', 'ja', 'zh', 'zh-Hant'].includes(value)) {
+          throw new TypeError(`${key}: unsupported language.`);
+        }
+      } else if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
+        validateTagArray(key, value, key === 'PIXIV_HIGHLIGHTED_TAGS');
+      } else if (key === 'UTAGS_BLOCKED_TAGS') {
+        if (typeof value !== 'string' &&
+          !(Array.isArray(value) && value.every(item => typeof item === 'string'))) {
+          throw new TypeError(`${key}: expected a string or array of strings.`);
+        }
+      } else if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
+        if (value !== null && (!Array.isArray(value) || !value.every(section =>
+          isPlainObject(section) && sectionSelectorKeys.every(name =>
+            (typeof section[name] === 'string' && section[name].trim()) ||
+            (Array.isArray(section[name]) && section[name].length > 0 &&
+              section[name].every(selector => typeof selector === 'string' && selector.trim())))))) {
+          throw new TypeError(`${key}: expected sections containing all three selectors.`);
+        }
+      } else if (key.startsWith('SELECTORS_')) {
+        if (value !== null && typeof value !== 'string' &&
+          !(Array.isArray(value) && value.every(item => typeof item === 'string'))) {
+          throw new TypeError(`${key}: expected a selector string, array, or null.`);
+        }
+      } else if (key === 'DATE_CONVERSION_OPTIONS') {
+        if (!isPlainObject(value)) throw new TypeError(`${key}: expected an object.`);
+        try {
+          Intl.DateTimeFormat(get('DATE_CONVERSION_LOCALES'), value);
+        } catch (error) { throw new TypeError(`${key}: ${error.message}`); }
+      } else if (key === 'DATE_CONVERSION_LOCALES') {
+        if (typeof value !== 'string') throw new TypeError(`${key}: expected a locale string.`);
+        try { Intl.DateTimeFormat(value, get('DATE_CONVERSION_OPTIONS')); } catch (error) { throw new TypeError(`${key}: ${error.message}`); }
+      } else if (key === 'TIPPY_TOOLTIPS_OPTIONS') {
+        if (!isPlainObject(value)) throw new TypeError(`${key}: expected a JSON object.`);
+      } else if (key.startsWith('TEXT_') || def === null) {
+        if (value !== null && typeof value !== 'string') {
+          throw new TypeError(`${key}: expected a string or null.`);
+        }
+      } else if (typeof def === 'boolean') {
+        if (typeof value !== 'boolean') throw new TypeError(`${key}: expected a boolean.`);
+      } else if (typeof def === 'number') {
+        if (!Number.isFinite(value) || value < 0) {
+          throw new TypeError(`${key}: expected a non-negative number.`);
+        }
+      } else if (typeof def === 'string' && typeof value !== 'string') {
+        throw new TypeError(`${key}: expected a string.`);
+      }
+    }
+  };
+
+  const importExistingSettings = async (json, panel = settingsPanel) => {
+    try {
+      const imported = JSON.parse(json);
+      if (!isPlainObject(imported)) throw new TypeError(tr('backup.objectError'));
+      if (!Object.keys(imported).length) throw new Error(tr('backup.emptyObject'));
+      validateBackupSettings(imported);
+      if (!window.confirm(tr('backup.importConfirm', { count: Object.keys(imported).length }))) return false;
+      GM_setValues(imported); // Same per-key storage and partial-import behavior as before.
+      if (panel?.isOpen) {
+        const latest = GM_getValues(Object.keys(ENV_DEFAULTS));
+        for (const key of Object.keys(ENV_DEFAULTS)) {
+          panel.set(key, settingToEditor(key, latest[key] == null ? ENV_DEFAULTS[key] : latest[key]));
+        }
+        // Update the stored-value baseline, so Save doesn't undo imported values.
+        await panel._load();
+        panel._mark();
+        syncColoredGroupToggles();
+        syncSettingsDecorations();
+      }
+      alert(tr('backup.imported'));
+      return true;
+    } catch (error) {
+      alert(tr('backup.importError', { error: error.message }));
+      return false;
+    }
+  };
+
+  const backupField = {
+    render: () => {
+      const root = document.createElement('div');
+      root.className = 'pixiv-utils-backup';
+      const instructions = document.createElement('p');
+      instructions.textContent = tr('backup.intro');
+      const textarea = document.createElement('textarea');
+      textarea.rows = 16;
+      textarea.placeholder = tr('backup.placeholder');
+      textarea.spellcheck = false;
+      textarea.setAttribute('aria-label', tr('backup.aria'));
+      const buttons = document.createElement('div');
+      buttons.className = 'pixiv-utils-backup-buttons';
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.json,application/json';
+      fileInput.hidden = true;
+      const addButton = (label, onClick) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.addEventListener('click', onClick);
+        buttons.append(button);
+        return button;
+      };
+      addButton(tr('backup.export'), () => {
+        textarea.value = settingsJson(GM_getValues(GM_listValues()));
+      });
+      addButton(tr('backup.copy'), async () => {
+        if (!textarea.value.trim()) return alert(tr('backup.emptyCopy'));
+        try {
+          await navigator.clipboard.writeText(textarea.value);
+          alert(tr('backup.copied'));
+        } catch (error) {
+          textarea.focus();
+          textarea.select();
+          alert(tr('backup.clipboardFailed'));
+        }
+      });
+      addButton(tr('backup.download'), () => {
+        if (!textarea.value.trim()) return alert(tr('backup.emptyDownload'));
+        const blob = new Blob([textarea.value], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'Bobbys_Pixiv_Utils_Settings.json';
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+      addButton(tr('backup.choose'), () => fileInput.click());
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        try { textarea.value = await file.text(); } catch (error) { alert(tr('backup.fileError', { error: error.message })); }
+        fileInput.value = '';
+      });
+      addButton(tr('backup.import'), () => {
+        if (!textarea.value.trim()) return alert(tr('backup.emptyImport'));
+        importExistingSettings(textarea.value);
+      });
+      root.append(instructions, textarea, buttons, fileInput);
+      return root;
+    },
+    get: () => '',
+    set: () => {}
+  };
+
+  // Keep all visual-only list helpers independent of the underlying stored rule values.
+  const updateColorInputBorder = input => {
+    const color = input.value.trim();
+    // Native color parsing accepts named colors, rgb(), transparent, etc.
+    if (color && CSS.supports('color', color)) {
+      input.style.borderColor = color;
+      // An outer ring thickens the visual border without changing element dimensions.
+      input.style.boxShadow = `0 0 0 1px ${color}`;
+    } else {
+      input.style.removeProperty('border-color');
+      input.style.removeProperty('box-shadow');
+    }
+  };
+
+  const syncColoredGroupToggles = (scope = document) => {
+    const groups = scope.matches?.('.gc-g:has(> .gc-list[id$="_tags"])')
+      ? [scope]
+      : scope.querySelectorAll('.gc-p .gc-g:has(> .gc-list[id$="_tags"]), .gc-g:has(> .gc-list[id$="_tags"])');
+    for (const container of groups) {
+      const list = container.querySelector(':scope > .gc-list');
+      const hasTags = Boolean(list?.querySelector(':scope > .gc-list-items > .gc-li'));
+      let button = container.querySelector(':scope > .pixiv-utils-collapse-group');
+      if (!button) {
+        button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'pixiv-utils-collapse-group';
+        // Existing groups default to collapsed; new empty groups stay expanded.
+        container.classList.toggle('pixiv-utils-nested-collapsed', hasTags);
+        button.addEventListener('click', () => {
+          container.classList.toggle('pixiv-utils-nested-collapsed');
+          syncColoredGroupToggles();
+        });
+        container.querySelector(':scope > label')?.after(button);
+      }
+      if (!hasTags) container.classList.remove('pixiv-utils-nested-collapsed');
+      const collapsed = container.classList.contains('pixiv-utils-nested-collapsed');
+      button.textContent = tr(collapsed ? 'rule.expand' : 'rule.collapse');
+      button.setAttribute('aria-expanded', String(!collapsed));
+      button.hidden = !hasTags;
+
+      const input = container.closest('.gc-li-b')?.querySelector('input[id$="_color"]');
+      if (input) {
+        if (!input.dataset.pixivUtilsColorListener) {
+          input.addEventListener('input', () => updateColorInputBorder(input));
+          input.dataset.pixivUtilsColorListener = 'true';
+        }
+        updateColorInputBorder(input);
+      }
+    }
+  };
+
+  // Shared notices and section dividers are rendered once per panel/reinit. The
+  // underlying setting fields retain their original IDs and value adapters.
+  const syncSettingsDecorations = () => {
+    const fieldGroup = key => document.getElementById(key)?.closest('.gc-g');
+    const insertBefore = (key, className, content = '') => {
+      const group = fieldGroup(key);
+      if (!group || group.parentElement.querySelector(`:scope > .${className}[data-before="${key}"]`)) return;
+      const node = document.createElement('div');
+      node.className = className;
+      node.dataset.before = key;
+      if (content) node.textContent = content;
+      group.before(node);
+    };
+    for (const key of ['DATE_CONVERSION', 'REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME',
+      'TEXT_EDIT_BOOKMARK', 'SELECTORS_HOME', 'SECTIONS_TOGGLE_BOOKMARKED',
+      'TIPPY_TOOLTIPS_OPTIONS']) {
+      insertBefore(key, 'pixiv-utils-settings-divider');
+    }
+    insertBefore('TEXT_EDIT_BOOKMARK', 'pixiv-utils-global-note', tr('text.fallback'));
+    insertBefore('SELECTORS_HOME', 'pixiv-utils-global-note', tr('field.selectorInfo'));
+    const mainColor = document.querySelector('.gc-p input[id="PIXIV_HIGHLIGHTED_COLOR"]');
+    if (mainColor) {
+      if (!mainColor.dataset.pixivUtilsColorListener) {
+        mainColor.addEventListener('input', () => updateColorInputBorder(mainColor));
+        mainColor.dataset.pixivUtilsColorListener = 'true';
+      }
+      updateColorInputBorder(mainColor);
+    }
+  };
+
+  const createPixivUtilsConfig = BaseConfig => class PixivUtilsConfig extends BaseConfig {
+    async _load () {
+      // gmConfig 1.0.0 originally loads a single JSON string. Directly read the
+      // exact same per-key values as the rest of this userscript instead.
+      this._storedOriginals = GM_getValues(Object.keys(ENV_DEFAULTS));
+      this._initialEditorValues = {};
+      for (const [key, field] of Object.entries(this._fields)) {
+        if (!(key in ENV_DEFAULTS)) continue; // backup buttons have no storage key
+        const stored = this._storedOriginals[key];
+        const uiValue = settingToEditor(key, stored == null ? ENV_DEFAULTS[key] : stored);
+        field.value = uiValue;
+        this._initialEditorValues[key] = JSON.stringify(uiValue);
+      }
+      this._clean = this._json();
+    }
+
+    async save () {
+      const current = this._vals();
+      const changed = {};
+      for (const [key, fallback] of Object.entries(ENV_DEFAULTS)) {
+        if (!(key in current)) continue;
+        if (!this._resetting && JSON.stringify(current[key]) === this._initialEditorValues[key]) continue;
+        const stored = this._storedOriginals[key];
+        changed[key] = this._resetting ? fallback : editorToSetting(key, current[key], stored);
+      }
+      if (Object.keys(changed).length) GM_setValues(changed);
+      Object.assign(this._storedOriginals, changed);
+      for (const key of Object.keys(ENV_DEFAULTS)) {
+        if (key in current) this._initialEditorValues[key] = JSON.stringify(current[key]);
+      }
+      this._mark();
+      this._clean = this._json();
+    }
+
+    async reset () {
+      if (!window.confirm(tr('message.resetConfirm'))) return;
+      this._resetting = true;
+      try { await super.reset(); } finally { this._resetting = false; }
+    }
+
+    // The library's footer import/export icon opens our Backup tab instead.
+    async importExport () {
+      this._activate?.(tr('tab.Backup'));
+      return false;
+    }
+  };
+
+  GM_addStyle(/*css*/`
+    /* gmConfig's .gc-c uses width:100%; account for padding and borders. */
+    .gc-p, .gc-p * { box-sizing: border-box; }
+    .gc-p .gc-c, .gc-p input[type="text"], .gc-p textarea,
+    .gc-p select, .gc-p .pixiv-utils-backup textarea { max-width: 100%; }
+    /* Keep the outer dialog height constant across tabs; scroll only its content. */
+    .gc-p { height: min(740px, calc(100dvh - 40px)); max-height: calc(100dvh - 40px); }
+    .gc-p.gc-p > form { height: 100%; min-height: 0; max-height: none; }
+    .gc-p .gc-hd, .gc-p .gc-f { flex: 0 0 auto; }
+    .gc-p .gc-b { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+    .gc-p .gc-tb { flex: 0 0 auto; }
+    .gc-p .gc-g:has(#ENABLE_KEYBINDS) .gc-h { white-space: pre-line; }
+    .gc-p .pixiv-utils-settings-divider {
+      border-top: 1px solid currentColor;
+      opacity: 0.2;
+      margin: 7px 0 4px;
+    }
+    .gc-p .pixiv-utils-global-note {
+      font-size: 12px;
+      line-height: 1.5;
+      opacity: 0.8;
+      margin: 0 0 5px;
+    }
+    .gc-p .gc-g, .gc-p .gc-li-b, .gc-p .gc-list,
+    .gc-p .gc-list-items { min-width: 0; max-width: 100%; }
+    .gc-p .gc-li-b > .gc-r .gc-g:has(input[id$="_regex"]) .gc-ck {
+      /* Match the label height of neighboring textboxes before the checkbox. */
+      padding-top: 23px;
+      align-items: center;
+    }
+    .gc-p .pixiv-utils-text-editor { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+    .gc-p .pixiv-utils-empty-override { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+    .gc-p .pixiv-utils-empty-override input { width: auto; }
+
+    .gc-p .pixiv-utils-date-editor {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+    }
+    .gc-p .pixiv-utils-date-editor label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+    }
+    .gc-p .pixiv-utils-date-editor select,
+    .gc-p .pixiv-utils-date-editor input {
+      padding: 6px;
+      min-width: 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .gc-p .pixiv-utils-date-preview {
+      grid-column: 1 / -1;
+      font-size: 12px;
+      opacity: 0.85;
+      padding: 8px;
+    }
+    /* Keep rule editors proportional when the flags field is hidden. */
+    .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 78px 74px;
+      align-items: start;
+      gap: 8px;
+    }
+    .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) > .gc-g {
+      min-width: 0;
+    }
+    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_value"]) { grid-column: 1; }
+    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_regex"]) { grid-column: 2; }
+    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_flags"]) { grid-column: 3; }
+    .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) .gc-c {
+      min-width: 0;
+      box-sizing: border-box;
+    }
+    .gc-p .pixiv-utils-collapse-group {
+      align-self: flex-start;
+      font: inherit;
+      font-size: 11px;
+      padding: 3px 8px;
+      cursor: pointer;
+      border: 1px solid;
+      border-radius: 4px;
+      background: transparent;
+    }
+    .gc-p .pixiv-utils-nested-collapsed > .gc-list { display: none; }
+    .gc-p .pixiv-utils-backup { display: flex; flex-direction: column; gap: 10px; }
+    .gc-p .pixiv-utils-backup p { margin: 0; }
+    .gc-p .pixiv-utils-backup textarea {
+      width: 100%; min-height: 260px; box-sizing: border-box;
+      font: 12px/1.5 monospace; resize: vertical;
+    }
+    .gc-p .pixiv-utils-backup-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+    .gc-p .pixiv-utils-backup-buttons button { padding: 5px 9px; cursor: pointer; }
+    .gc-p .gc-f > .gc-h button { cursor: pointer; }
+    @media (max-width: 640px) {
+      .gc-p {
+        position: fixed; inset: 0; margin: 0;
+        width: 100vw !important; max-width: none !important;
+        height: 100dvh; max-height: 100dvh;
+        border-radius: 0;
+      }
+      .gc-p > form { width: 100%; }
+      .gc-p .gc-hd { padding: 10px 12px; padding-top: max(10px, env(safe-area-inset-top)); }
+      .gc-p .gc-b { padding: 10px 12px; }
+      .gc-p .gc-tb { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+      .gc-p .gc-tb > button { flex: 0 0 auto; white-space: nowrap; }
+      .gc-p .gc-f {
+        flex-wrap: wrap; gap: 6px; padding: 8px 12px;
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+      }
+      .gc-p .gc-f button { min-height: 34px; }
+      .gc-p .gc-f > .gc-h { margin-right: auto; }
+      .gc-p .pixiv-utils-date-editor { grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); }
+      .gc-p .gc-li { padding: 6px; }
+      .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
+        grid-template-columns: minmax(0, 1fr) 65px 51px;
+        gap: 5px;
+      }
+      .gc-p .gc-r > .gc-g { min-width: 0; }
+      .gc-p .gc-c, .gc-p .pixiv-utils-date-editor :is(input, select),
+      .gc-p .pixiv-utils-backup textarea { font-size: 16px; }
+      .gc-p .gc-li-h { flex-wrap: wrap; }
+      .gc-p .pixiv-utils-backup-buttons { align-items: stretch; }
+      .gc-p .pixiv-utils-backup-buttons button { min-height: 36px; }
+    }
+    @media (max-width: 400px) {
+      /* Nested colored groups cannot fit three same-row controls on small phones. */
+      .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
+        grid-template-columns: minmax(0, 1fr) 62px;
+      }
+      .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_value"]) { grid-column: 1 / -1; }
+      .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_regex"]) { grid-column: 1; }
+      .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_flags"]) { grid-column: 2; }
+      .gc-p .gc-li-b > .gc-r .gc-g:has(input[id$="_regex"]) .gc-ck { padding-top: 0; }
+    }
+  `);
+
+  const localizePanelChrome = panel => {
+    const dialog = panel._dlg;
+    if (!dialog) return;
+    const footer = dialog.querySelector('.gc-f');
+    const buttons = footer?.querySelectorAll(':scope > button');
+    if (buttons?.length >= 4) {
+      const actions = ['action.importExport', 'action.reset', 'action.cancel', 'action.save'];
+      for (let i = 0; i < 4; i++) {
+        if (i === 0) buttons[i].title = tr(actions[i]);
+        else if (i < 3) buttons[i].textContent = tr(actions[i]);
+        else {
+          const saved = buttons[i].textContent.startsWith('Saved') ||
+            buttons[i].textContent === tr('action.saved');
+          const translated = tr(saved ? 'action.saved' : actions[i]);
+          if (buttons[i].textContent !== translated) buttons[i].textContent = translated;
+        }
+      }
+    }
+    dialog.querySelector('.gc-hd > button')?.setAttribute('title', tr('action.close'));
+    const reload = footer?.querySelector('.gc-h button');
+    if (reload && reload.textContent !== tr('action.reload')) reload.textContent = tr('action.reload');
+  };
+
+  // Compatibility fallback: only the UI panel is initialized on demand;
+  // the pinned unminified IIFE is eagerly loaded via @require.
+  const loadSettingsConstructor = async () => {
+    if (typeof gmConfig !== 'function') throw new Error('gmConfig IIFE not loaded.');
+    return createPixivUtilsConfig(gmConfig);
+  };
+
+  let settingsPanel = null;
+  let settingsOpening = false;
+  const openSettingsPanel = async () => {
+    if (settingsOpening || settingsPanel?.isOpen) return;
+    settingsOpening = true;
+    try {
+      settingsUiLocale = resolveSettingsLocale(GM_getValue('SETTINGS_LANGUAGE', 'auto'));
+      await waitPageLoaded();
+      const SettingsConstructor = await loadSettingsConstructor();
+      const panel = new SettingsConstructor();
+      await panel.init(makeSettingsDefinitions(), {
+        title: tr('settingsTitle'),
+        width: 'min(900px, 96vw)',
+        closeOnSave: false, // Keep the Reload page button available after Save.
+        onBeforeSave: values => {
+          // Defensive validation for additional conversions done during persistence.
+          for (const key of ['TIPPY_TOOLTIPS_OPTIONS', 'UTAGS_BLOCKED_TAGS', 'SECTIONS_TOGGLE_BOOKMARKED']) {
+            try { editorToSetting(key, values[key], ENV[key]); } catch (error) { alert(tr('message.validation', { key, error: error.message })); return false; }
+          }
+        },
+        onOpen: () => {
+          syncColoredGroupToggles();
+          syncSettingsDecorations();
+          // Nested list changes do not fire top-level onChange. Refresh only the
+          // affected highlighted group (or the highlighted list for top-level changes).
+          panel._dlg?.addEventListener('click', event => {
+            if (!event.target.closest('.gc-list-add, .gc-bd')) return;
+            const group = event.target.closest('.gc-g:has(> .gc-list[id$="_tags"])');
+            const highlighted = group || document.querySelector('.gc-p .gc-list[id="PIXIV_HIGHLIGHTED_TAGS"]');
+            if (highlighted) queueMicrotask(() => syncColoredGroupToggles(highlighted));
+          });
+          panel._dlg?.addEventListener('change', event => {
+            if (!event.target.matches('select[id$="_type"]')) return;
+            const item = event.target.closest('.gc-li');
+            if (item) queueMicrotask(() => syncColoredGroupToggles(item));
+          });
+          localizePanelChrome(panel);
+          // The library temporarily displays "Saved ✓" after Save.
+          // Keep that internal label translated without changing save behavior.
+          const saveButton = panel._dlg?.querySelector('.gc-f > button.gc-bp');
+          if (saveButton) {
+            const observer = new MutationObserver(() => localizePanelChrome(panel));
+            observer.observe(saveButton, { childList: true, characterData: true, subtree: true });
+            panel._chromeObserver = observer;
+          }
+        },
+        onClose: () => { panel._chromeObserver?.disconnect(); panel._chromeObserver = null; },
+        onChange: (key, value) => {
+          if (key === 'SETTINGS_LANGUAGE') {
+            const locale = resolveSettingsLocale(value);
+            if (locale !== settingsUiLocale) {
+              settingsUiLocale = locale;
+              queueMicrotask(() => {
+                if (!panel.isOpen) return;
+                panel.reinit(makeSettingsDefinitions(), tr('settingsTitle'));
+                syncColoredGroupToggles();
+                syncSettingsDecorations();
+                localizePanelChrome(panel);
+              });
+            }
+          }
+        },
+        footerContent: () => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = tr('action.reload');
+          // gmConfig already supplies a beforeunload warning for unsaved edits.
+          button.addEventListener('click', () => location.reload());
+          return button;
+        },
+        onSave: () => { alert(tr('message.save')); },
+        onReset: () => {
+          const locale = resolveSettingsLocale(ENV_DEFAULTS.SETTINGS_LANGUAGE);
+          if (locale !== settingsUiLocale) {
+            settingsUiLocale = locale;
+            panel.reinit(makeSettingsDefinitions(), tr('settingsTitle'));
+            syncColoredGroupToggles();
+            syncSettingsDecorations();
+            localizePanelChrome(panel);
+          }
+          alert(tr('message.reset'));
+        }
+      });
+      settingsPanel = panel;
+      await panel.open();
+    } catch (error) {
+      console.error('[Pixiv Utils]: Failed to open settings:', error);
+      alert(tr('message.openError', { error: error.message }));
+    } finally { settingsOpening = false; }
+  };
+
+  GM_registerMenuCommand('⚙️ Settings', openSettingsPanel);
+
   const path = location.pathname;
 
   // Codes beyond this block will not execute for these routes (mainly for efficiency).
@@ -555,109 +2442,6 @@
     log('bookmark_add.php detected. Excluding date conversion, script has terminated early.');
     return;
   }
-
-  /** SETTINGS PAGE (IMPORT/EXPORT) */
-
-  const generateSettingsPage = () => {
-    GM_addStyle(/*css*/`
-      body > *:not(#pixiv-utils-settings) {
-        display: none !important;
-      }
-
-      #pixiv-utils-settings {
-        height: 100vh;
-        width: 100vw;
-        padding: 20px;
-        box-sizing: border-box;
-        color: #f5f5f5;
-        background-color: #1f1f1f;
-
-        & > :last-child {
-          margin-bottom: 0;
-        }
-
-        p {
-          margin-bottom: 10px;
-        }
-
-        button, textarea {
-          display: block;
-          width: 100%;
-          box-sizing: border-box;
-          margin-bottom: 10px;
-        }
-
-        button {
-          padding: 10px;
-          border: 1px solid white;
-          cursor: pointer;
-          font-weight: bold;
-        }
-      }
-
-      #pixiv-utils-json {
-        font-family: monospace;
-      }
-    `);
-
-    const valueKeys = GM_listValues();
-    const valuesString = JSON.stringify(GM_getValues(valueKeys));
-
-    const container = document.createElement('div');
-    container.id = 'pixiv-utils-settings';
-
-    container.innerHTML = /*html*/`
-      <p>Bobby's Pixiv Utils</p>
-      <p id="pixiv-utils-settings-json-title">Stored settings:</p>
-      <textarea id="pixiv-utils-settings-json" rows="20"></textarea>
-      <button id="pixiv-utils-settings-export">Export to clipboard</button>
-      <p>To import settings, first clear the texarea, paste your copied settings, then import.</p>
-      <p>This allows partial import, thus keys missing from the import value will not be removed from your stored settings.</p>
-      <button id="pixiv-utils-settings-clear">Clear textarea</button>
-      <button id="pixiv-utils-settings-import">Import</button>
-      <button id="pixiv-utils-settings-exit">Exit</button>
-    `;
-
-    const textarea = container.querySelector('#pixiv-utils-settings-json');
-    textarea.value = valuesString;
-
-    container.querySelector('#pixiv-utils-settings-export').addEventListener('click', () => {
-      navigator.clipboard.writeText(valuesString).then(() => {
-        alert('Stored settings exported to clipboard.');
-      });
-    });
-
-    container.querySelector('#pixiv-utils-settings-clear').addEventListener('click', () => {
-      textarea.value = '';
-      container.querySelector('#pixiv-utils-settings-json-title').textContent = 'Import settings:';
-    });
-
-    container.querySelector('#pixiv-utils-settings-import').addEventListener('click', () => {
-      try {
-        const parsed = JSON.parse(textarea.value);
-        // This allows partial imports.
-        GM_setValues(parsed);
-        alert('Settings imported. Exit settings to see your changes.');
-      } catch (error) {
-        console.error(error);
-        alert('Error encountered while parsing JSON.\n\n' + error.toString());
-      }
-    });
-
-    container.querySelector('#pixiv-utils-settings-exit').addEventListener('click', () => {
-      // Reload current page with hashes removed.
-      window.location.href = currentUrl.split('#')[0];
-    });
-
-    document.body.append(container);
-  };
-
-  const checkHashForSettingsPage = () => {
-    if (window.location.hash === '#pixiv-utils-settings') {
-      generateSettingsPage();
-      return true;
-    }
-  };
 
   /** MAIN UTILS */
 
@@ -2524,13 +4308,6 @@
   /** SENTINEL */
 
   waitPageLoaded().then(() => {
-    // Immediately check if settings page should be shown.
-    if (checkHashForSettingsPage()) {
-      return;
-    }
-
-    window.addEventListener('hashchange', checkHashForSettingsPage);
-
     // Init Tippy.js for tooltips.
     if (CONFIG.ENABLE_TIPPY_TOOLTIPS) {
       GM_addStyle(GM_getResourceText('tippyCss'));
