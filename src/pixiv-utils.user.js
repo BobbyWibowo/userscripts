@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.6.69
+// @version      1.7.0
 // @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -11,6 +11,7 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=pixiv.net
 // @run-at       document-start
 // @grant        GM_addStyle
+// @grant        GM_info
 // @grant        GM_getResourceText
 // @grant        GM_getValue
 // @grant        GM_getValues
@@ -388,7 +389,7 @@
       'tab.UTags': 'UTags',
       'tab.Advanced': 'Advanced',
       'tab.Backup': 'Backup',
-      settingsTitle: 'Pixiv Utils Settings',
+      settingsTitle: 'Pixiv Utils',
       'language.auto': 'Auto (browser language)',
       'language.en': 'English',
       'language.ja': 'Japanese',
@@ -1176,6 +1177,9 @@
     return template.replace(/\{(\w+)\}/g, (match, name) =>
       Object.hasOwn(replacements, name) ? String(replacements[name]) : match);
   };
+
+  // Read the installed userscript version directly from its @version metadata.
+  const settingsPanelTitle = () => `${tr('settingsTitle')} v${GM_info.script.version}`;
 
   const _DOCUMENT_FRAGMENT = document.createDocumentFragment();
   const queryCheck = selector => _DOCUMENT_FRAGMENT.querySelector(selector);
@@ -2651,7 +2655,7 @@
       const SettingsConstructor = await loadSettingsConstructor();
       const panel = new SettingsConstructor();
       await panel.init(makeSettingsDefinitions(), {
-        title: tr('settingsTitle'),
+        title: settingsPanelTitle(),
         width: 'min(900px, 96vw)',
         closeOnSave: false, // Keep the Reload page button available after Save.
         onBeforeClose: () => window.confirm(tr('message.discardChanges')),
@@ -2700,7 +2704,7 @@
               settingsUiLocale = locale;
               queueMicrotask(() => {
                 if (!panel.isOpen) return;
-                panel.reinit(makeSettingsDefinitions(), tr('settingsTitle'));
+                panel.reinit(makeSettingsDefinitions(), settingsPanelTitle());
                 syncColoredGroupToggles();
                 syncSettingsDecorations();
                 initListOrderControls(panel);
@@ -2722,7 +2726,7 @@
           const locale = resolveSettingsLocale(ENV_DEFAULTS.SETTINGS_LANGUAGE);
           if (locale !== settingsUiLocale) {
             settingsUiLocale = locale;
-            panel.reinit(makeSettingsDefinitions(), tr('settingsTitle'));
+            panel.reinit(makeSettingsDefinitions(), settingsPanelTitle());
             syncColoredGroupToggles();
             syncSettingsDecorations();
             initListOrderControls(panel);
