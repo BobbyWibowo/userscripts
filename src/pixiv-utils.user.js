@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.7.0
-// @description  Compatible with mobile. "Edit bookmark" and "Toggle bookmarked" buttons, publish dates conversion, block AI-generated works, block by Pixiv tags, UTags integration, and more!
+// @version      1.7.1
+// @description  Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
 // @match        *://www.pixiv.net/*
@@ -4252,9 +4252,10 @@
       const target = image.querySelector('.work-main-image');
       if (!image.dataset.pixiv_utils_last_id) {
         initElementObserver(target, mutations => {
-          if (data.id !== image.dataset.pixiv_utils_last_id) {
+          const _data = findItemData(target, true);
+          if (_data.id !== image.dataset.pixiv_utils_last_id) {
             options.forced = true;
-            doExpandedViewControls(image, options);
+            doExpandedViewControls(element, options);
           }
         }, {
           subtree: true,
@@ -4295,6 +4296,11 @@
 
     if (id !== null) {
       if (CONFIG.ENABLE_EDIT_BOOKMARK) {
+        const oldEditBookmarkButton = element.querySelector('.pixiv_utils_edit_bookmark_container');
+        if (oldEditBookmarkButton) {
+          oldEditBookmarkButton.remove();
+        }
+
         element.append(editBookmarkButton(id, isNovel));
       }
 
