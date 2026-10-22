@@ -2563,6 +2563,18 @@
         document.body.removeEventListener('pointermove', trackMouseMovement);
       };
 
+      let lastPointerType = 'mouse';
+      const cancelPendingTooltip = () => {
+        stopStationaryTimer();
+        hoveredTooltip?._tippy?.hide();
+        hoveredTooltip = null;
+        cursorStationary = false;
+      };
+      // Leave mouse and touch clicks alone. Cancel only after actual SPA navigation
+      // or a full page unload; harmless clicks should not dismiss a tooltip.
+      window.addEventListener('detectnavigate', cancelPendingTooltip);
+      window.addEventListener('pagehide', cancelPendingTooltip);
+
       const trackMouseMovement = event => {
         if (event.pointerType !== 'mouse') {
           return;
@@ -2600,6 +2612,7 @@
 
       document.body.addEventListener('pointerover', event => {
         // Keep Tippy's normal touch and pen behavior.
+        lastPointerType = event.pointerType;
         if (event.pointerType !== 'mouse') {
           stopStationaryTimer();
           hoveredTooltip = null;
@@ -2636,10 +2649,9 @@
         onShow: instance => {
           // Cancel Tippy's normal mouse-hover show until our stationary timer fires.
           // Do not interfere with keyboard focus or touch-triggered tooltips.
-          if (instance.reference === hoveredTooltip && !cursorStationary &&
-            !instance.reference.contains(document.activeElement)) {
-            return false;
-          }
+          if (!instance.reference.isConnected) return false;
+          if (lastPointerType === 'mouse' && !cursorStationary &&
+            !instance.reference.contains(document.activeElement)) return false;
         }
       });
     }
