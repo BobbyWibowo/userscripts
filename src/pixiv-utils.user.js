@@ -2501,6 +2501,8 @@
       logDebug(`Cleared ${intervals.length} pending waitFor interval(s).`);
     }
 
+    cleanupDetachedElementObservers();
+
     // Reset page type.
     isHome = isOwnProfile = false;
 
