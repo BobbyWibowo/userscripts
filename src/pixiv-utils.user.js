@@ -1195,31 +1195,49 @@
   };
 
   const WAIT_FOR_POLL = 1000; // ms
+  const WAIT_FOR_TIMEOUT = 30000; // ms; callers can safely retry on later observations.
 
   const waitForIntervals = {};
 
-  const waitFor = (func, element = document) => {
-    if (typeof func !== 'function') {
-      return false;
-    }
+  const waitFor = (func, element = document, timeout = WAIT_FOR_TIMEOUT) => {
+    if (typeof func !== 'function') return Promise.resolve(null);
 
     return new Promise(resolve => {
       let interval = null;
+      const deadline = performance.now() + timeout;
+      const finish = result => {
+        if (interval !== null) {
+          clearInterval(interval);
+          delete waitForIntervals[interval];
+          interval = null;
+        }
+        resolve(result);
+      };
       const find = () => {
-        const result = func(element);
+        // Pixiv can unmount an artwork without changing the URL.
+        if (element !== document && !element.isConnected) {
+          finish(null);
+          return true;
+        }
+        if (performance.now() >= deadline) {
+          finish(null);
+          return true;
+        }
+        let result;
+        try { result = func(element); } catch (error) {
+          console.warn('[Pixiv Utils]: waitFor check failed:', error);
+          finish(null);
+          return true;
+        }
         if (result) {
-          if (interval !== null) {
-            delete waitForIntervals[interval];
-            clearInterval(interval);
-          }
-          resolve(result);
+          finish(result);
           return true;
         }
         return false;
       };
       if (!find()) {
         interval = setInterval(find, WAIT_FOR_POLL);
-        waitForIntervals[interval] = { func, element, resolve };
+        waitForIntervals[interval] = { func, element, resolve: finish };
       }
     });
   };
