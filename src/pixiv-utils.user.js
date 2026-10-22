@@ -1242,6 +1242,24 @@
     });
   };
 
+  // Keep one low-frequency sweep for all long-lived element observers rather
+  // than one timer per artwork. It stops whenever there are no tracked observers.
+  const activeElementObservers = new Map();
+  let observerCleanupTimer = null;
+  const cleanupDetachedElementObservers = () => {
+    for (const [element, observer] of activeElementObservers) {
+      if (!element.isConnected) {
+        observer.disconnect();
+        activeElementObservers.delete(element);
+        delete element.dataset.pixiv_utils_observing;
+      }
+    }
+    if (!activeElementObservers.size && observerCleanupTimer !== null) {
+      clearInterval(observerCleanupTimer);
+      observerCleanupTimer = null;
+    }
+  };
+
   const initElementObserver = (element, callback, options = {}) => {
     if (!element || typeof callback !== 'function' || typeof options !== 'object' || !Object.keys(options).length) {
       return false;
@@ -1267,6 +1285,10 @@
     });
 
     observer.observe(element, options);
+    activeElementObservers.set(element, observer);
+    if (observerCleanupTimer === null) {
+      observerCleanupTimer = setInterval(cleanupDetachedElementObservers, 5000);
+    }
     return observer;
   };
 
