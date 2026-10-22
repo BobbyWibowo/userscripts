@@ -414,29 +414,11 @@
   }
 
   let logDebug = () => {};
-  let logKeys = Object.keys(CONFIG);
-  if (CONFIG.MODE === 'PROD') {
-    // In PROD mode, only print some.
-    logKeys = [
-      'ENABLE_EDIT_BOOKMARK',
-      'ENABLE_TOGGLE_BOOKMARKED',
-      'DATE_CONVERSION',
-      'REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME',
-      'ENABLE_KEYBINDS',
-      'PIXIV_HIGHLIGHTED_TAGS',
-      'PIXIV_BLOCK_AI',
-      'PIXIV_BLOCKED_TAGS',
-      'PIXIV_REMOVE_BLOCKED',
-      'UTAGS_INTEGRATION',
-      'UTAGS_BLOCKED_TAGS',
-      'ENABLE_TIPPY_TOOLTIPS'
-    ];
-  } else {
+  if (CONFIG.MODE !== 'PROD') {
     logDebug = tlog;
-  }
-
-  for (const key of logKeys) {
-    log(`${key} =`, CONFIG[key]);
+    for (const key of Object.keys(CONFIG)) {
+      log(`${key} =`, CONFIG[key]);
+    }
   }
 
   /** GLOBAL UTILS **/
@@ -2763,6 +2745,8 @@
         doUtags(element, { isOwnProfile });
       });
     }
+
+    log('Started.');
 
     if (CONFIG.MODE !== 'PROD') {
       setInterval(() => {
