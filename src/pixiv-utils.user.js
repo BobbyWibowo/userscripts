@@ -1180,6 +1180,12 @@
     }
   }
 
+  // Empty highlight-color overrides use the built-in default at runtime.
+  // Keep storage unchanged (including explicit empty strings).
+  if (CONFIG.PIXIV_HIGHLIGHTED_COLOR === '') {
+    CONFIG.PIXIV_HIGHLIGHTED_COLOR = ENV_DEFAULTS.PIXIV_HIGHLIGHTED_COLOR;
+  }
+
   // Runtime UI text comes from i18n only when a TEXT_* override is nullish.
   // An explicitly stored empty string is a deliberate override, not a fallback.
   for (const key of Object.keys(ENV_DEFAULTS)) {
@@ -1686,7 +1692,7 @@
                 type: 'text',
                 label: tr('rule.groupColor'),
                 default: '',
-                placeholder: '#32cd32',
+                placeholder: ENV_DEFAULTS.PIXIV_HIGHLIGHTED_COLOR,
                 depends: r => r.type === 'group'
               },
               tags: {
@@ -1782,7 +1788,10 @@
         field.type = 'textarea'; field.rows = 3;
       } else if (typeof fallback === 'string') {
         field.type = 'text';
-        if (key === 'PIXIV_HIGHLIGHTED_COLOR') field.description = tr('field.highlightInfo');
+        if (key === 'PIXIV_HIGHLIGHTED_COLOR') {
+          field.description = tr('field.highlightInfo');
+          field.placeholder = ENV_DEFAULTS.PIXIV_HIGHLIGHTED_COLOR;
+        }
       } else {
         field.type = 'textarea'; field.rows = 5;
         field.validate = value => { try { JSON.parse(value); } catch (e) { return e.message; } return ''; };
@@ -2001,8 +2010,12 @@
   };
 
   // Keep all visual-only list helpers independent of the underlying stored rule values.
-  const updateColorInputBorder = input => {
-    const color = input.value.trim();
+  const getSettingsHighlightColor = () =>
+    document.querySelector('.gc-p input[id="PIXIV_HIGHLIGHTED_COLOR"]')?.value.trim() ||
+    ENV_DEFAULTS.PIXIV_HIGHLIGHTED_COLOR;
+
+  const updateColorInputBorder = (input, fallback = '') => {
+    const color = input.value.trim() || fallback;
     // Native color parsing accepts named colors, rgb(), transparent, etc.
     if (color && CSS.supports('color', color)) {
       input.style.borderColor = color;
@@ -2042,11 +2055,12 @@
 
       const input = container.closest('.gc-li-b')?.querySelector('input[id$="_color"]');
       if (input) {
+        input.placeholder = getSettingsHighlightColor();
         if (!input.dataset.pixivUtilsColorListener) {
-          input.addEventListener('input', () => updateColorInputBorder(input));
+          input.addEventListener('input', () => updateColorInputBorder(input, getSettingsHighlightColor()));
           input.dataset.pixivUtilsColorListener = 'true';
         }
-        updateColorInputBorder(input);
+        updateColorInputBorder(input, getSettingsHighlightColor());
       }
     }
   };
@@ -2076,10 +2090,17 @@
     const mainColor = document.querySelector('.gc-p input[id="PIXIV_HIGHLIGHTED_COLOR"]');
     if (mainColor) {
       if (!mainColor.dataset.pixivUtilsColorListener) {
-        mainColor.addEventListener('input', () => updateColorInputBorder(mainColor));
+        mainColor.addEventListener('input', () => {
+          updateColorInputBorder(mainColor, ENV_DEFAULTS.PIXIV_HIGHLIGHTED_COLOR);
+          // Empty group colors inherit the actively edited main highlight color.
+          for (const groupColor of document.querySelectorAll('.gc-p input[id$="_color"]')) {
+            groupColor.placeholder = getSettingsHighlightColor();
+            if (!groupColor.value.trim()) updateColorInputBorder(groupColor, getSettingsHighlightColor());
+          }
+        });
         mainColor.dataset.pixivUtilsColorListener = 'true';
       }
-      updateColorInputBorder(mainColor);
+      updateColorInputBorder(mainColor, ENV_DEFAULTS.PIXIV_HIGHLIGHTED_COLOR);
     }
   };
 
