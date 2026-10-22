@@ -1921,6 +1921,7 @@
         panel._mark();
         syncColoredGroupToggles();
         syncSettingsDecorations();
+        initListOrderControls(panel);
       }
       alert(tr('backup.imported'));
       return true;
@@ -2082,6 +2083,212 @@
     }
   };
 
+  // List ordering is a UI-only enhancement. gmConfig reads records from the
+  // actual .gc-list-items DOM order; moving existing nodes preserves all live
+  // input values, nested editors and their original storage serialization.
+  const initListOrderControls = panel => {
+    const dialog = panel._dlg;
+    if (!dialog) return;
+
+    let state = panel._pixivListOrderState;
+    if (!state) {
+      state = { observers: new Map(), dragging: null, touchDrag: null, dropTarget: null };
+      panel._pixivListOrderState = state;
+      const clearDropTarget = () => {
+        state.dropTarget?.classList.remove('pixiv-utils-drop-before', 'pixiv-utils-drop-after');
+        state.dropTarget = null;
+      };
+      const draggedListItem = event => event.target.closest?.('.gc-li');
+      const moveItem = (item, index) => {
+        const items = item.parentElement;
+        if (!items?.classList.contains('gc-list-items')) return;
+        const siblings = [...items.children].filter(node => node !== item);
+        const destination = Math.min(Math.max(index, 0), siblings.length);
+        if ([...items.children].indexOf(item) === destination) return;
+        items.insertBefore(item, siblings[destination] ?? null);
+        refreshList(items);
+        // gmConfig's own list-item input listener calls _onListChange() for
+        // the correct field, including parent records for nested lists.
+        item.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      const onDragStart = event => {
+        if (!event.target.matches?.('.pixiv-utils-drag-handle')) return;
+        const item = draggedListItem(event);
+        if (!item?.parentElement?.classList.contains('gc-list-items')) return;
+        state.dragging = item;
+        if (event.dataTransfer) {
+          // Firefox requires setData for native HTML5 drag-and-drop to start.
+          event.dataTransfer.setData('text/plain', 'pixiv-utils-list-item');
+          event.dataTransfer.effectAllowed = 'move';
+        }
+        item.classList.add('pixiv-utils-dragging');
+      };
+      const onDragOver = event => {
+        const item = draggedListItem(event);
+        if (!state.dragging || !item || item === state.dragging ||
+          item.parentElement !== state.dragging.parentElement) {
+          clearDropTarget();
+          return;
+        }
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+        const after = event.clientY >= item.getBoundingClientRect().top + item.getBoundingClientRect().height / 2;
+        clearDropTarget();
+        state.dropTarget = item;
+        item.classList.add(after ? 'pixiv-utils-drop-after' : 'pixiv-utils-drop-before');
+      };
+      const dropItem = (dragged, item) => {
+        if (!dragged || !item || item === dragged || item.parentElement !== dragged.parentElement) return false;
+        const siblings = [...dragged.parentElement.children].filter(node => node !== dragged);
+        const after = item.classList.contains('pixiv-utils-drop-after');
+        moveItem(dragged, siblings.indexOf(item) + (after ? 1 : 0));
+        clearDropTarget();
+        return true;
+      };
+      const onDrop = event => {
+        if (dropItem(state.dragging, draggedListItem(event))) event.preventDefault();
+      };
+      // Native HTML drag-and-drop has limited touch support. Reuse the same
+      // destination logic for touch-pointer dragging, keeping index input as a
+      // keyboard-accessible fallback on all devices.
+      const onPointerDown = event => {
+        if (event.pointerType !== 'touch' || !event.target.matches?.('.pixiv-utils-drag-handle')) return;
+        const item = draggedListItem(event);
+        if (!item?.parentElement?.classList.contains('gc-list-items')) return;
+        event.preventDefault();
+        state.touchDrag = { item, pointerId: event.pointerId };
+        item.classList.add('pixiv-utils-dragging');
+        try { event.target.setPointerCapture?.(event.pointerId); } catch {}
+      };
+      const onPointerMove = event => {
+        const drag = state.touchDrag;
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        event.preventDefault();
+        const item = document.elementFromPoint(event.clientX, event.clientY)?.closest('.gc-li');
+        clearDropTarget();
+        if (!item || item === drag.item || item.parentElement !== drag.item.parentElement) return;
+        const box = item.getBoundingClientRect();
+        const after = event.clientY >= box.top + box.height / 2;
+        state.dropTarget = item;
+        item.classList.add(after ? 'pixiv-utils-drop-after' : 'pixiv-utils-drop-before');
+      };
+      const onPointerUp = event => {
+        const drag = state.touchDrag;
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        if (event.type === 'pointerup') dropItem(drag.item, state.dropTarget);
+        drag.item.classList.remove('pixiv-utils-dragging');
+        state.touchDrag = null;
+        clearDropTarget();
+      };
+      const onDragEnd = () => {
+        state.dragging?.classList.remove('pixiv-utils-dragging');
+        state.dragging = null;
+        clearDropTarget();
+      };
+      dialog.addEventListener('dragstart', onDragStart);
+      dialog.addEventListener('dragover', onDragOver);
+      dialog.addEventListener('drop', onDrop);
+      dialog.addEventListener('dragend', onDragEnd);
+      dialog.addEventListener('pointerdown', onPointerDown);
+      dialog.addEventListener('pointermove', onPointerMove);
+      dialog.addEventListener('pointerup', onPointerUp);
+      dialog.addEventListener('pointercancel', onPointerUp);
+      state.cleanup = () => {
+        onDragEnd();
+        state.touchDrag?.item.classList.remove('pixiv-utils-dragging');
+        state.touchDrag = null;
+        for (const observer of state.observers.values()) observer.disconnect();
+        state.observers.clear();
+        dialog.removeEventListener('dragstart', onDragStart);
+        dialog.removeEventListener('dragover', onDragOver);
+        dialog.removeEventListener('drop', onDrop);
+        dialog.removeEventListener('dragend', onDragEnd);
+        dialog.removeEventListener('pointerdown', onPointerDown);
+        dialog.removeEventListener('pointermove', onPointerMove);
+        dialog.removeEventListener('pointerup', onPointerUp);
+        dialog.removeEventListener('pointercancel', onPointerUp);
+      };
+      state.moveItem = moveItem;
+    }
+
+    const refreshList = items => {
+      const entries = [...items.children].filter(item => item.classList.contains('gc-li'));
+      for (const [index, item] of entries.entries()) {
+        item._refresh?.();
+        const control = item.querySelector(':scope > .gc-li-h > .pixiv-utils-list-position');
+        if (control) {
+          control.value = String(index + 1);
+          control.max = String(entries.length);
+          control.title = tr('list.position', { max: entries.length });
+          control.setAttribute('aria-label', control.title);
+        }
+      }
+    };
+    const setupList = list => {
+      const items = list.querySelector(':scope > .gc-list-items');
+      if (!items) return;
+      for (const item of items.children) {
+        if (!item.classList.contains('gc-li')) continue;
+        const head = item.querySelector(':scope > .gc-li-h');
+        if (!head || head.querySelector('.pixiv-utils-list-position')) continue;
+        const position = document.createElement('input');
+        position.type = 'number';
+        position.min = '1';
+        position.step = '1';
+        position.inputMode = 'numeric';
+        position.className = 'pixiv-utils-list-position';
+        // Index typing is purely navigation; don't send intermediate digits
+        // through gmConfig's own form/list input listeners.
+        position.addEventListener('input', event => event.stopPropagation());
+        position.addEventListener('keydown', event => {
+          if (event.key === 'Enter') { event.preventDefault(); position.blur(); }
+        });
+        position.addEventListener('change', () => {
+          const count = items.children.length;
+          const raw = position.value.trim();
+          if (!/^\d+$/.test(raw)) { refreshList(items); return; }
+          const index = Number(raw);
+          if (!Number.isSafeInteger(index) || index < 1 || index > count) {
+            refreshList(items);
+            return;
+          }
+          state.moveItem(item, index - 1);
+          refreshList(items);
+        });
+        const handle = document.createElement('button');
+        handle.type = 'button';
+        handle.className = 'pixiv-utils-drag-handle';
+        handle.textContent = '≡';
+        handle.title = tr('list.drag');
+        handle.setAttribute('aria-label', tr('list.drag'));
+        handle.draggable = true;
+        const title = head.querySelector('.gc-li-t');
+        head.insertBefore(handle, title ?? head.firstChild);
+        handle.after(position);
+      }
+      refreshList(items);
+      if (!state.observers.has(items)) {
+        // Observe only direct item add/remove/reorder mutations, not title
+        // changes within items; avoids repeat work on every keystroke.
+        const observer = new MutationObserver(() => {
+          initListOrderControls(panel); // install for newly added nested lists
+          refreshList(items);
+        });
+        observer.observe(items, { childList: true });
+        state.observers.set(items, observer);
+      }
+    };
+    for (const [items, observer] of state.observers) {
+      if (!items.isConnected) { observer.disconnect(); state.observers.delete(items); }
+    }
+    for (const list of dialog.querySelectorAll('.gc-list')) setupList(list);
+  };
+
+  const disposeListOrderControls = panel => {
+    panel?._pixivListOrderState?.cleanup?.();
+    if (panel) panel._pixivListOrderState = null;
+  };
+
   const createPixivUtilsConfig = BaseConfig => class PixivUtilsConfig extends BaseConfig {
     async _load () {
       // gmConfig 1.0.0 originally loads a single JSON string. Directly read the
@@ -2139,7 +2346,44 @@
     .gc-p.gc-p > form { height: 100%; min-height: 0; max-height: none; }
     .gc-p .gc-hd, .gc-p .gc-f { flex: 0 0 auto; }
     .gc-p .gc-b { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
-    .gc-p .gc-tb { flex: 0 0 auto; }
+    .gc-p .gc-tb {
+      flex: 0 0 auto;
+      border-bottom: 0 !important;
+      box-shadow: none !important;
+      background-image: none !important;
+    }
+    .gc-p .gc-tb::before, .gc-p .gc-tb::after { content: none !important; }
+    /* Rounded controls and list cards, without affecting input dimensions. */
+    .gc-p :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea, button) { border-radius: 5px; }
+    .gc-p :is(.gc-li, .gc-list, .gc-li-b) { border-radius: 7px; }
+    .gc-p :is(.gc-li-h, .gc-hd, .gc-f) { border-radius: 5px; }
+    .gc-p :is(input, select, textarea, button):focus-visible { outline-offset: 2px; }
+    /* Keep tab geometry stable; use a filled selected state instead of the
+       active bottom underline, which clashed with gmConfig's tab strip. */
+    .gc-p .gc-tb > button {
+      font-weight: 400 !important;
+      border-bottom: 0 !important;
+      box-shadow: none !important;
+      background-image: none !important;
+    }
+    .gc-p .gc-tb > button:is([aria-selected="true"], [data-active="true"], .active, .gc-a, .gc-ta) {
+      background-color: rgba(128, 128, 128, 0.22) !important;
+      box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.26) !important;
+    }
+    .gc-p .gc-tb + .gc-b { border-top: 0 !important; }
+    .gc-p .pixiv-utils-section-heading {
+      margin: 10px 0 3px;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+    .gc-p .pixiv-utils-bookmark-state-field {
+      margin-inline-start: 12px;
+      padding-inline-start: 12px;
+      padding-block: 4px;
+      border-left: 2px solid rgba(128, 128, 128, 0.38);
+      background: rgba(128, 128, 128, 0.055);
+    }
     .gc-p .gc-g:has(#ENABLE_KEYBINDS) .gc-h { white-space: pre-line; }
     .gc-p .pixiv-utils-settings-divider {
       border-top: 1px solid currentColor;
@@ -2214,6 +2458,23 @@
       border-radius: 4px;
       background: transparent;
     }
+    /* Native modal backdrop dims Pixiv without covering the settings UI. */
+    dialog.gc-p::backdrop { background: rgba(0, 0, 0, 0.56); }
+    .gc-p .gc-li-h > .gc-li-t { min-width: 0; }
+    .gc-p .pixiv-utils-list-position {
+      width: 48px; min-width: 0; padding: 3px 2px;
+      margin-right: 6px;
+      font: inherit; font-size: 12px; text-align: center;
+    }
+    .gc-p .pixiv-utils-drag-handle {
+      flex: 0 0 auto; font: inherit; font-size: 20px; line-height: 1;
+      border: 0; padding: 2px 5px; background: transparent;
+      cursor: grab; touch-action: none; user-select: none;
+    }
+    .gc-p .pixiv-utils-drag-handle:active { cursor: grabbing; }
+    .gc-p .pixiv-utils-dragging { opacity: 0.55; }
+    .gc-p .pixiv-utils-drop-before { box-shadow: inset 0 3px 0 var(--gc-a, #888); }
+    .gc-p .pixiv-utils-drop-after { box-shadow: inset 0 -3px 0 var(--gc-a, #888); }
     .gc-p .pixiv-utils-nested-collapsed > .gc-list { display: none; }
     .gc-p .pixiv-utils-backup { display: flex; flex-direction: column; gap: 10px; }
     .gc-p .pixiv-utils-backup p { margin: 0; }
@@ -2311,6 +2572,7 @@
         title: tr('settingsTitle'),
         width: 'min(900px, 96vw)',
         closeOnSave: false, // Keep the Reload page button available after Save.
+        onBeforeClose: () => window.confirm(tr('message.discardChanges')),
         onBeforeSave: values => {
           // Defensive validation for additional conversions done during persistence.
           for (const key of ['TIPPY_TOOLTIPS_OPTIONS', 'UTAGS_BLOCKED_TAGS', 'SECTIONS_TOGGLE_BOOKMARKED', 'PIXIV_BLOCKED_USERS']) {
@@ -2320,6 +2582,7 @@
         onOpen: () => {
           syncColoredGroupToggles();
           syncSettingsDecorations();
+          initListOrderControls(panel);
           // Nested list changes do not fire top-level onChange. Refresh only the
           // affected highlighted group (or the highlighted list for top-level changes).
           panel._dlg?.addEventListener('click', event => {
@@ -2343,7 +2606,11 @@
             panel._chromeObserver = observer;
           }
         },
-        onClose: () => { panel._chromeObserver?.disconnect(); panel._chromeObserver = null; },
+        onClose: () => {
+          panel._chromeObserver?.disconnect();
+          panel._chromeObserver = null;
+          disposeListOrderControls(panel);
+        },
         onChange: (key, value) => {
           if (key === 'SETTINGS_LANGUAGE') {
             const locale = resolveSettingsLocale(value);
@@ -2354,6 +2621,7 @@
                 panel.reinit(makeSettingsDefinitions(), tr('settingsTitle'));
                 syncColoredGroupToggles();
                 syncSettingsDecorations();
+                initListOrderControls(panel);
                 localizePanelChrome(panel);
               });
             }
@@ -2375,6 +2643,7 @@
             panel.reinit(makeSettingsDefinitions(), tr('settingsTitle'));
             syncColoredGroupToggles();
             syncSettingsDecorations();
+            initListOrderControls(panel);
             localizePanelChrome(panel);
           }
           alert(tr('message.reset'));
