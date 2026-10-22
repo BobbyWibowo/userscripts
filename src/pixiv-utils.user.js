@@ -1676,7 +1676,7 @@
         field.type = 'list';
         field.addLabel = tr(highlighted ? 'rule.addGroup' : 'rule.add');
         field.reorder = true;
-        field.itemTitle = (r, i) => `${i + 1}. ${r.type === 'group' ? tr('rule.colored') : regexRuleTitle(r)}`;
+        field.itemTitle = r => r.type === 'group' ? tr('rule.colored') : regexRuleTitle(r);
         field.item = highlighted
           ? {
               type: {
@@ -1700,7 +1700,7 @@
                 label: tr('rule.groupTags'),
                 default: [],
                 item: tagRuleSchema(),
-                itemTitle: (r, i) => `${i + 1}. ${regexRuleTitle(r)}`,
+                itemTitle: r => regexRuleTitle(r),
                 addLabel: tr('rule.addInGroup'),
                 reorder: true,
                 depends: r => r.type === 'group'
@@ -1726,7 +1726,7 @@
         field.type = 'list';
         field.addLabel = tr('sections.add');
         field.reorder = true;
-        field.itemTitle = (entry, index) => `${index + 1}. ${entry.selectorParent || tr('sections.parent')}`;
+        field.itemTitle = entry => entry.selectorParent || tr('sections.parent');
         field.item = {
           selectorParent: {
             type: 'textarea',
@@ -1762,7 +1762,7 @@
         field.type = 'list';
         field.addLabel = tr('users.add');
         field.reorder = true;
-        field.itemTitle = (entry, index) => `${index + 1}. ${entry.userId || tr('users.id')}`;
+        field.itemTitle = entry => entry.userId || tr('users.id');
         field.item = {
           userId: {
             type: 'text',
@@ -1778,7 +1778,7 @@
         field.type = 'list';
         field.addLabel = tr('utags.add');
         field.reorder = true;
-        field.itemTitle = (entry, index) => `${index + 1}. ${entry.value || tr('utags.tag')}`;
+        field.itemTitle = entry => entry.value || tr('utags.tag');
         field.item = {
           value: { type: 'text', label: tr('utags.tag'), default: '', required: true }
         };
