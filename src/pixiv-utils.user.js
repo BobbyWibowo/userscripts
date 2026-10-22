@@ -123,6 +123,7 @@
     PIXIV_BLOCKED_TAGS: null,
     // Disable if using patterns with anchors/lookbehinds that can interact badly when combined.
     PIXIV_BLOCKED_TAGS_COMBINE_REGEXES: true,
+    PIXIV_BLOCKED_USERS: [],
     // Disable if you want to see full list of tags that trigger the block on their hover tooltip.
     PIXIV_BLOCKED_TAGS_FAST: true,
     // Instead of merely masking them à la Pixiv's built-in tags mute.
@@ -404,7 +405,7 @@
       'rule.regex': 'RegExp',
       'rule.flags': 'Flags',
       'rule.patternPlaceholder': 'Literal tag or regular expression',
-      'rule.regexInfo': 'RegExp flags: i (case-insensitive), m, s, u or v (u/v cannot be combined). Avoid g/y because repeated matches can be inconsistent. Combining patterns may affect numeric backreferences.',
+      'rule.regexInfo': 'RegExp flags: i (case-insensitive), m, s, u or v (u/v cannot be combined). Avoid g/y because repeated matches can be inconsistent.',
       'rule.add': 'Add tag',
       'rule.addGroup': 'Add tag / colored group',
       'rule.addInGroup': 'Add tag in group',
@@ -522,12 +523,17 @@
       'label.SELECTORS_DATE': 'Selectors date',
       'label.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME': 'Remove novel recommendations from home',
       'label.ENABLE_KEYBINDS': 'Keybinds',
-      'label.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES': 'Combine RegExp highlight patterns (improves performance)',
-      'label.PIXIV_HIGHLIGHTED_TAGS_FAST': "Highlight as soon as the first tag matches (improves performance, but an artwork's tooltip will not list other tags that may highlight the artwork too)",
+      'label.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES': 'Combine RegExp patterns (improves performance, but may conflict with anchors/lookbehinds)',
+      'label.PIXIV_HIGHLIGHTED_TAGS_FAST': 'Highlight as soon as the first Pixiv tag matches',
       'label.PIXIV_HIGHLIGHTED_BYPASS_BLOCK': 'Highlighted artworks bypass blocking (does not bypass UTag blocking)',
       'label.PIXIV_BLOCK_AI': 'Block AI artworks',
-      'label.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES': 'Combine RegExp block patterns (improves performance)',
-      'label.PIXIV_BLOCKED_TAGS_FAST': "Block as soon as the first tag matches (improves performance, but an artwork's tooltip will not list other tags that may block the artwork too)",
+      'label.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES': 'Combine RegExp patterns (improves performance, but may conflict with anchors/lookbehinds)',
+      'label.PIXIV_BLOCKED_USERS': 'Blocked user IDs',
+      'users.add': 'Add user ID',
+      'users.id': 'User ID',
+      'users.invalid': 'Enter a user ID containing digits only.',
+      'users.info': 'Block artworks by the Pixiv user IDs of their artists. IDs are stored as strings.',
+      'label.PIXIV_BLOCKED_TAGS_FAST': 'Block as soon as user ID matches, detects AI flag, or the first Pixiv tag matches',
       'label.PIXIV_REMOVE_BLOCKED': "Remove blocked instead of masking à la Pixiv's built-in tags mute",
       'label.UTAGS_INTEGRATION': 'Utags integration',
       'label.UTAGS_BLOCKED_TAGS': 'Utags blocked tags',
@@ -706,6 +712,11 @@
       'label.PIXIV_HIGHLIGHTED_BYPASS_BLOCK': '',
       'label.PIXIV_BLOCK_AI': '',
       'label.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES': '',
+      'label.PIXIV_BLOCKED_USERS': '',
+      'users.add': '',
+      'users.id': '',
+      'users.invalid': '',
+      'users.info': '',
       'label.PIXIV_BLOCKED_TAGS_FAST': '',
       'label.PIXIV_REMOVE_BLOCKED': '',
       'label.UTAGS_INTEGRATION': '',
@@ -885,6 +896,11 @@
       'label.PIXIV_HIGHLIGHTED_BYPASS_BLOCK': '',
       'label.PIXIV_BLOCK_AI': '',
       'label.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES': '',
+      'label.PIXIV_BLOCKED_USERS': '',
+      'users.add': '',
+      'users.id': '',
+      'users.invalid': '',
+      'users.info': '',
       'label.PIXIV_BLOCKED_TAGS_FAST': '',
       'label.PIXIV_REMOVE_BLOCKED': '',
       'label.UTAGS_INTEGRATION': '',
@@ -1064,6 +1080,11 @@
       'label.PIXIV_HIGHLIGHTED_BYPASS_BLOCK': '',
       'label.PIXIV_BLOCK_AI': '',
       'label.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES': '',
+      'label.PIXIV_BLOCKED_USERS': '',
+      'users.add': '',
+      'users.id': '',
+      'users.invalid': '',
+      'users.info': '',
       'label.PIXIV_BLOCKED_TAGS_FAST': '',
       'label.PIXIV_REMOVE_BLOCKED': '',
       'label.UTAGS_INTEGRATION': '',
@@ -1355,6 +1376,19 @@
     .map(value => ({ value }));
   const utagsFromEditor = value => value.map(rule => rule.value);
 
+  // Keep Pixiv user IDs as strings, including any leading zeroes. Never use
+  // a numeric input, since converting large IDs to Number can lose precision.
+  const isPixivUserId = value => typeof value === 'string' && /^[0-9]+$/.test(value);
+  const blockedUsersToEditor = value => Array.isArray(value)
+    ? value.map(userId => ({ userId }))
+    : [];
+  const validateBlockedUsersEditor = value => Array.isArray(value) &&
+    value.every(entry => isPlainObject(entry) && isPixivUserId(entry.userId));
+  const blockedUsersFromEditor = value => {
+    if (!validateBlockedUsersEditor(value)) throw new TypeError(tr('users.invalid'));
+    return value.map(entry => entry.userId);
+  };
+
   const localizedTextField = key => ({
     render: () => {
       const root = document.createElement('div');
@@ -1568,6 +1602,7 @@
     if (key === 'MODE') return value === 'DEBUG';
     if (key === 'SECTIONS_TOGGLE_BOOKMARKED') return sectionsToEditor(value);
     if (key === 'UTAGS_BLOCKED_TAGS') return utagsToEditor(value);
+    if (key === 'PIXIV_BLOCKED_USERS') return blockedUsersToEditor(value);
     if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
       return tagsToEditor(value, key === 'PIXIV_HIGHLIGHTED_TAGS');
     }
@@ -1580,6 +1615,7 @@
     if (key === 'MODE') return value ? 'DEBUG' : 'PROD';
     if (key === 'SECTIONS_TOGGLE_BOOKMARKED') return sectionsFromEditor(value, previous);
     if (key === 'UTAGS_BLOCKED_TAGS') return utagsFromEditor(value);
+    if (key === 'PIXIV_BLOCKED_USERS') return blockedUsersFromEditor(value);
     if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
       return tagsFromEditor(value, key === 'PIXIV_HIGHLIGHTED_TAGS');
     }
@@ -1716,6 +1752,22 @@
           }
           return '';
         };
+      } else if (key === 'PIXIV_BLOCKED_USERS') {
+        field.type = 'list';
+        field.addLabel = tr('users.add');
+        field.reorder = true;
+        field.itemTitle = (entry, index) => `${index + 1}. ${entry.userId || tr('users.id')}`;
+        field.item = {
+          userId: {
+            type: 'text',
+            label: tr('users.id'),
+            default: '',
+            required: true,
+            attrs: { inputmode: 'numeric', pattern: '[0-9]+' }
+          }
+        };
+        field.description = tr('users.info');
+        field.validate = value => validateBlockedUsersEditor(value) ? '' : tr('users.invalid');
       } else if (key === 'UTAGS_BLOCKED_TAGS') {
         field.type = 'list';
         field.addLabel = tr('utags.add');
@@ -1803,6 +1855,10 @@
         }
       } else if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
         validateTagArray(key, value, key === 'PIXIV_HIGHLIGHTED_TAGS');
+      } else if (key === 'PIXIV_BLOCKED_USERS') {
+        if (!Array.isArray(value) || !value.every(isPixivUserId)) {
+          throw new TypeError(`${key}: ${tr('users.invalid')}`);
+        }
       } else if (key === 'UTAGS_BLOCKED_TAGS') {
         if (typeof value !== 'string' &&
           !(Array.isArray(value) && value.every(item => typeof item === 'string'))) {
@@ -2008,7 +2064,8 @@
       group.before(node);
     };
     for (const key of ['DATE_CONVERSION', 'REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME',
-      'TEXT_EDIT_BOOKMARK', 'PIXIV_BLOCKED_TAGS', 'PIXIV_HIGHLIGHTED_TAGS',
+      'TEXT_EDIT_BOOKMARK', 'PIXIV_BLOCKED_TAGS', 'PIXIV_BLOCKED_USERS',
+      'PIXIV_BLOCKED_TAGS_FAST', 'PIXIV_HIGHLIGHTED_TAGS',
       'TIPPY_TOOLTIPS_STATIONARY_DELAY', 'UTAGS_BLOCKED_TAGS',
       'SELECTORS_HOME', 'SECTIONS_TOGGLE_BOOKMARKED', 'TIPPY_TOOLTIPS_OPTIONS']) {
       insertBefore(key, 'pixiv-utils-settings-divider');
@@ -2256,7 +2313,7 @@
         closeOnSave: false, // Keep the Reload page button available after Save.
         onBeforeSave: values => {
           // Defensive validation for additional conversions done during persistence.
-          for (const key of ['TIPPY_TOOLTIPS_OPTIONS', 'UTAGS_BLOCKED_TAGS', 'SECTIONS_TOGGLE_BOOKMARKED']) {
+          for (const key of ['TIPPY_TOOLTIPS_OPTIONS', 'UTAGS_BLOCKED_TAGS', 'SECTIONS_TOGGLE_BOOKMARKED', 'PIXIV_BLOCKED_USERS']) {
             try { editorToSetting(key, values[key], ENV[key]); } catch (error) { alert(tr('message.validation', { key, error: error.message })); return false; }
           }
         },
@@ -2455,8 +2512,12 @@
 
   logDebug('PIXIV_BLOCKED_TAGS_STRING = ', PIXIV_BLOCKED_TAGS_STRING);
   logDebug('PIXIV_BLOCKED_TAGS_REGEXP = ', PIXIV_BLOCKED_TAGS_REGEXP);
+  // Keep artist IDs as strings for exact matching, with no Number conversion.
+  const PIXIV_BLOCKED_USERS_SET = new Set(CONFIG.PIXIV_BLOCKED_USERS);
+  logDebug('PIXIV_BLOCKED_USERS_SET =', PIXIV_BLOCKED_USERS_SET);
   const PIXIV_BLOCKED_TAGS_VALIDATED = PIXIV_BLOCKED_TAGS_STRING.size ||
     PIXIV_BLOCKED_TAGS_REGEXP.length ||
+    PIXIV_BLOCKED_USERS_SET.size ||
     CONFIG.PIXIV_BLOCK_AI;
 
   const SELECTORS_UTAGS = CONFIG.UTAGS_BLOCKED_TAGS.map(s => `[data-utags_tag="${s}"]`).join(', ');
@@ -3073,28 +3134,71 @@
     return hasBookmarkedClass;
   };
 
+  // Pixiv exposes the artist on different props in Vue and React views. Reuse
+  // these fields for the artist label and for user-ID blocking. Never convert
+  // string IDs to Number (large IDs and leading zeroes must be preserved).
+  const pixivUserIdString = value => {
+    if (typeof value === 'string') return /^[0-9]+$/.test(value) ? value : null;
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+      ? String(value)
+      : null;
+  };
+
+  const readArtistMetadata = (source, target) => {
+    if (!source || typeof source !== 'object') return;
+    const user = source.author_details || source.user || source.author;
+    const id = pixivUserIdString(source.userId ?? source.user_id ??
+      user?.userId ?? user?.user_id ?? user?.id);
+    const name = source.userName ?? source.user_name ??
+      user?.userName ?? user?.user_name ?? user?.name;
+    if (target.userId === null && id !== null) target.userId = id;
+    if (target.userName === null && typeof name === 'string' && name) target.userName = name;
+  };
+
+  const extractArtistMetadata = element => {
+    const artist = { userId: null, userName: null };
+    if (element.__vue__) {
+      readArtistMetadata(element.__vue__._props?.item, artist);
+      readArtistMetadata(element.__vue__._props?.illustDetails, artist);
+    } else {
+      // Preserves addImageArtist's original React __reactProps extraction path.
+      const propsKey = Object.keys(element).find(k => k.startsWith('__reactProps'));
+      const props = propsKey && element[propsKey]?.children?.props;
+      if (props) {
+        for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
+          readArtistMetadata(props[key], artist);
+          if (artist.userId !== null && artist.userName !== null) break;
+        }
+      }
+    }
+    return artist;
+  };
+
   const extractImagePixivData = async element => {
     const data = {
       title: null,
       ai: null,
       tags: null,
-      createDate: null
+      createDate: null,
+      ...extractArtistMetadata(element)
     };
 
     if (element.__vue__) {
       for (const key of ['item', 'illustDetails']) {
         const _data = element.__vue__._props?.[key];
-        if (!_data) {
-          continue;
-        }
+        if (!_data) continue;
 
-        if (key === 'item') {
+        if (key === 'item' && _data.notLoaded) {
+          // If the artist is already blocked and fast mode is enabled, no
+          // additional AI or tag data is needed to decide the block.
+          if (CONFIG.PIXIV_BLOCKED_TAGS_FAST && data.userId !== null &&
+            PIXIV_BLOCKED_USERS_SET.has(data.userId) &&
+            !(CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && PIXIV_HIGHLIGHTED_TAGS_VALIDATED)) break;
           const awaited = await waitFor(() => !_data.notLoaded, element);
-          if (!awaited) {
-            return data;
-          }
+          if (!awaited) break;
         }
 
+        readArtistMetadata(_data, data);
         data.title = _data.title;
         data.ai = _data.ai_type == null ? null : _data.ai_type === 2;
         data.tags = _data.tags;
@@ -3113,9 +3217,7 @@
 
         let step = 0;
         const traverseChild = obj => {
-          if (!obj || !obj.memoizedProps) {
-            return;
-          }
+          if (!obj || !obj.memoizedProps) return;
 
           step++;
           let source = null;
@@ -3131,21 +3233,15 @@
               children = props.children.props?.children;
             }
             if (children) {
-              if (!Array.isArray(children)) {
-                children = [children];
-              }
+              if (!Array.isArray(children)) children = [children];
               for (const child of children) {
                 if (child.props?.thumbnail) {
                   source = child.props.thumbnail;
                   break;
                 } else if (child.props?.content) {
-                  // Rankings page
-                  // TODO This doesn't seem to have "is AI?" prop
+                  // Rankings page may not supply an AI flag.
                   source = child.props.content;
-                  // Some multi-view entries
-                  if (source.thumbnails?.length) {
-                    source = source.thumbnails[0];
-                  }
+                  if (source.thumbnails?.length) source = source.thumbnails[0];
                   break;
                 }
               }
@@ -3160,6 +3256,7 @@
           }
 
           if (source !== null) {
+            readArtistMetadata(source, data);
             data.title = source.title;
             data.ai = source.aiType == null ? null : source.aiType === 2;
             data.tags = source.tags;
@@ -3175,23 +3272,22 @@
             }
           }
 
-          if (data.tags === null && step < MAX_STEPS) {
-            traverseChild(obj.child);
-          }
+          // Source metadata identifies the artwork's artist more reliably than
+          // ancestor props, which can refer to a different user.
+          if (data.userId === null || data.userName === null) readArtistMetadata(props, data);
+          if (data.tags === null && step < MAX_STEPS) traverseChild(obj.child);
         };
 
         traverseChild(element[reactFiberKey]);
       }
     }
 
-    // Missing tags or AI status means the extracted metadata may be incomplete.
-    // Allow this result to be used, but retry extraction instead of caching it.
-    data.complete = Array.isArray(data.tags) && data.ai !== null;
-    if (!Array.isArray(data.tags)) {
-      data.tags = [];
-    }
+    // Incomplete metadata stays retryable. If user-ID blocking is configured,
+    // do not cache a record that lacks its author ID, even if tags/AI are known.
+    data.complete = Array.isArray(data.tags) && data.ai !== null &&
+      (!PIXIV_BLOCKED_USERS_SET.size || data.userId !== null);
+    if (!Array.isArray(data.tags)) data.tags = [];
 
-    // Re-map extended tags data.
     data.tags = data.tags
       .map(tag => typeof tag === 'string' ? tag : tag?.name)
       .filter(tag => typeof tag === 'string');
@@ -3314,41 +3410,41 @@
   };
 
   const isImageBlockedByData = data => {
+    const blockedUserId = data.userId !== null && PIXIV_BLOCKED_USERS_SET.has(data.userId)
+      ? data.userId
+      : null;
     const result = {
-      blockedAI: CONFIG.PIXIV_BLOCK_AI && data.ai,
+      blockedUserId,
+      blockedAI: false,
       blockedTags: [],
       hint: ''
     };
 
-    // If fast, and blocking AI artworks, return immediately.
-    if (CONFIG.PIXIV_BLOCKED_TAGS_FAST && result.blockedAI) {
-      result.hint += 'AI-generated';
+    // The artist match takes precedence in fast mode. No AI or tag checks are
+    // necessary; incomplete metadata can still be blocked by a known user ID.
+    if (CONFIG.PIXIV_BLOCKED_TAGS_FAST && blockedUserId !== null) {
+      result.hint = `User ID: ${blockedUserId}`;
       return result;
     }
 
-    for (const tag of data.tags) {
+    result.blockedAI = CONFIG.PIXIV_BLOCK_AI && data.ai;
+    if (CONFIG.PIXIV_BLOCKED_TAGS_FAST && result.blockedAI) {
+      result.hint = 'AI-generated';
+      return result;
+    }
+
+    for (const tag of data.tags || []) {
       if (PIXIV_BLOCKED_TAGS_STRING.has(tag) || PIXIV_BLOCKED_TAGS_REGEXP.some(t => t.test(tag))) {
         result.blockedTags.push(tag);
-        // If fast, immediately break away with just the first matching tag.
-        if (CONFIG.PIXIV_BLOCKED_TAGS_FAST) {
-          break;
-        }
+        if (CONFIG.PIXIV_BLOCKED_TAGS_FAST) break;
       }
     }
 
-    if (!result.blockedAI && !result.blockedTags.length) {
-      return false;
-    }
+    if (blockedUserId === null && !result.blockedAI && !result.blockedTags.length) return false;
 
-    if (CONFIG.PIXIV_BLOCK_AI && result.blockedAI) {
-      result.hint += 'AI-generated';
-    }
-
-    if (result.blockedTags.length) {
-      result.hint += `\nTags: ${result.blockedTags.join(', ')}`;
-    }
-
-    result.hint = result.hint.trim();
+    if (blockedUserId !== null) result.hint += `User ID: ${blockedUserId}`;
+    if (result.blockedAI) result.hint += `${result.hint ? '\n' : ''}AI-generated`;
+    if (result.blockedTags.length) result.hint += `${result.hint ? '\n' : ''}Tags: ${result.blockedTags.join(', ')}`;
     return result;
   };
 
@@ -3435,44 +3531,27 @@
     return true;
   };
 
-  const addImageArtist = async element => {
-    let userId = null;
-    let userName = null;
-
-    if (element.__vue__) {
-      const awaited = await waitFor(() => !element.__vue__._props?.item?.notLoaded, element);
-      if (!awaited) {
-        return false;
-      }
-
-      userId = element.__vue__._props.item.user_id;
-      userName = element.__vue__._props.item.author_details.user_name;
-    } else {
-      const reactPropsKey = Object.keys(element).find(k => k.startsWith('__reactProps'));
-      if (!reactPropsKey) {
-        return false;
-      }
-
-      for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
-        if (element[reactPropsKey].children?.props?.[key]) {
-          userId = element[reactPropsKey].children.props[key].userId;
-          userName = element[reactPropsKey].children.props[key].userName;
-          break;
-        }
-      }
+  const addImageArtist = (element, pixivData) => {
+    // Reuse metadata already extracted for blocking. If another artwork source
+    // supplied cached data without the author's name, check the card props.
+    const artist = {
+      userId: pixivData.userId ?? null,
+      userName: pixivData.userName ?? null
+    };
+    if (artist.userId === null || artist.userName === null) {
+      const fallback = extractArtistMetadata(element);
+      if (artist.userId === null) artist.userId = fallback.userId;
+      if (artist.userName === null) artist.userName = fallback.userName;
     }
-
-    if (!userId || !userName) {
-      return false;
-    }
+    if (artist.userId === null || !artist.userName) return false;
 
     const div = document.createElement('div');
     div.className = 'pixiv_utils_image_artist_container';
 
     const link = document.createElement('a');
     link.className = 'pixiv_utils_image_artist';
-    link.href = `https://www.pixiv.net/users/${encodeURIComponent(userId)}`;
-    link.textContent = userName;
+    link.href = `https://www.pixiv.net/users/${encodeURIComponent(artist.userId)}`;
+    link.textContent = artist.userName;
 
     div.append(link);
     element.append(div);
@@ -3623,20 +3702,23 @@
       return false;
     }
 
-    const artistTag = element.querySelector('a[href*="users/"]');
-    let hasVisibleArtistTag = Boolean(artistTag);
-    if (hasVisibleArtistTag && element.offsetParent !== null) {
-      // If the image itself is visible, but its built-in artist tag is not.
-      hasVisibleArtistTag = artistTag.offsetParent !== null;
-    }
+    if (!options.skipArtistTag) {
+      const artistTag = element.querySelector('a[href*="users/"]');
 
-    // Add artist tag if necessary.
-    if (!hasVisibleArtistTag &&
-      // never in mobile expanded view's artist bottom bar
-      !element.closest('.user-details-card ~ div .works-horizontal-list') &&
-      (currentUrl.indexOf('users/') === -1 || // never in artist page (except bookmarks tab)
-      (currentUrl.indexOf('users/') !== -1 && currentUrl.indexOf('/bookmarks') !== -1))) {
-      await addImageArtist(element);
+      let hasVisibleArtistTag = Boolean(artistTag);
+      // If the image itself is visible, but its built-in artist tag is not.
+      if (hasVisibleArtistTag && element.offsetParent !== null) {
+        hasVisibleArtistTag = artistTag.offsetParent !== null;
+      }
+
+      // Add artist tag if necessary.
+      if (!hasVisibleArtistTag &&
+        // never in mobile expanded view's artist bottom bar
+        !element.closest('.user-details-card ~ div .works-horizontal-list') &&
+        (currentUrl.indexOf('users/') === -1 || // never in artist page (except bookmarks tab)
+        (currentUrl.indexOf('users/') !== -1 && currentUrl.indexOf('/bookmarks') !== -1))) {
+        addImageArtist(element, pixivData);
+      }
     }
 
     if (imageControls) {
@@ -3864,7 +3946,7 @@
       // Re-process expanded view's artist bottom bar.
       const images = document.querySelectorAll(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE);
       for (const image of images) {
-        processNewElement(doImage, image, { forced: true });
+        processNewElement(doImage, image, { forced: true, skipArtistTag: true });
       }
 
       return true;
@@ -4373,7 +4455,7 @@
 
     // Expanded view's artist bottom images (always process immediately)
     sentinel.on(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE, element => {
-      doImage(element, { isHome, isOwnProfile });
+      doImage(element, { isHome, isOwnProfile, skipArtistTag: true });
     });
 
     // Multi View Entries
