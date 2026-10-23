@@ -161,7 +161,8 @@
 
     SELECTORS_IMAGE: [
       'ul > li:has(a[href*="artworks/"] img[src], a[href*="artworks/"] figure)', // desktop
-      'ul > div:has(a[href*="artworks/"] img[src]):not(:has(ul))',
+      'figcaption ul > div > div:has(a[href*="artworks/"] img[src])', // recommended works after bookmarking
+      'ul > div:not(.list-none):has(a[href*="artworks/"] img[src]):not(:has(ul, .gtm-illust-recommend-thumbnail-link))',
       'ul > li:has(a[href*="novel/"])', // desktop (novel)
       'nav:not([style]) > div:has(a[href*="artworks/"] img[src])',
       'nav:not([style]) > div:has(a[href*="novel/"])',
@@ -1375,7 +1376,9 @@
   const editorTag = value => Array.isArray(value)
     ? { value: value[0], regex: true, flags: value[1] || '' }
     : { value, regex: false, flags: '' };
-  const storedTag = value => value.regex ? [value.value, value.flags || ''] : value.value;
+  const storedTag = value => value.regex
+    ? [value.value, value.flags || '']
+    : value.value;
 
   const tagsToEditor = (value, highlighted = false) => {
     if (typeof value === 'string') value = value.split(',').map(s => s.trim()).filter(Boolean);
@@ -1873,7 +1876,9 @@
   // per-key storage and partial-import semantics are preserved.
   const validateBackupSettings = imported => {
     if (!isPlainObject(imported)) throw new TypeError(tr('backup.objectError'));
-    const get = key => Object.hasOwn(imported, key) ? imported[key] : GM_getValue(key, ENV_DEFAULTS[key]);
+    const get = key => Object.hasOwn(imported, key)
+      ? imported[key]
+      : GM_getValue(key, ENV_DEFAULTS[key]);
     const textRuleValid = value => typeof value === 'string' ||
       (Array.isArray(value) && value.length === 2 && typeof value[0] === 'string' &&
         typeof value[1] === 'string' && (() => {
@@ -3531,11 +3536,13 @@
 
   const extractImagePixivData = async element => {
     const data = {
+      id: null,
       title: null,
       ai: null,
       tags: null,
       createDate: null,
-      ...extractArtistMetadata(element)
+      userId: null,
+      userName: null
     };
 
     if (element.__vue__) {
@@ -3575,32 +3582,17 @@
           if (!obj || !obj.memoizedProps) return;
 
           step++;
-          let source = null;
 
           const props = obj.memoizedProps;
+          let source = null;
+
+          // Try known direct props.
           if (props.tags) {
             source = props;
+          } else if (props.content?.tags) {
+            source = props.content;
           } else if (props.content?.thumbnails?.length) {
             source = props.content.thumbnails[0];
-          } else if (props.children) {
-            let children = props.children;
-            if (!Array.isArray(children) || typeof children !== 'object') {
-              children = props.children.props?.children;
-            }
-            if (children) {
-              if (!Array.isArray(children)) children = [children];
-              for (const child of children) {
-                if (child.props?.thumbnail) {
-                  source = child.props.thumbnail;
-                  break;
-                } else if (child.props?.content) {
-                  // Rankings page may not supply an AI flag.
-                  source = child.props.content;
-                  if (source.thumbnails?.length) source = source.thumbnails[0];
-                  break;
-                }
-              }
-            }
           } else {
             for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
               if (props[key]) {
@@ -3610,8 +3602,31 @@
             }
           }
 
+          // Try children that may not be reflected in its deeper .child props.
+          if (source === null && props.children?.props?.children && Array.isArray(props.children?.props?.children)) {
+            for (const child of props.children.props.children) {
+              if (child.props?.thumbnail) {
+                source = child.props?.thumbnail;
+                break;
+              }
+            }
+          }
+
+          // Try alternative children that may not be reflected in its deeper .child props.
+          if (source === null && props.children && !Array.isArray(props.children)) {
+            if (props.children.props?.thumbnail) {
+              source = props.children.props.thumbnail;
+            } else if (props.children.props?.content) {
+              // Rankings page may not supply an AI flag.
+              source = props.children.props.content;
+              if (source.thumbnails?.length) source = source.thumbnails[0];
+            }
+          }
+
           if (source !== null) {
             readArtistMetadata(source, data);
+            const id = source.id ?? source.illust_id;
+            data.id = id == null ? null : String(id);
             data.title = source.title;
             data.ai = source.aiType == null ? null : source.aiType === 2;
             data.tags = source.tags;
@@ -4180,7 +4195,7 @@
 
     element.dataset.pixiv_utils_expanded_view_blocked = true;
 
-    setImageTitle(element, {
+    setImageTitle(obj.titleTarget, {
       data: obj.data,
       pixivData: obj.pixivData,
       footer: `Blocked by:\n${obj.options.hint}`
@@ -4202,6 +4217,8 @@
     }
 
     let blocked = false;
+
+    const titleTarget = image.querySelector(':is([role="presentation"], .work-main-image) :is(img, canvas)');
 
     const pixivData = await getImagePixivData(data.id, image, data.novel);
     if (pixivData) {
@@ -4229,6 +4246,7 @@
           });
 
           blocked = doBlockExpandedView(image, {
+            titleTarget,
             options: blockOpts,
             data,
             pixivData,
@@ -4243,7 +4261,7 @@
       }
 
       if (!blocked) {
-        setImageTitle(image, { data, pixivData, footer: footer.trim() });
+        setImageTitle(titleTarget, { data, pixivData, footer: footer.trim() });
       }
     }
 
