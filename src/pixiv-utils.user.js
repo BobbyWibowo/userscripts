@@ -285,7 +285,7 @@
       {
         selectorParent: ':is(div, section):has(> div:first-child > div:first-child > div:first-child > h2[font-size][color="text2"])',
         selectorHeader: '& > div:has(> div:first-child > div:first-child > h2[font-size][color="text2"]):has(> div:first-child > div:first-child span)',
-        selectorImagesContainer: '& > div:has(> div:first-child > div:first-child > h2[font-size][color="text2"]):has(> div:first-child > div:first-child span) ~ :has(a[href*="artworks/"]:not([href*="users/"]), a[href*="novel/"]:not([href*="users/"]))',
+        selectorImagesContainer: '& > div:has(> div:first-child > div:first-child > h2[font-size][color="text2"]):has(> div:first-child > div:first-child span) ~ div:has(a[href*="artworks/"]:not([href*="users/"]), a[href*="novel/"]:not([href*="users/"]))',
         sanityCheck: () => {
           // Skip if in own profile.
           return document.querySelector('a[href*="settings/profile"]');
@@ -3403,7 +3403,7 @@
     bottom: 15px;
   }
 
-  :not(#higher_specificity) :has(> .pixiv_utils_image_artist_container) {
+  :not(#higher_specificity) :is(li, div):has(> .pixiv_utils_image_artist_container) {
     position: relative !important;
   }
 
@@ -3530,7 +3530,7 @@
     }
   }
 
-  :not(#higher_specificity) :has(+ .pixiv_utils_blocked_image_container) {
+  :not(#higher_specificity) :is(div, a):has(+ .pixiv_utils_blocked_image_container) {
     display: none !important;
   }
 
