@@ -3421,7 +3421,6 @@
     box-sizing: border-box;
     padding: 0px 8px;
     border-radius: 10px;
-    font-weight: bold;
     font-size: 14px;
     line-height: 20px;
     height: 20px;
@@ -3610,11 +3609,11 @@
     width: 0;
   }
 
-  [data-pixiv_utils_expanded_view_blocked] :is([role="presentation"], .work-main-image) :is(img, canvas) {
+  [data-pixiv_utils_expanded_view_blocked] :is([role="presentation"], .swipe-detector) :is(img, canvas) {
     filter: blur(32px);
   }
 
-  [data-pixiv_utils_expanded_view_blocked] :is([role="presentation"], .work-main-image):hover :is(img, canvas) {
+  [data-pixiv_utils_expanded_view_blocked] :is([role="presentation"], .swipe-detector):hover :is(img, canvas) {
     filter: unset;
   }
   `;
@@ -4548,7 +4547,7 @@
 
     let blocked = false;
 
-    const titleTarget = image.querySelector(':is([role="presentation"], .work-main-image) :is(img, canvas)');
+    const titleTarget = image.querySelector('figure, .swipe-detector');
 
     const pixivData = await getImagePixivData(data.id, image, data.novel);
     if (pixivData) {
@@ -4571,7 +4570,7 @@
         if (blockOpts) {
           // Only block image if not bookmarked, or optionally, not highlighted.
           const skipReason = getImageBlockSkipReason({
-            bookmarked: isImageBookmarked(image),
+            bookmarked: isImageBookmarked(element),
             highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
           });
 
@@ -4596,7 +4595,7 @@
 
     // Init MutationObserver for dynamic expanded view.
     if (image.__vue__) {
-      const target = image.querySelector('.work-main-image');
+      const target = image.querySelector('.swipe-detector');
       if (!image.dataset.pixiv_utils_last_id) {
         initElementObserver(target, mutations => {
           const _data = findItemData(target, true);
