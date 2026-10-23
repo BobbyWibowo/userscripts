@@ -38,11 +38,8 @@
   });
 
   const _log = (prefix, message, ...args) => {
-    if (typeof message === 'string') {
-      return console.log(prefix + message, ...args);
-    } else {
-      return console.log(prefix, message, ...args);
-    }
+    if (typeof message === 'string') return console.log(prefix + message, ...args);
+    return console.log(prefix, message, ...args);
   };
 
   const tlog = (...args) => _log(`[${_LOG_TIME_FORMAT.format(Date.now())}]: `, ...args);
@@ -188,8 +185,7 @@
     SELECTORS_IMAGE_ARTIST_AVATAR: [
       'div > a[href*="users/"]:has(> div > img)', // desktop
       '._user-icon', // rankings page
-      '[data-ga4-label="user_icon_link"]', // home's recommended works grid
-      '._user-icon' // rankings page
+      '[data-ga4-label="user_icon_link"]' // home's recommended works grid
     ],
 
     SELECTORS_IMAGE_AUXILIARY_ELEMENTS: [
@@ -1175,15 +1171,13 @@
   const settingsPanelTitle = () => `${tr('settingsTitle')} v${GM_info.script.version}`;
 
   const _DOCUMENT_FRAGMENT = document.createDocumentFragment();
-  const queryCheck = selector => _DOCUMENT_FRAGMENT.querySelector(selector);
-
   const isSelectorValid = selector => {
     try {
-      queryCheck(selector);
+      _DOCUMENT_FRAGMENT.querySelector(selector);
+      return true;
     } catch {
       return false;
     }
-    return true;
   };
 
   const CONFIG = {};
@@ -1412,7 +1406,7 @@
       // Preserve selector arrays across edits and reordering; never reformat CSS commas.
       const matching = Array.isArray(previous) && previous.find(item =>
         Array.isArray(item[key]) && item[key].join('\n') === entry[key]);
-      return [key, matching || lines.length > 1 ? lines : lines.join(', ')];
+      return [key, (matching || lines.length > 1) ? lines : lines.join(', ')];
     })));
   };
   const utagsToEditor = value => (Array.isArray(value)
@@ -1718,8 +1712,12 @@
         field.description = tr('field.languageInfo');
       } else if (key.startsWith('TEXT_')) {
         Object.assign(field, localizedTextField(key));
-      } else if (typeof fallback === 'boolean') field.type = 'checkbox';
-      else if (typeof fallback === 'number') { field.type = 'number'; field.min = 0; } else if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
+      } else if (typeof fallback === 'boolean') {
+        field.type = 'checkbox';
+      } else if (typeof fallback === 'number') {
+        field.type = 'number';
+        field.min = 0;
+      } else if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
         const highlighted = key === 'PIXIV_HIGHLIGHTED_TAGS';
         field.type = 'list';
         field.addLabel = tr(highlighted ? 'rule.addGroup' : 'rule.add');
@@ -1755,14 +1753,13 @@
               }
             }
           : tagRuleSchema();
-        field.validate = value => validateTagRules(value, highlighted,
-          Boolean(document.querySelector('.gc-p')
-            ? (key === 'PIXIV_BLOCKED_TAGS'
-                ? document.querySelector('.gc-p input[id="PIXIV_BLOCKED_TAGS_COMBINE_REGEXES"]')?.checked
-                : document.querySelector('.gc-p input[id="PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES"]')?.checked)
-            : ENV[key === 'PIXIV_BLOCKED_TAGS'
-              ? 'PIXIV_BLOCKED_TAGS_COMBINE_REGEXES'
-              : 'PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES']));
+        const combineKey = `${key}_COMBINE_REGEXES`;
+        field.validate = value => {
+          const combine = document.querySelector('.gc-p')
+            ? document.querySelector(`.gc-p input[id="${combineKey}"]`)?.checked
+            : ENV[combineKey];
+          return validateTagRules(value, highlighted, Boolean(combine));
+        };
         field.description = tr('rule.regexInfo');
       } else if (key === 'DATE_CONVERSION_OPTIONS') {
         Object.assign(field, dateOptionsField);
@@ -1833,7 +1830,8 @@
         field.description = tr('utags.info');
         field.validate = value => value.some(entry => !entry.value?.trim()) ? tr('validation.string') : '';
       } else if (key.startsWith('SELECTORS_')) {
-        field.type = 'textarea'; field.rows = 3;
+        field.type = 'textarea';
+        field.rows = 3;
       } else if (typeof fallback === 'string') {
         field.type = 'text';
         if (key === 'PIXIV_HIGHLIGHTED_COLOR') {
@@ -1841,8 +1839,16 @@
           field.placeholder = ENV_DEFAULTS.PIXIV_HIGHLIGHTED_COLOR;
         }
       } else {
-        field.type = 'textarea'; field.rows = 5;
-        field.validate = value => { try { JSON.parse(value); } catch (e) { return e.message; } return ''; };
+        field.type = 'textarea';
+        field.rows = 5;
+        field.validate = value => {
+          try {
+            JSON.parse(value);
+            return '';
+          } catch (error) {
+            return error.message;
+          }
+        };
       }
       if (key === 'TEXT_TOGGLE_BOOKMARKED') field.description = tr('field.bookmarkFilterTextInfo');
       if (key === 'ENABLE_KEYBINDS') field.description = tr('field.keybindInfo');
@@ -1871,11 +1877,21 @@
     const get = key => Object.hasOwn(imported, key)
       ? imported[key]
       : getSetting(key);
-    const textRuleValid = value => typeof value === 'string' ||
-      (Array.isArray(value) && value.length === 2 && typeof value[0] === 'string' &&
-        typeof value[1] === 'string' && (() => {
-        try { RegExp(value[0], value[1]); return true; } catch { return false; }
-      })());
+    const textRuleValid = value => {
+      if (typeof value === 'string') return true;
+      if (!Array.isArray(value) || value.length !== 2 ||
+        typeof value[0] !== 'string' || typeof value[1] !== 'string') return false;
+      try {
+        RegExp(value[0], value[1]);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const validSectionSelector = value => typeof value === 'string'
+      ? Boolean(value.trim())
+      : Array.isArray(value) && value.length > 0 &&
+      value.every(selector => typeof selector === 'string' && Boolean(selector.trim()));
     const validateTagArray = (key, value, highlighted) => {
       if (value === null) return;
       // Keep compatibility with legacy comma-separated custom-tag settings.
@@ -1929,9 +1945,7 @@
       } else if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
         if (value !== null && (!Array.isArray(value) || !value.every(section =>
           isPlainObject(section) && sectionSelectorKeys.every(name =>
-            (typeof section[name] === 'string' && section[name].trim()) ||
-            (Array.isArray(section[name]) && section[name].length > 0 &&
-              section[name].every(selector => typeof selector === 'string' && selector.trim())))))) {
+            validSectionSelector(section[name]))))) {
           throw new TypeError(`${key}: expected sections containing all three selectors.`);
         }
       } else if (key.startsWith('SELECTORS_')) {
@@ -2423,14 +2437,32 @@
 
   GM_addStyle(/*css*/`
     /* gmConfig's .gc-c uses width:100%; account for padding and borders. */
-    .gc-p, .gc-p * { box-sizing: border-box; }
+    .gc-p, .gc-p * {
+      box-sizing: border-box;
+    }
     .gc-p .gc-c, .gc-p input[type="text"], .gc-p textarea,
-    .gc-p select, .gc-p .pixiv-utils-backup textarea { max-width: 100%; }
+    .gc-p select, .gc-p .pixiv-utils-backup textarea {
+      max-width: 100%;
+    }
     /* Keep the outer dialog height constant across tabs; scroll only its content. */
-    .gc-p { height: min(740px, calc(100dvh - 40px)); max-height: calc(100dvh - 40px); }
-    .gc-p.gc-p > form { height: 100%; min-height: 0; max-height: none; }
-    .gc-p .gc-hd, .gc-p .gc-f { flex: 0 0 auto; }
-    .gc-p .gc-b { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+    .gc-p {
+      height: min(740px, calc(100dvh - 40px));
+      max-height: calc(100dvh - 40px);
+    }
+    .gc-p.gc-p > form {
+      height: 100%;
+      min-height: 0;
+      max-height: none;
+    }
+    .gc-p .gc-hd, .gc-p .gc-f {
+      flex: 0 0 auto;
+    }
+    .gc-p .gc-b {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
     .gc-p .gc-tb {
       flex: 0 0 auto;
       border-bottom: 0 !important;
@@ -2439,10 +2471,18 @@
     }
     .gc-p .gc-tb::before, .gc-p .gc-tb::after { content: none !important; }
     /* Rounded controls and list cards, without affecting input dimensions. */
-    .gc-p :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea, button) { border-radius: 5px; }
-    .gc-p :is(.gc-li, .gc-list, .gc-li-b) { border-radius: 7px; }
-    .gc-p :is(.gc-li-h, .gc-hd, .gc-f) { border-radius: 5px; }
-    .gc-p :is(input, select, textarea, button):focus-visible { outline-offset: 2px; }
+    .gc-p :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea, button) {
+      border-radius: 5px;
+    }
+    .gc-p :is(.gc-li, .gc-list, .gc-li-b) {
+      border-radius: 7px;
+    }
+    .gc-p :is(.gc-li-h, .gc-hd, .gc-f) {
+      border-radius: 5px;
+    }
+    .gc-p :is(input, select, textarea, button):focus-visible {
+      outline-offset: 2px;
+    }
     /* Keep tab geometry stable; use a filled selected state instead of the
        active bottom underline, which clashed with gmConfig's tab strip. */
     .gc-p .gc-tb > button {
@@ -2455,7 +2495,9 @@
       background-color: rgba(128, 128, 128, 0.22) !important;
       box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.26) !important;
     }
-    .gc-p .gc-tb + .gc-b { border-top: 0 !important; }
+    .gc-p .gc-tb + .gc-b {
+      border-top: 0 !important;
+    }
     .gc-p .pixiv-utils-section-heading {
       margin: 10px 0 3px;
       font-size: 14px;
@@ -2469,7 +2511,9 @@
       border-left: 2px solid rgba(128, 128, 128, 0.38);
       background: rgba(128, 128, 128, 0.055);
     }
-    .gc-p .gc-g:has(#ENABLE_KEYBINDS) .gc-h { white-space: pre-line; }
+    .gc-p .gc-g:has(#ENABLE_KEYBINDS) .gc-h {
+      white-space: pre-line;
+    }
     .gc-p .pixiv-utils-settings-divider {
       border-top: 1px solid currentColor;
       opacity: 0.2;
@@ -2482,15 +2526,30 @@
       margin: 0 0 5px;
     }
     .gc-p .gc-g, .gc-p .gc-li-b, .gc-p .gc-list,
-    .gc-p .gc-list-items { min-width: 0; max-width: 100%; }
+    .gc-p .gc-list-items {
+      min-width: 0;
+      max-width: 100%;
+    }
     .gc-p .gc-li-b > .gc-r .gc-g:has(input[id$="_regex"]) .gc-ck {
       /* Match the label height of neighboring textboxes before the checkbox. */
       padding-top: 23px;
       align-items: center;
     }
-    .gc-p .pixiv-utils-text-editor { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-    .gc-p .pixiv-utils-empty-override { display: flex; align-items: center; gap: 7px; font-size: 12px; }
-    .gc-p .pixiv-utils-empty-override input { width: auto; }
+    .gc-p .pixiv-utils-text-editor {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      min-width: 0;
+    }
+    .gc-p .pixiv-utils-empty-override {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+    }
+    .gc-p .pixiv-utils-empty-override input {
+      width: auto;
+    }
 
     .gc-p .pixiv-utils-date-editor {
       display: grid;
@@ -2526,9 +2585,15 @@
     .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) > .gc-g {
       min-width: 0;
     }
-    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_value"]) { grid-column: 1; }
-    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_regex"]) { grid-column: 2; }
-    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_flags"]) { grid-column: 3; }
+    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_value"]) {
+      grid-column: 1;
+    }
+    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_regex"]) {
+      grid-column: 2;
+    }
+    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_flags"]) {
+      grid-column: 3;
+    }
     .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) .gc-c {
       min-width: 0;
       box-sizing: border-box;
@@ -2544,8 +2609,12 @@
       background: transparent;
     }
     /* Native modal backdrop dims Pixiv without covering the settings UI. */
-    dialog.gc-p::backdrop { background: rgba(0, 0, 0, 0.56); }
-    .gc-p .gc-li-h > .gc-li-t { min-width: 0; }
+    dialog.gc-p::backdrop {
+      background: rgba(0, 0, 0, 0.56);
+    }
+    .gc-p .gc-li-h > .gc-li-t {
+      min-width: 0;
+    }
     .gc-p .pixiv-utils-list-position {
       width: 48px; min-width: 0; padding: 3px 2px;
       margin-right: 6px;
@@ -2556,20 +2625,45 @@
       border: 0; padding: 2px 5px; background: transparent;
       cursor: grab; touch-action: none; user-select: none;
     }
-    .gc-p .pixiv-utils-drag-handle:active { cursor: grabbing; }
-    .gc-p .pixiv-utils-dragging { opacity: 0.55; }
-    .gc-p .pixiv-utils-drop-before { box-shadow: inset 0 3px 0 var(--gc-a, #888); }
-    .gc-p .pixiv-utils-drop-after { box-shadow: inset 0 -3px 0 var(--gc-a, #888); }
-    .gc-p .pixiv-utils-nested-collapsed > .gc-list { display: none; }
-    .gc-p .pixiv-utils-backup { display: flex; flex-direction: column; gap: 10px; }
-    .gc-p .pixiv-utils-backup p { margin: 0; }
+    .gc-p .pixiv-utils-drag-handle:active {
+      cursor: grabbing;
+    }
+    .gc-p .pixiv-utils-dragging {
+      opacity: 0.55;
+    }
+    .gc-p .pixiv-utils-drop-before {
+      box-shadow: inset 0 3px 0 var(--gc-a, #888);
+    }
+    .gc-p .pixiv-utils-drop-after {
+      box-shadow: inset 0 -3px 0 var(--gc-a, #888);
+    }
+    .gc-p .pixiv-utils-nested-collapsed > .gc-list {
+      display: none;
+    }
+    .gc-p .pixiv-utils-backup {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .gc-p .pixiv-utils-backup p {
+      margin: 0;
+    }
     .gc-p .pixiv-utils-backup textarea {
       width: 100%; min-height: 260px; box-sizing: border-box;
       font: 12px/1.5 monospace; resize: vertical;
     }
-    .gc-p .pixiv-utils-backup-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
-    .gc-p .pixiv-utils-backup-buttons button { padding: 5px 9px; cursor: pointer; }
-    .gc-p .gc-f > .gc-h button { cursor: pointer; }
+    .gc-p .pixiv-utils-backup-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .gc-p .pixiv-utils-backup-buttons button {
+      padding: 5px 9px;
+      cursor: pointer;
+    }
+    .gc-p .gc-f > .gc-h button {
+      cursor: pointer;
+    }
     @media (max-width: 640px) {
       .gc-p {
         position: fixed; inset: 0; margin: 0;
@@ -2577,39 +2671,80 @@
         height: 100dvh; max-height: 100dvh;
         border-radius: 0;
       }
-      .gc-p > form { width: 100%; }
-      .gc-p .gc-hd { padding: 10px 12px; padding-top: max(10px, env(safe-area-inset-top)); }
-      .gc-p .gc-b { padding: 10px 12px; }
-      .gc-p .gc-tb { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
-      .gc-p .gc-tb > button { flex: 0 0 auto; white-space: nowrap; }
+      .gc-p > form {
+        width: 100%;
+      }
+      .gc-p .gc-hd {
+        padding: 10px 12px;
+        padding-top: max(10px, env(safe-area-inset-top));
+      }
+      .gc-p .gc-b {
+        padding: 10px 12px;
+      }
+      .gc-p .gc-tb {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+      }
+      .gc-p .gc-tb > button {
+        flex: 0 0 auto;
+        white-space: nowrap;
+      }
       .gc-p .gc-f {
         flex-wrap: wrap; gap: 6px; padding: 8px 12px;
         padding-bottom: max(8px, env(safe-area-inset-bottom));
       }
-      .gc-p .gc-f button { min-height: 34px; }
-      .gc-p .gc-f > .gc-h { margin-right: auto; }
-      .gc-p .pixiv-utils-date-editor { grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); }
-      .gc-p .gc-li { padding: 6px; }
+      .gc-p .gc-f button {
+        min-height: 34px;
+      }
+      .gc-p .gc-f > .gc-h {
+        margin-right: auto;
+      }
+      .gc-p .pixiv-utils-date-editor {
+        grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+      }
+      .gc-p .gc-li {
+        padding: 6px;
+      }
       .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
         grid-template-columns: minmax(0, 1fr) 65px 51px;
         gap: 5px;
       }
-      .gc-p .gc-r > .gc-g { min-width: 0; }
+      .gc-p .gc-r > .gc-g {
+        min-width: 0;
+      }
       .gc-p .gc-c, .gc-p .pixiv-utils-date-editor :is(input, select),
-      .gc-p .pixiv-utils-backup textarea { font-size: 16px; }
-      .gc-p .gc-li-h { flex-wrap: wrap; }
-      .gc-p .pixiv-utils-backup-buttons { align-items: stretch; }
-      .gc-p .pixiv-utils-backup-buttons button { min-height: 36px; }
+      .gc-p .pixiv-utils-backup textarea {
+        font-size: 16px;
+      }
+      .gc-p .gc-li-h {
+        flex-wrap: wrap;
+      }
+      .gc-p .pixiv-utils-backup-buttons {
+        align-items: stretch;
+      }
+      .gc-p .pixiv-utils-backup-buttons button {
+        min-height: 36px;
+      }
     }
     @media (max-width: 400px) {
       /* Nested colored groups cannot fit three same-row controls on small phones. */
       .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
         grid-template-columns: minmax(0, 1fr) 62px;
       }
-      .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_value"]) { grid-column: 1 / -1; }
-      .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_regex"]) { grid-column: 1; }
-      .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_flags"]) { grid-column: 2; }
-      .gc-p .gc-li-b > .gc-r .gc-g:has(input[id$="_regex"]) .gc-ck { padding-top: 0; }
+      .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_value"]) {
+        grid-column: 1 / -1;
+      }
+      .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_regex"]) {
+        grid-column: 1;
+      }
+      .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_flags"]) {
+        grid-column: 2;
+      }
+      .gc-p .gc-li-b > .gc-r .gc-g:has(input[id$="_regex"]) .gc-ck {
+        padding-top: 0;
+      }
     }
   `);
 
@@ -2879,7 +3014,7 @@
   logDebug('SELECTORS_UTAGS =', SELECTORS_UTAGS);
 
   let currentUrl = new URL(window.location.href, window.location.origin).href;
-  const notify = (method, url) => {
+  const notify = url => {
     const newUrl = new URL(url || window.location.href, window.location.origin).href;
     if (currentUrl !== newUrl) {
       const event = new CustomEvent('detectnavigate');
@@ -2890,7 +3025,7 @@
 
   if (window.onurlchange === null) {
     window.addEventListener('urlchange', event => {
-      notify('urlchange', event.url);
+      notify(event.url);
     });
     logDebug('Using window.onurlchange.');
   } else {
@@ -2899,12 +3034,12 @@
       oldMethods[method] = history[method];
       history[method] = function (...args) {
         oldMethods[method].apply(this, args);
-        notify(method, args[2]);
+        notify(args[2]);
       };
     });
 
     window.addEventListener('popstate', event => {
-      notify(event.type);
+      notify();
     });
     logDebug('Using window.onurlchange polyfill.');
   }
@@ -2941,11 +3076,9 @@
   /** MAIN STYLES **/
 
   const formatChildSelector = (parentSelector, childSelector) => {
-    let child = childSelector;
-    if (childSelector.startsWith('&')) {
-      child = childSelector.substring(1).trimStart();
-    }
-
+    const child = childSelector.startsWith('&')
+      ? childSelector.slice(1).trimStart()
+      : childSelector;
     return `:is(${parentSelector}) ${child}`;
   };
 
@@ -2953,14 +3086,8 @@
     const multiViews = CONFIG.SELECTORS_MULTI_VIEW.split(', ');
     const multiViewsControls = CONFIG.SELECTORS_MULTI_VIEW_CONTROLS.split(', ');
 
-    const formatted = [];
-    for (const parent of multiViews) {
-      for (const child of multiViewsControls) {
-        formatted.push(formatChildSelector(parent, child));
-      }
-    }
-
-    return formatted;
+    return multiViews.flatMap(parent =>
+      multiViewsControls.map(child => formatChildSelector(parent, child)));
   };
 
   const _SELECTORS_IMAGE_CONTROLS = CONFIG.SELECTORS_IMAGE_CONTROLS.split(', ');
@@ -3420,55 +3547,29 @@
     return buttonContainer;
   };
 
-  const findArtworkUrl = element => {
-    return element.querySelector('a[href*="artworks/"]');
-  };
-
-  const findIllustUrl = element => {
-    return element.querySelector('a[href*="illust_id="]');
-  };
-
-  const findNovelUrl = element => {
-    return element.querySelector('a[href*="novel/show.php?id="]');
-  };
-
-  const findNovelSeriesUrl = element => {
-    return element.querySelector('a[href*="novel/series/"]');
-  };
-
-  const findIllustImg = element => {
-    return element.querySelector('img[src*="_p0"]');
-  };
+  // Ordered by priority; IMG SRCs are only considered where explicitly requested.
+  const ITEM_SOURCES = [
+    { selector: 'img[src*="_p0"]', regex: /\/(\d+)(-[a-z0-9]+)?_p0/, img: true },
+    { selector: 'a[href*="artworks/"]', regex: /artworks\/(\d+)/ },
+    { selector: 'a[href*="illust_id="]', regex: /illust_id=(\d+)/ },
+    { selector: 'a[href*="novel/show.php?id="]', regex: /novel\/show\.php\?id=(\d+)/, novel: true },
+    { selector: 'a[href*="novel/series/"]', regex: /novel\/series\/(\d+)/, novel: true }
+  ];
 
   const findItemData = (element, tryImg = false) => {
-    const methods = [
-      { func: findIllustImg, regex: /\/(\d+)(-[a-z0-9]+)?_p0/, img: true },
-      { func: findArtworkUrl, regex: /artworks\/(\d+)/ },
-      { func: findIllustUrl, regex: /illust_id=(\d+)/ },
-      { func: findNovelUrl, regex: /novel\/show\.php\?id=(\d+)/, novel: true },
-      { func: findNovelSeriesUrl, regex: /novel\/series\/(\d+)/, novel: true }
-    ];
-
     const result = {
       id: null,
       novel: false
     };
 
-    for (const method of methods) {
-      if (method.img && !tryImg) {
-        continue;
-      }
+    for (const method of ITEM_SOURCES) {
+      if (method.img && !tryImg) continue;
 
-      const found = method.func(element);
+      const found = element.querySelector(method.selector);
       if (found) {
-        let value = '';
-        if (method.img) {
-          value = found.src;
-          result.img = found;
-        } else {
-          value = found.href;
-          result.link = found;
-        }
+        const value = method.img ? found.src : found.href;
+        if (method.img) result.img = found;
+        else result.link = found;
 
         const match = value.match(method.regex);
         if (match) {
@@ -3693,29 +3794,15 @@
   };
 
   const setImageTitle = (element, options = {}) => {
-    let title = '';
+    const { pixivData, footer } = options;
+    const lines = [];
+    if (pixivData.title) lines.push(pixivData.title);
+    if (pixivData.ai) lines.push('AI-generated');
+    if (pixivData.tags.length) lines.push(pixivData.tags.join(', '));
+    if (pixivData.createDate) lines.push(pixivData.createDate);
+    if (footer) lines.push(footer);
 
-    if (options.pixivData.title) {
-      title += options.pixivData.title;
-    }
-
-    if (options.pixivData.ai) {
-      title += '\nAI-generated';
-    }
-
-    if (options.pixivData.tags.length) {
-      title += `\n${options.pixivData.tags.join(', ')}`;
-    }
-
-    if (options.pixivData.createDate) {
-      title += `\n${options.pixivData.createDate}`;
-    }
-
-    if (options.footer) {
-      title += `\n${options.footer}`;
-    }
-
-    title = title.trim();
+    const title = lines.join('\n').trim();
 
     if (!title.length) {
       delete element.dataset.pixiv_utils_tooltip;
@@ -3902,7 +3989,6 @@
 
     if (status) {
       setImageTitle(element, {
-        data: obj.data,
         pixivData: obj.pixivData,
         footer: `Blocked by:\n${obj.options.hint}`
       });
@@ -4050,7 +4136,7 @@
       }
     }
 
-    setImageTitle(element, { data, pixivData, footer: footer.trim() });
+    setImageTitle(element, { pixivData, footer: footer.trim() });
 
     // Exit early if in own profile, and not in bookmarks tab.
     if (options.isOwnProfile && currentUrl.indexOf('/bookmarks') === -1) {
@@ -4097,7 +4183,7 @@
         // never in mobile expanded view's artist bottom bar
         !element.closest('.user-details-card ~ div .works-horizontal-list') &&
         (currentUrl.indexOf('users/') === -1 || // never in artist page (except bookmarks tab)
-        (currentUrl.indexOf('users/') !== -1 && currentUrl.indexOf('/bookmarks') !== -1))) {
+          (currentUrl.indexOf('users/') !== -1 && currentUrl.indexOf('/bookmarks') !== -1))) {
         addImageArtist(element, pixivData);
       }
     }
@@ -4172,7 +4258,7 @@
           }
         }
 
-        setImageTitle(element, { data, pixivData, footer });
+        setImageTitle(element, { pixivData, footer });
       }
     }
 
@@ -4207,7 +4293,6 @@
     element.dataset.pixiv_utils_expanded_view_blocked = true;
 
     setImageTitle(obj.titleTarget, {
-      data: obj.data,
       pixivData: obj.pixivData,
       footer: `Blocked by:\n${obj.options.hint}`
     });
@@ -4259,7 +4344,6 @@
           blocked = doBlockExpandedView(image, {
             titleTarget,
             options: blockOpts,
-            data,
             pixivData,
             skipReason: skipReason.join(', ')
           });
@@ -4272,7 +4356,7 @@
       }
 
       if (!blocked) {
-        setImageTitle(titleTarget, { data, pixivData, footer: footer.trim() });
+        setImageTitle(titleTarget, { pixivData, footer: footer.trim() });
       }
     }
 
@@ -4357,7 +4441,7 @@
   };
 
   let toggling = false;
-  const toggleBookmarked = (button, parent, header, imagesContainer, options = {}) => {
+  const toggleBookmarked = (button, imagesContainer, options = {}) => {
     if (toggling) {
       return false;
     }
@@ -4380,27 +4464,14 @@
 
     updateToggleBookmarkedButton(button, toggleBookmarkedMode);
 
-    const images = Array.from(imagesContainer.querySelectorAll(CONFIG.SELECTORS_IMAGE));
-
-    if (toggleBookmarkedMode === 0) {
-      for (const image of images) {
-        delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
-      }
-    } else if (toggleBookmarkedMode === 1) {
-      for (const image of images) {
-        if (image.dataset.pixiv_utils_blocked || isImageBookmarked(image)) {
-          image.dataset.pixiv_utils_toggle_bookmarked_hide = true;
-        } else {
-          delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
-        }
-      }
-    } else if (toggleBookmarkedMode === 2) {
-      for (const image of images) {
-        if (image.dataset.pixiv_utils_blocked || !isImageBookmarked(image)) {
-          image.dataset.pixiv_utils_toggle_bookmarked_hide = true;
-        } else {
-          delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
-        }
+    // Invalid stored modes should not modify the current filter state.
+    if (Number.isInteger(toggleBookmarkedMode)) {
+      for (const image of imagesContainer.querySelectorAll(CONFIG.SELECTORS_IMAGE)) {
+        const hide = toggleBookmarkedMode !== 0 &&
+        (Boolean(image.dataset.pixiv_utils_blocked) ||
+          (toggleBookmarkedMode === 1 ? isImageBookmarked(image) : !isImageBookmarked(image)));
+        if (hide) image.dataset.pixiv_utils_toggle_bookmarked_hide = true;
+        else delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
       }
     }
 
@@ -4466,7 +4537,7 @@
     // Left click.
     button.addEventListener('click', event => {
       event.preventDefault();
-      toggleBookmarked(button, element, header, imagesContainer, {
+      toggleBookmarked(button, imagesContainer, {
         sync: event.shiftKey
       });
     });
@@ -4474,7 +4545,7 @@
     // Right click.
     button.addEventListener('contextmenu', event => {
       event.preventDefault();
-      toggleBookmarked(button, element, header, imagesContainer, {
+      toggleBookmarked(button, imagesContainer, {
         rightClick: true
       });
     });
@@ -4488,16 +4559,14 @@
     let tag = null;
 
     const tags = element.querySelectorAll('div[title]');
-    if (tags.length) {
-      for (let i = 0; i < tags.length; i++) {
-        const raw = tags[i].textContent;
-        // Break early if a title with hashtag (#) on its title is found
-        if (raw.startsWith('#')) {
-          tag = raw.substring(1);
-          break;
-        }
-        tag = raw;
+    for (const tagElement of tags) {
+      const raw = tagElement.textContent;
+      // Prefer the first hashtag. Otherwise keep the last candidate.
+      if (raw.startsWith('#')) {
+        tag = raw.slice(1);
+        break;
       }
+      tag = raw;
     }
 
     if (!tag) {
@@ -4516,21 +4585,15 @@
 
   const doRecommendedUser = element => {
     const artistLink = element.querySelector('a[href*="users/"]');
-    if (artistLink) {
-      const match = artistLink.href.match(/users\/(\d+)/);
-      if (match) {
-        const blocked = PIXIV_BLOCKED_USERS_SET.has(match[1]);
+    const match = artistLink?.href.match(/users\/(\d+)/);
+    if (!match) return false;
 
-        if (blocked) {
-          element.style.setProperty('display', 'none', 'important');
-          logDebug(`Recommended user removed (${match[1]})`);
-        }
-
-        return blocked;
-      }
+    const blocked = PIXIV_BLOCKED_USERS_SET.has(match[1]);
+    if (blocked) {
+      element.style.setProperty('display', 'none', 'important');
+      logDebug(`Recommended user removed (${match[1]})`);
     }
-
-    return false;
+    return blocked;
   };
 
   const doUtags = async (element, options) => {
@@ -4561,7 +4624,7 @@
 
       // Only block images if not in own profile, and not bookmarked.
       const skipReason = getImageBlockSkipReason({
-        isOwnProfile,
+        isOwnProfile: options.isOwnProfile,
         bookmarked: isImageBookmarked(image)
       });
 
@@ -4569,7 +4632,6 @@
 
       if (skipReason.length) {
         setImageTitle(image, {
-          data,
           pixivData,
           footer: `Blockable by:\nUTag: ${utag}` +
             `\nSkipped due to:\n${skipReason.join('\n')}`
@@ -4696,13 +4758,10 @@
   });
 
   const processNewElement = (func, element, options = {}) => {
-    if (isElementPassedOrVisible(element)) {
-      return func(element, options);
-    } else {
-      // If not in viewport, observe intersection.
-      element.pixiv_utils_intersection_observer = { func, options };
-      imagesIntersectionObserver.observe(element);
-    }
+    if (isElementPassedOrVisible(element)) return func(element, options);
+    // If not in viewport, observe intersection.
+    element.pixiv_utils_intersection_observer = { func, options };
+    imagesIntersectionObserver.observe(element);
   };
 
   /** SENTINEL */
