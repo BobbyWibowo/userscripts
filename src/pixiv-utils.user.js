@@ -2454,318 +2454,328 @@
     }
   };
 
-  GM_addStyle(/*css*/`
-    /* gmConfig's .gc-c uses width:100%; account for padding and borders. */
-    .gc-p, .gc-p * {
-      box-sizing: border-box;
-    }
-    .gc-p .gc-c, .gc-p input[type="text"], .gc-p textarea,
-    .gc-p select, .gc-p .pixiv-utils-backup textarea {
-      max-width: 100%;
-    }
-    /* Keep the outer dialog height constant across tabs; scroll only its content. */
+  const settingsStyle = /*css*/`
+  /* gmConfig's .gc-c uses width:100%; account for padding and borders. */
+  .gc-p, .gc-p * {
+    box-sizing: border-box;
+  }
+  .gc-p .gc-c, .gc-p input[type="text"], .gc-p textarea,
+  .gc-p select, .gc-p .pixiv-utils-backup textarea {
+    max-width: 100%;
+  }
+  /* Keep the outer dialog height constant across tabs; scroll only its content. */
+  .gc-p {
+    height: min(740px, calc(100dvh - 40px));
+    max-height: calc(100dvh - 40px);
+  }
+  .gc-p.gc-p > form {
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+  }
+  .gc-p .gc-hd, .gc-p .gc-f {
+    flex: 0 0 auto;
+  }
+  .gc-p .gc-b {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .gc-p .gc-tb {
+    flex: 0 0 auto;
+    border-bottom: 0 !important;
+    box-shadow: none !important;
+    background-image: none !important;
+  }
+  .gc-p .gc-tb::before, .gc-p .gc-tb::after { content: none !important; }
+  /* Rounded controls and list cards, without affecting input dimensions. */
+  .gc-p :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea, button) {
+    border-radius: 5px;
+  }
+  .gc-p :is(.gc-li, .gc-list, .gc-li-b) {
+    border-radius: 7px;
+  }
+  .gc-p :is(.gc-li-h, .gc-hd, .gc-f) {
+    border-radius: 5px;
+  }
+  .gc-p :is(input, select, textarea, button):focus-visible {
+    outline-offset: 2px;
+  }
+  /* Keep tab geometry stable; use a filled selected state instead of the
+     active bottom underline, which clashed with gmConfig's tab strip. */
+  .gc-p .gc-tb > button {
+    font-weight: 400 !important;
+    border-bottom: 0 !important;
+    box-shadow: none !important;
+    background-image: none !important;
+  }
+  .gc-p .gc-tb > button:is([aria-selected="true"], [data-active="true"], .active, .gc-a, .gc-ta) {
+    background-color: rgba(128, 128, 128, 0.22) !important;
+    box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.26) !important;
+  }
+  .gc-p .gc-tb + .gc-b {
+    border-top: 0 !important;
+  }
+  .gc-p .pixiv-utils-section-heading {
+    margin: 10px 0 3px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .gc-p .pixiv-utils-bookmark-state-field {
+    margin-inline-start: 12px;
+    padding-inline-start: 12px;
+    padding-block: 4px;
+    border-left: 2px solid rgba(128, 128, 128, 0.38);
+    background: rgba(128, 128, 128, 0.055);
+  }
+  .gc-p .gc-g:has(#ENABLE_KEYBINDS) .gc-h {
+    white-space: pre-line;
+  }
+  .gc-p .pixiv-utils-settings-divider {
+    border-top: 1px solid currentColor;
+    opacity: 0.2;
+    margin: 7px 0 4px;
+  }
+  .gc-p .pixiv-utils-global-note {
+    font-size: 12px;
+    line-height: 1.5;
+    opacity: 0.8;
+    margin: 0 0 5px;
+  }
+  .gc-p .gc-g, .gc-p .gc-li-b, .gc-p .gc-list,
+  .gc-p .gc-list-items {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .gc-p .gc-li-b > .gc-r .gc-g:has(input[id$="_regex"]) .gc-ck {
+    /* Match the label height of neighboring textboxes before the checkbox. */
+    padding-top: 23px;
+    align-items: center;
+  }
+  .gc-p .pixiv-utils-text-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+  }
+  .gc-p .pixiv-utils-empty-override {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+  }
+  .gc-p .pixiv-utils-empty-override input {
+    width: auto;
+  }
+
+  .gc-p .pixiv-utils-date-editor {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+  }
+  .gc-p .pixiv-utils-date-editor label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+  }
+  .gc-p .pixiv-utils-date-editor select,
+  .gc-p .pixiv-utils-date-editor input {
+    padding: 6px;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .gc-p .pixiv-utils-date-preview {
+    grid-column: 1 / -1;
+    font-size: 12px;
+    opacity: 0.85;
+    padding: 8px;
+  }
+  /* Keep rule editors proportional when the flags field is hidden. */
+  .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 78px 74px;
+    align-items: start;
+    gap: 8px;
+  }
+  .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) > .gc-g {
+    min-width: 0;
+  }
+  .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_value"]) {
+    grid-column: 1;
+  }
+  .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_regex"]) {
+    grid-column: 2;
+  }
+  .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_flags"]) {
+    grid-column: 3;
+  }
+  .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) .gc-c {
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .gc-p .pixiv-utils-collapse-group {
+    align-self: flex-start;
+    font: inherit;
+    font-size: 11px;
+    padding: 3px 8px;
+    cursor: pointer;
+    border: 1px solid;
+    border-radius: 4px;
+    background: transparent;
+  }
+  /* Native modal backdrop dims Pixiv without covering the settings UI. */
+  dialog.gc-p::backdrop {
+    background: rgba(0, 0, 0, 0.56);
+  }
+  .gc-p .gc-li-h > .gc-li-t {
+    min-width: 0;
+  }
+  .gc-p .pixiv-utils-list-position {
+    width: 48px; min-width: 0; padding: 3px 2px;
+    margin-right: 6px;
+    font: inherit; font-size: 12px; text-align: center;
+  }
+  .gc-p .pixiv-utils-drag-handle {
+    flex: 0 0 auto; font: inherit; font-size: 20px; line-height: 1;
+    border: 0; padding: 2px 5px; background: transparent;
+    cursor: grab; touch-action: none; user-select: none;
+  }
+  .gc-p .pixiv-utils-drag-handle:active {
+    cursor: grabbing;
+  }
+  .gc-p .pixiv-utils-dragging {
+    opacity: 0.55;
+  }
+  .gc-p .pixiv-utils-drop-before {
+    box-shadow: inset 0 3px 0 var(--gc-a, #888);
+  }
+  .gc-p .pixiv-utils-drop-after {
+    box-shadow: inset 0 -3px 0 var(--gc-a, #888);
+  }
+  .gc-p .pixiv-utils-nested-collapsed > .gc-list {
+    display: none;
+  }
+  .gc-p .pixiv-utils-backup {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .gc-p .pixiv-utils-backup p {
+    margin: 0;
+  }
+  .gc-p .pixiv-utils-backup textarea {
+    width: 100%; min-height: 260px; box-sizing: border-box;
+    font: 12px/1.5 monospace; resize: vertical;
+  }
+  .gc-p .pixiv-utils-backup-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .gc-p .pixiv-utils-backup-buttons button {
+    padding: 5px 9px;
+    cursor: pointer;
+  }
+  .gc-p .gc-f > .gc-h button {
+    cursor: pointer;
+  }
+  @media (max-width: 640px) {
     .gc-p {
-      height: min(740px, calc(100dvh - 40px));
-      max-height: calc(100dvh - 40px);
+      position: fixed; inset: 0; margin: 0;
+      width: 100vw !important; max-width: none !important;
+      height: 100dvh; max-height: 100dvh;
+      border-radius: 0;
     }
-    .gc-p.gc-p > form {
-      height: 100%;
-      min-height: 0;
-      max-height: none;
+    .gc-p > form {
+      width: 100%;
     }
-    .gc-p .gc-hd, .gc-p .gc-f {
-      flex: 0 0 auto;
+    .gc-p .gc-hd {
+      padding: 10px 12px;
+      padding-top: max(10px, env(safe-area-inset-top));
     }
     .gc-p .gc-b {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow-y: auto;
-      overflow-x: hidden;
+      padding: 10px 12px;
     }
     .gc-p .gc-tb {
-      flex: 0 0 auto;
-      border-bottom: 0 !important;
-      box-shadow: none !important;
-      background-image: none !important;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: thin;
     }
-    .gc-p .gc-tb::before, .gc-p .gc-tb::after { content: none !important; }
-    /* Rounded controls and list cards, without affecting input dimensions. */
-    .gc-p :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea, button) {
-      border-radius: 5px;
-    }
-    .gc-p :is(.gc-li, .gc-list, .gc-li-b) {
-      border-radius: 7px;
-    }
-    .gc-p :is(.gc-li-h, .gc-hd, .gc-f) {
-      border-radius: 5px;
-    }
-    .gc-p :is(input, select, textarea, button):focus-visible {
-      outline-offset: 2px;
-    }
-    /* Keep tab geometry stable; use a filled selected state instead of the
-       active bottom underline, which clashed with gmConfig's tab strip. */
     .gc-p .gc-tb > button {
-      font-weight: 400 !important;
-      border-bottom: 0 !important;
-      box-shadow: none !important;
-      background-image: none !important;
+      flex: 0 0 auto;
+      white-space: nowrap;
     }
-    .gc-p .gc-tb > button:is([aria-selected="true"], [data-active="true"], .active, .gc-a, .gc-ta) {
-      background-color: rgba(128, 128, 128, 0.22) !important;
-      box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.26) !important;
+    .gc-p .gc-f {
+      flex-wrap: wrap; gap: 6px; padding: 8px 12px;
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
     }
-    .gc-p .gc-tb + .gc-b {
-      border-top: 0 !important;
+    .gc-p .gc-f button {
+      min-height: 34px;
     }
-    .gc-p .pixiv-utils-section-heading {
-      margin: 10px 0 3px;
-      font-size: 14px;
-      font-weight: 600;
-      line-height: 1.35;
+    .gc-p .gc-f > .gc-h {
+      margin-right: auto;
     }
-    .gc-p .pixiv-utils-bookmark-state-field {
-      margin-inline-start: 12px;
-      padding-inline-start: 12px;
-      padding-block: 4px;
-      border-left: 2px solid rgba(128, 128, 128, 0.38);
-      background: rgba(128, 128, 128, 0.055);
-    }
-    .gc-p .gc-g:has(#ENABLE_KEYBINDS) .gc-h {
-      white-space: pre-line;
-    }
-    .gc-p .pixiv-utils-settings-divider {
-      border-top: 1px solid currentColor;
-      opacity: 0.2;
-      margin: 7px 0 4px;
-    }
-    .gc-p .pixiv-utils-global-note {
-      font-size: 12px;
-      line-height: 1.5;
-      opacity: 0.8;
-      margin: 0 0 5px;
-    }
-    .gc-p .gc-g, .gc-p .gc-li-b, .gc-p .gc-list,
-    .gc-p .gc-list-items {
-      min-width: 0;
-      max-width: 100%;
-    }
-    .gc-p .gc-li-b > .gc-r .gc-g:has(input[id$="_regex"]) .gc-ck {
-      /* Match the label height of neighboring textboxes before the checkbox. */
-      padding-top: 23px;
-      align-items: center;
-    }
-    .gc-p .pixiv-utils-text-editor {
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-      min-width: 0;
-    }
-    .gc-p .pixiv-utils-empty-override {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 12px;
-    }
-    .gc-p .pixiv-utils-empty-override input {
-      width: auto;
-    }
-
     .gc-p .pixiv-utils-date-editor {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
     }
-    .gc-p .pixiv-utils-date-editor label {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-size: 12px;
-    }
-    .gc-p .pixiv-utils-date-editor select,
-    .gc-p .pixiv-utils-date-editor input {
+    .gc-p .gc-li {
       padding: 6px;
-      min-width: 0;
-      width: 100%;
-      box-sizing: border-box;
     }
-    .gc-p .pixiv-utils-date-preview {
-      grid-column: 1 / -1;
-      font-size: 12px;
-      opacity: 0.85;
-      padding: 8px;
-    }
-    /* Keep rule editors proportional when the flags field is hidden. */
     .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 78px 74px;
-      align-items: start;
-      gap: 8px;
+      grid-template-columns: minmax(0, 1fr) 65px 51px;
+      gap: 5px;
     }
-    .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) > .gc-g {
+    .gc-p .gc-r > .gc-g {
       min-width: 0;
     }
-    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_value"]) {
-      grid-column: 1;
-    }
-    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_regex"]) {
-      grid-column: 2;
-    }
-    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_flags"]) {
-      grid-column: 3;
-    }
-    .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) .gc-c {
-      min-width: 0;
-      box-sizing: border-box;
-    }
-    .gc-p .pixiv-utils-collapse-group {
-      align-self: flex-start;
-      font: inherit;
-      font-size: 11px;
-      padding: 3px 8px;
-      cursor: pointer;
-      border: 1px solid;
-      border-radius: 4px;
-      background: transparent;
-    }
-    /* Native modal backdrop dims Pixiv without covering the settings UI. */
-    dialog.gc-p::backdrop {
-      background: rgba(0, 0, 0, 0.56);
-    }
-    .gc-p .gc-li-h > .gc-li-t {
-      min-width: 0;
-    }
-    .gc-p .pixiv-utils-list-position {
-      width: 48px; min-width: 0; padding: 3px 2px;
-      margin-right: 6px;
-      font: inherit; font-size: 12px; text-align: center;
-    }
-    .gc-p .pixiv-utils-drag-handle {
-      flex: 0 0 auto; font: inherit; font-size: 20px; line-height: 1;
-      border: 0; padding: 2px 5px; background: transparent;
-      cursor: grab; touch-action: none; user-select: none;
-    }
-    .gc-p .pixiv-utils-drag-handle:active {
-      cursor: grabbing;
-    }
-    .gc-p .pixiv-utils-dragging {
-      opacity: 0.55;
-    }
-    .gc-p .pixiv-utils-drop-before {
-      box-shadow: inset 0 3px 0 var(--gc-a, #888);
-    }
-    .gc-p .pixiv-utils-drop-after {
-      box-shadow: inset 0 -3px 0 var(--gc-a, #888);
-    }
-    .gc-p .pixiv-utils-nested-collapsed > .gc-list {
-      display: none;
-    }
-    .gc-p .pixiv-utils-backup {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .gc-p .pixiv-utils-backup p {
-      margin: 0;
-    }
+    .gc-p .gc-c, .gc-p .pixiv-utils-date-editor :is(input, select),
     .gc-p .pixiv-utils-backup textarea {
-      width: 100%; min-height: 260px; box-sizing: border-box;
-      font: 12px/1.5 monospace; resize: vertical;
+      font-size: 16px;
+    }
+    .gc-p .gc-li-h {
+      flex-wrap: wrap;
     }
     .gc-p .pixiv-utils-backup-buttons {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+      align-items: stretch;
     }
     .gc-p .pixiv-utils-backup-buttons button {
-      padding: 5px 9px;
-      cursor: pointer;
+      min-height: 36px;
     }
-    .gc-p .gc-f > .gc-h button {
-      cursor: pointer;
+  }
+  @media (max-width: 400px) {
+    /* Nested colored groups cannot fit three same-row controls on small phones. */
+    .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
+      grid-template-columns: minmax(0, 1fr) 62px;
     }
-    @media (max-width: 640px) {
-      .gc-p {
-        position: fixed; inset: 0; margin: 0;
-        width: 100vw !important; max-width: none !important;
-        height: 100dvh; max-height: 100dvh;
-        border-radius: 0;
-      }
-      .gc-p > form {
-        width: 100%;
-      }
-      .gc-p .gc-hd {
-        padding: 10px 12px;
-        padding-top: max(10px, env(safe-area-inset-top));
-      }
-      .gc-p .gc-b {
-        padding: 10px 12px;
-      }
-      .gc-p .gc-tb {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        overscroll-behavior-x: contain;
-        scrollbar-width: thin;
-      }
-      .gc-p .gc-tb > button {
-        flex: 0 0 auto;
-        white-space: nowrap;
-      }
-      .gc-p .gc-f {
-        flex-wrap: wrap; gap: 6px; padding: 8px 12px;
-        padding-bottom: max(8px, env(safe-area-inset-bottom));
-      }
-      .gc-p .gc-f button {
-        min-height: 34px;
-      }
-      .gc-p .gc-f > .gc-h {
-        margin-right: auto;
-      }
-      .gc-p .pixiv-utils-date-editor {
-        grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
-      }
-      .gc-p .gc-li {
-        padding: 6px;
-      }
-      .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
-        grid-template-columns: minmax(0, 1fr) 65px 51px;
-        gap: 5px;
-      }
-      .gc-p .gc-r > .gc-g {
-        min-width: 0;
-      }
-      .gc-p .gc-c, .gc-p .pixiv-utils-date-editor :is(input, select),
-      .gc-p .pixiv-utils-backup textarea {
-        font-size: 16px;
-      }
-      .gc-p .gc-li-h {
-        flex-wrap: wrap;
-      }
-      .gc-p .pixiv-utils-backup-buttons {
-        align-items: stretch;
-      }
-      .gc-p .pixiv-utils-backup-buttons button {
-        min-height: 36px;
-      }
+    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_value"]) {
+      grid-column: 1 / -1;
     }
-    @media (max-width: 400px) {
-      /* Nested colored groups cannot fit three same-row controls on small phones. */
-      .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
-        grid-template-columns: minmax(0, 1fr) 62px;
-      }
-      .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_value"]) {
-        grid-column: 1 / -1;
-      }
-      .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_regex"]) {
-        grid-column: 1;
-      }
-      .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_flags"]) {
-        grid-column: 2;
-      }
-      .gc-p .gc-li-b > .gc-r .gc-g:has(input[id$="_regex"]) .gc-ck {
-        padding-top: 0;
-      }
+    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_regex"]) {
+      grid-column: 1;
     }
-  `);
+    .gc-p .gc-li-b > .gc-r > .gc-g:has(input[id$="_flags"]) {
+      grid-column: 2;
+    }
+    .gc-p .gc-li-b > .gc-r .gc-g:has(input[id$="_regex"]) .gc-ck {
+      padding-top: 0;
+    }
+  }
+  `;
+
+  // Settings-only CSS is unnecessary until the user opens the panel.
+  // Keep it for the rest of this page session so reopening cannot add duplicates.
+  let settingsStyleAdded = false;
+  const addSettingsStyleOnce = () => {
+    if (settingsStyleAdded) return;
+
+    GM_addStyle(settingsStyle);
+    settingsStyleAdded = true;
+  };
 
   const localizePanelChrome = panel => {
     const dialog = panel._dlg;
@@ -2806,6 +2816,7 @@
       settingsUiLocale = resolveSettingsLocale(getSetting('SETTINGS_LANGUAGE'));
       await waitPageLoaded();
       const SettingsConstructor = await loadSettingsConstructor();
+      addSettingsStyleOnce();
       const panel = new SettingsConstructor();
       await panel.init(makeSettingsDefinitions(), {
         title: settingsPanelTitle(),
