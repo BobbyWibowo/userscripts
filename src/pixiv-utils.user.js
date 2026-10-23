@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bobby's Pixiv Utils
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.7.1
+// @version      1.7.2
 // @description  Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -3579,6 +3579,7 @@
         }
 
         readArtistMetadata(_data, data);
+        data.id = _data.id;
         data.title = _data.title;
         data.ai = _data.ai_type == null ? null : _data.ai_type === 2;
         data.tags = _data.tags;
