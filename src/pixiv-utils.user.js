@@ -5692,16 +5692,9 @@
     document.body.addEventListener('touchend', finishTouch);
     document.body.addEventListener('touchcancel', finishTouch);
 
-    // Never block the browser's native long-press context menu. It may open
-    // while the touch is held or after touchcancel; either way, close ours.
-    document.addEventListener('contextmenu', () => {
-      // Leave unrelated mouse-hover and keyboard-focus timers alone.
-      if (!touchGesture && activeMode !== 'touch') return;
-      if (touchGesture) rememberTouchClick(touchGesture.target, touchGesture.x, touchGesture.y);
-      clearPending();
-      touchGesture = null;
-      if (activeMode === 'touch') hideTooltip();
-    }, true);
+    // Native long-press context menus do not dismiss touch tooltips.
+    // touchend/touchcancel will finish the gesture but leave an opened tooltip
+    // visible until the user dismisses it normally.
 
     // Never leave a touch popover floating over content after scrolling.
     document.addEventListener('scroll', () => {
