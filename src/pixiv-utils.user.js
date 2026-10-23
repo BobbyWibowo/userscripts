@@ -3464,8 +3464,12 @@
     padding: 0 4px;
   }
 
-  :not(#higher_specificity) [data-pixiv_utils_toggle_bookmarked_hide] {
+  :not(#higher_specificity) :not(:is(${SELECTORS_IMAGE_MOBILE}))[data-pixiv_utils_toggle_bookmarked_hide] {
     display: none !important;
+  }
+
+  :not(#higher_specificity) :is(${SELECTORS_IMAGE_MOBILE})[data-pixiv_utils_toggle_bookmarked_hide] > * {
+    visibility: hidden !important;
   }
 
   ${_FILTERED_SELECTORS_IMAGE_CONTROLS} {
@@ -4282,6 +4286,8 @@
         element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
       } else if (toggleBookmarkedMode === 2 && !bookmarked) {
         element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
+      } else {
+        delete element.dataset.pixiv_utils_toggle_bookmarked_hide;
       }
     }
 
@@ -5124,6 +5130,8 @@
           if (!instance.reference.isConnected) return false;
           if (lastPointerType === 'mouse' && !cursorStationary &&
             !instance.reference.contains(document.activeElement)) return false;
+          // Do not show on items hidden by filter bookmarks.
+          if (instance.reference.dataset.pixiv_utils_toggle_bookmarked_hide) return false;
         }
       });
     }
