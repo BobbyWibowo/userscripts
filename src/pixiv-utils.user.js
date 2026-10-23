@@ -5313,11 +5313,6 @@
         cursor: pointer;
         touch-action: manipulation;
       }
-      /* On iOS, prevent the link/image callout that competes with long press.
-         This does not disable tapping, scrolling, or text selection globally. */
-      @media (hover: none) and (pointer: coarse) {
-        [data-pixiv_utils_tooltip] { -webkit-touch-callout: none; }
-      }
       .pixiv-utils-floating-tooltip[data-open] {
         animation: pixiv-utils-floating-enter 120ms ease-out both;
       }
@@ -5372,7 +5367,6 @@
     let mouseY = 0;
     let mouseTracking = false;
     let touchGesture = null;
-    let cancelledTouchForMenu = null;
     let suppressedTouchClick = null;
     let lastTouchAt = -Infinity;
     let stopPositioning = null;
@@ -5415,7 +5409,6 @@
       stopMouseTracking();
       hoveredMouseTarget = null;
       touchGesture = null;
-      cancelledTouchForMenu = null;
       suppressedTouchClick = null;
       hideTooltip();
     };
@@ -5424,13 +5417,27 @@
       Boolean(target.dataset.pixiv_utils_tooltip) &&
       !target.hasAttribute('data-pixiv_utils_toggle_bookmarked_hide');
 
-    const updatePosition = (reference, target) => {
+    // Initial touch coordinates are sometimes unavailable or reported as (0, 0).
+    // In that case use the artwork element with 25px less than the user's offset.
+    const validTouchPoint = (x, y) => Number.isFinite(x) && Number.isFinite(y) &&
+      x >= 0 && y >= 0 && (x !== 0 || y !== 0) &&
+      (window.innerWidth <= 0 || x <= window.innerWidth) &&
+      (window.innerHeight <= 0 || y <= window.innerHeight);
+
+    const pointReference = (target, x, y) => ({
+      contextElement: target,
+      getBoundingClientRect: () => ({
+        x, y, top: y, bottom: y, left: x, right: x, width: 0, height: 0
+      })
+    });
+
+    const updatePosition = (reference, target, mainAxisOffset = options.mainAxisOffset) => {
       const request = ++positionSerial;
       computePosition(reference, tooltip, {
         placement: options.placement,
         strategy: options.strategy,
         middleware: [
-          offset({ mainAxis: options.mainAxisOffset, crossAxis: options.crossAxisOffset }),
+          offset({ mainAxis: mainAxisOffset, crossAxis: options.crossAxisOffset }),
           flip(),
           shift({ padding: options.shiftPadding }),
           arrow({ element: arrowElement })
@@ -5470,26 +5477,19 @@
       tooltip.setAttribute('data-open', '');
       tooltip.dataset.mode = mode;
 
-      // Matches Tippy's followCursor: 'initial' for mouse, but anchors touch/focus
-      // to the artwork element (and keeps keyboard tooltips usable).
+      // Keep the mouse's initial cursor anchor and keyboard's element anchor.
+      // Touch uses its original touchstart position, not the artwork bounds.
+      const touch = mode === 'touch' && touchGesture?.target === target ? touchGesture : null;
+      const touchPointValid = touch && validTouchPoint(touch.x, touch.y);
       const reference = mode === 'mouse'
-        ? {
-            contextElement: target,
-            getBoundingClientRect: () => ({
-              x: mouseX,
-              y: mouseY,
-              top: mouseY,
-              bottom: mouseY,
-              left: mouseX,
-              right: mouseX,
-              width: 0,
-              height: 0
-            })
-          }
-        : target;
+        ? pointReference(target, mouseX, mouseY)
+        : touchPointValid ? pointReference(target, touch.x, touch.y) : target;
+      const mainAxisOffset = mode === 'touch' && !touchPointValid
+        ? options.mainAxisOffset - 25
+        : options.mainAxisOffset;
       const update = () => {
         if (!isEligible(target)) { hideTooltip(); return; }
-        updatePosition(reference, target);
+        updatePosition(reference, target, mainAxisOffset);
       };
       stopPositioning = autoUpdate(reference, tooltip, update);
       activeObserver = new MutationObserver(() => {
@@ -5577,7 +5577,9 @@
     // Touch is a deliberate long-press gesture, not a delayed tap. Keep its
     // state separate from pointer hover/focus so normal taps still navigate.
     const rememberTouchClick = (target, x, y) => {
-      suppressedTouchClick = { target, x, y, until: Date.now() + 1000 };
+      suppressedTouchClick = {
+        target, x, y, hasPosition: validTouchPoint(x, y), until: Date.now() + 1000
+      };
     };
 
     // Capture before Pixiv's delegated link handlers; suppress only the click
@@ -5589,7 +5591,8 @@
       if (event.pointerType && event.pointerType !== 'touch') return;
       const dx = event.clientX - suppressed.x;
       const dy = event.clientY - suppressed.y;
-      if (dx * dx + dy * dy > 25 ** 2 ||
+      if ((suppressed.hasPosition && validTouchPoint(event.clientX, event.clientY) &&
+        dx * dx + dy * dy > 25 ** 2) ||
         !(suppressed.target === event.target || suppressed.target.contains?.(event.target) ||
           event.target.contains?.(suppressed.target))) return;
       suppressedTouchClick = null;
@@ -5622,7 +5625,6 @@
       lastTouchAt = Date.now();
       // A new physical gesture must not inherit a previous hold's click guard.
       suppressedTouchClick = null;
-      cancelledTouchForMenu = null;
       clearPending();
       touchGesture = null;
       if (event.touches.length !== 1 || event.changedTouches.length !== 1) return;
@@ -5637,11 +5639,14 @@
       stopMouseTracking();
       hoveredMouseTarget = null;
       if (!isEligible(target)) return;
+      const hasPosition = validTouchPoint(touch.clientX, touch.clientY);
       touchGesture = {
         id: touch.identifier,
         target,
         x: touch.clientX,
         y: touch.clientY,
+        moveX: hasPosition ? touch.clientX : null,
+        moveY: hasPosition ? touch.clientY : null,
         opened: false
       };
       queueShow(target, 'touch', touchHoldDelay);
@@ -5657,58 +5662,50 @@
       }
       const touch = [...event.changedTouches].find(item => item.identifier === gesture.id);
       if (!touch) return;
-      const dx = touch.clientX - gesture.x;
-      const dy = touch.clientY - gesture.y;
+      // If touchstart reported invalid coordinates, establish a movement
+      // baseline from the first valid touchmove without changing the anchor.
+      if (!validTouchPoint(touch.clientX, touch.clientY)) return;
+      if (gesture.moveX === null) {
+        gesture.moveX = touch.clientX;
+        gesture.moveY = touch.clientY;
+        return;
+      }
+      const dx = touch.clientX - gesture.moveX;
+      const dy = touch.clientY - gesture.moveY;
       if (dx * dx + dy * dy >= touchToleranceSq) {
         clearPending();
         touchGesture = null;
-        cancelledTouchForMenu = null;
         if (gesture.opened && activeMode === 'touch') hideTooltip();
       }
     }, { passive: true });
 
-    const finishTouch = (event, cancelled) => {
+    const finishTouch = event => {
       const gesture = touchGesture;
       if (!gesture || ![...event.changedTouches].some(item => item.identifier === gesture.id)) return;
-      const opened = gesture.opened || (activeTarget === gesture.target && activeMode === 'touch');
-      if (opened) {
+      if (gesture.opened || (activeTarget === gesture.target && activeMode === 'touch')) {
         rememberTouchClick(gesture.target, gesture.x, gesture.y);
-        cancelledTouchForMenu = { target: gesture.target, until: Date.now() + 400 };
-      } else if (cancelled) {
-        // Some browsers cancel pointer/touch streams immediately before a
-        // contextmenu event. Preserve only a very short eligible candidate.
-        cancelledTouchForMenu = { target: gesture.target, until: Date.now() + 400 };
       }
       clearPending();
       touchGesture = null;
-      // A completed long press stays open until a deliberate dismissal.
+      // A completed long press stays open until deliberately dismissed.
     };
-    document.body.addEventListener('touchend', event => finishTouch(event, false));
-    document.body.addEventListener('touchcancel', event => finishTouch(event, true));
+    document.body.addEventListener('touchend', finishTouch);
+    document.body.addEventListener('touchcancel', finishTouch);
 
-    // Context menus can fire before our hold timer, or after touchcancel.
-    // Suppress only eligible touch-initiated artwork callouts. No mouse
-    // right-clicks or unrelated page context menus are affected.
-    document.addEventListener('contextmenu', event => {
-      const gesture = touchGesture;
-      const candidate = gesture ||
-        (cancelledTouchForMenu && Date.now() <= cancelledTouchForMenu.until
-          ? cancelledTouchForMenu
-          : null);
-      if (!candidate || !isEligible(candidate.target) ||
-        !(candidate.target === event.target || candidate.target.contains(event.target))) return;
-      event.preventDefault();
-      cancelledTouchForMenu = null;
+    // Never block the browser's native long-press context menu. It may open
+    // while the touch is held or after touchcancel; either way, close ours.
+    document.addEventListener('contextmenu', () => {
+      // Leave unrelated mouse-hover and keyboard-focus timers alone.
+      if (!touchGesture && activeMode !== 'touch') return;
+      if (touchGesture) rememberTouchClick(touchGesture.target, touchGesture.x, touchGesture.y);
       clearPending();
-      if (gesture) gesture.opened = true;
-      rememberTouchClick(candidate.target, gesture?.x ?? event.clientX, gesture?.y ?? event.clientY);
-      showTooltip(candidate.target, 'touch');
+      touchGesture = null;
+      if (activeMode === 'touch') hideTooltip();
     }, true);
 
     // Never leave a touch popover floating over content after scrolling.
     document.addEventListener('scroll', () => {
       if (touchGesture) { clearPending(); touchGesture = null; }
-      cancelledTouchForMenu = null;
       if (activeMode === 'touch') hideTooltip();
     }, true);
 
