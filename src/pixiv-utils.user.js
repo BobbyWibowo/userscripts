@@ -19,21 +19,19 @@
 // @icon               https://www.google.com/s2/favicons?sz=64&domain=pixiv.net
 // @run-at             document-start
 // @grant              GM_addStyle
-// @grant              GM_getResourceText
 // @grant              GM_getValue
 // @grant              GM_listValues
 // @grant              GM_setValue
 // @grant              GM_registerMenuCommand
 // @grant              window.onurlchange
 // @require            https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
-// @require            https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js
-// @require            https://cdn.jsdelivr.net/npm/tippy.js@6.3.7/dist/tippy.umd.min.js
+// @require            https://cdn.jsdelivr.net/npm/@floating-ui/core@1.8.0/dist/floating-ui.core.umd.min.js
+// @require            https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.8.0/dist/floating-ui.dom.umd.min.js
 // @require            https://cdn.jsdelivr.net/npm/@kobzi/gmconfig@1.0.0/dist/gmConfig.iife.js
-// @resource           tippyCss https://cdn.jsdelivr.net/npm/tippy.js@6.3.7/dist/tippy.min.css
 // @noframes
 // ==/UserScript==
 
-/* global sentinel, tippy, gmConfig */
+/* global sentinel, FloatingUIDOM, gmConfig */
 
 (function () {
   'use strict';
@@ -56,9 +54,8 @@
 
   /** CONFIG **/
 
-  /* It's recommended to edit these values through your userscript manager's storage/values editor.
-   * Visit Pixiv once after installing the script to allow it to populate its storage with default values.
-   * Especially necessary for Tampermonkey to show the script's Storage tab when Advanced mode is turned on.
+  /* Hard-coded default values.
+   * Please use the script's Settings panel to configure these.
    */
   const ENV_DEFAULTS = {
     MODE: 'PROD',
@@ -113,39 +110,32 @@
     ENABLE_KEYBINDS: true,
 
     PIXIV_HIGHLIGHTED_TAGS: null,
-    // Disable if using patterns with anchors/lookbehinds that can interact badly when combined.
     PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES: true,
-    // Disable if you want to see full list of tags that trigger the highlight on their hover tooltip.
     PIXIV_HIGHLIGHTED_TAGS_FAST: true,
-    // Enable if you want artworks with highlighted tags to not be blocked if they contain blocked tags.
-    // This does not work on artworks by artists who are blocked with UTags.
     PIXIV_HIGHLIGHTED_BYPASS_BLOCK: false,
     PIXIV_HIGHLIGHTED_COLOR: '#32cd32',
 
     PIXIV_BLOCK_AI: false,
     PIXIV_BLOCKED_TAGS: null,
-    // Disable if using patterns with anchors/lookbehinds that can interact badly when combined.
     PIXIV_BLOCKED_TAGS_COMBINE_REGEXES: true,
     PIXIV_BLOCKED_USERS: [],
-    // Disable if you want to see full list of tags that trigger the block on their hover tooltip.
     PIXIV_BLOCKED_TAGS_FAST: true,
-    // Instead of merely masking them à la Pixiv's built-in tags mute.
     PIXIV_REMOVE_BLOCKED: false,
 
     UTAGS_INTEGRATION: true,
     UTAGS_BLOCKED_TAGS: [],
 
-    // Disable if you prefer native tooltips.
-    ENABLE_TIPPY_TOOLTIPS: true,
-    // Mouse tooltips appear only after the cursor has stopped moving.
-    TIPPY_TOOLTIPS_STATIONARY_DELAY: 500, // ms
-    TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE: 3, // px
-    TIPPY_TOOLTIPS_OPTIONS: {
-      delay: [500, 0], // ms
-      followCursor: 'initial',
-      offset: [0, 25], // px
+    ENABLE_FLOATING_TOOLTIPS: true,
+    FLOATING_TOOLTIPS_STATIONARY_DELAY: 500, // ms
+    FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE: 3, // px
+    FLOATING_TOOLTIPS_SHOW_DELAY: 500, // ms (touch / keyboard focus)
+    FLOATING_TOOLTIPS_OPTIONS: {
       placement: 'bottom',
-      theme: 'pixiv-utils'
+      strategy: 'fixed',
+      mainAxisOffset: 25, // px
+      crossAxisOffset: 0, // px
+      shiftPadding: 8, // px
+      maxWidth: 350 // px
     }
   };
 
@@ -373,7 +363,7 @@
     ENV[key] = getSetting(key);
   }
 
-  // Settings UI and button text translations (ja, zh, zh-HK, zh-TW).
+  // Settings UI and button text translations.
   // zh-CN aliases zh; missing/empty strings fall back to en individually.
   const I18N = {
     en: {
@@ -461,7 +451,8 @@
       'field.debugInfo': 'Show debug messages in the browser console.',
       'field.languageInfo': 'Use your browser language or choose one. Missing translations fall back to English.',
       'field.highlightInfo': 'Leave blank for the default (#32cd32). Groups without their own color inherit this setting. Use "transparent" to hide highlight borders without disabling highlight bypass.',
-      'field.tippyJson': 'Advanced Tippy.js options (JSON).',
+      'field.floatingJson': 'Floating UI positioning options (JSON).',
+      'field.floatingShowDelay': 'Delay for touch and keyboard focus (ms).',
       'field.combineRegexInfo': 'Faster matching, but anchors and lookbehinds may behave differently when combined.',
       'field.highlightBypassInfo': 'Does not override UTags blocking.',
       'field.dateInfo': 'Customize date display with Intl.DateTimeFormat options.',
@@ -547,10 +538,22 @@
       'label.PIXIV_REMOVE_BLOCKED': 'Remove blocked artwork (desktop)',
       'label.UTAGS_INTEGRATION': 'Enable UTags integration',
       'label.UTAGS_BLOCKED_TAGS': 'Blocked UTags',
-      'label.ENABLE_TIPPY_TOOLTIPS': 'Use Tippy tooltips',
-      'label.TIPPY_TOOLTIPS_STATIONARY_DELAY': 'Hover delay',
-      'label.TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE': 'Mouse movement tolerance',
-      'label.TIPPY_TOOLTIPS_OPTIONS': 'Tippy options',
+      'label.ENABLE_FLOATING_TOOLTIPS': 'Use Floating UI tooltips',
+      'label.FLOATING_TOOLTIPS_STATIONARY_DELAY': 'Stationary mouse delay',
+      'label.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE': 'Mouse movement tolerance',
+      'label.FLOATING_TOOLTIPS_SHOW_DELAY': 'Touch / focus delay',
+      'label.FLOATING_TOOLTIPS_OPTIONS': 'Floating UI options',
+      'tooltip.highlightedBy': 'Highlighted by:',
+      'tooltip.blockedBy': 'Blocked by:',
+      'tooltip.blockableBy': 'Blockable by:',
+      'tooltip.skippedDueTo': 'Skipped due to:',
+      'tooltip.tags': 'Tags: {tags}',
+      'tooltip.userId': 'User ID: {id}',
+      'tooltip.aiGenerated': 'AI-generated',
+      'tooltip.inOwnProfile': 'In own profile',
+      'tooltip.imageBookmarked': 'Image is bookmarked',
+      'tooltip.imageHighlighted': 'Image is highlighted',
+      'tooltip.utag': 'UTag: {tag}',
       'date.weekday': 'Weekday',
       'date.era': 'Era',
       'date.year': 'Year',
@@ -657,7 +660,8 @@
       'field.debugInfo': 'ブラウザーのコンソールにデバッグメッセージを表示します。',
       'field.languageInfo': 'ブラウザーの言語を使用するか、言語を選択してください。翻訳がない項目は英語で表示されます。',
       'field.highlightInfo': '空欄の場合は既定値（#32cd32）を使用します。色が未設定のグループにもこの色が適用されます。「transparent」を指定すると、ハイライトによるブロック回避機能を維持したまま枠線を非表示にできます。',
-      'field.tippyJson': 'Tippy.js の詳細オプション（JSON）。',
+      'field.floatingJson': 'Floating UI の配置オプション（JSON）。',
+      'field.floatingShowDelay': 'タッチ・キーボードフォーカス時の表示待ち時間（ミリ秒）。',
       'field.combineRegexInfo': 'マッチングが高速になりますが、正規表現を結合するとアンカーや後読みの動作が変わる場合があります。',
       'field.highlightBypassInfo': 'UTags によるブロックは回避できません。',
       'field.dateInfo': 'Intl.DateTimeFormat のオプションで日付の表示形式をカスタマイズします。',
@@ -743,10 +747,22 @@
       'label.PIXIV_REMOVE_BLOCKED': 'ブロックした作品を削除（PC 版）',
       'label.UTAGS_INTEGRATION': 'UTags 連携を有効にする',
       'label.UTAGS_BLOCKED_TAGS': 'ブロック対象の UTag',
-      'label.ENABLE_TIPPY_TOOLTIPS': 'Tippy ツールチップを使用',
-      'label.TIPPY_TOOLTIPS_STATIONARY_DELAY': 'ホバー時の待ち時間',
-      'label.TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE': 'マウス移動の許容範囲',
-      'label.TIPPY_TOOLTIPS_OPTIONS': 'Tippy のオプション',
+      'label.ENABLE_FLOATING_TOOLTIPS': 'Floating UI ツールチップを使用',
+      'label.FLOATING_TOOLTIPS_STATIONARY_DELAY': 'マウス停止後の待ち時間',
+      'label.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE': 'マウス移動の許容範囲',
+      'label.FLOATING_TOOLTIPS_SHOW_DELAY': 'タッチ・フォーカス時の待ち時間',
+      'label.FLOATING_TOOLTIPS_OPTIONS': 'Floating UI のオプション',
+      'tooltip.highlightedBy': 'ハイライト条件:',
+      'tooltip.blockedBy': 'ブロック理由:',
+      'tooltip.blockableBy': 'ブロック対象の理由:',
+      'tooltip.skippedDueTo': 'ブロックをスキップした理由:',
+      'tooltip.tags': 'タグ: {tags}',
+      'tooltip.userId': 'ユーザー ID: {id}',
+      'tooltip.aiGenerated': 'AI生成作品',
+      'tooltip.inOwnProfile': '自分のプロフィール内',
+      'tooltip.imageBookmarked': '作品はブックマーク済み',
+      'tooltip.imageHighlighted': '作品はハイライト済み',
+      'tooltip.utag': 'UTag: {tag}',
       'date.weekday': '曜日',
       'date.era': '紀元',
       'date.year': '年',
@@ -853,7 +869,8 @@
       'field.debugInfo': '在浏览器控制台中显示调试信息。',
       'field.languageInfo': '使用浏览器语言或手动选择语言。缺少翻译的内容将回退为英语。',
       'field.highlightInfo': '留空则使用默认颜色（#32cd32）。未指定颜色的分组会继承此设置。设置为“transparent”可隐藏高亮边框，同时保留高亮作品绕过屏蔽的功能。',
-      'field.tippyJson': 'Tippy.js 高级选项（JSON）。',
+      'field.floatingJson': 'Floating UI 定位选项（JSON）。',
+      'field.floatingShowDelay': '触摸和键盘聚焦时的显示延迟（毫秒）。',
       'field.combineRegexInfo': '可提高匹配速度，但合并正则表达式后，锚点和后行断言的行为可能有所不同。',
       'field.highlightBypassInfo': '无法绕过 UTags 的屏蔽。',
       'field.dateInfo': '使用 Intl.DateTimeFormat 选项自定义日期显示格式。',
@@ -939,10 +956,22 @@
       'label.PIXIV_REMOVE_BLOCKED': '直接移除被屏蔽的作品（桌面版）',
       'label.UTAGS_INTEGRATION': '启用 UTags 集成',
       'label.UTAGS_BLOCKED_TAGS': '要屏蔽的 UTag',
-      'label.ENABLE_TIPPY_TOOLTIPS': '使用 Tippy 工具提示',
-      'label.TIPPY_TOOLTIPS_STATIONARY_DELAY': '悬停等待时间',
-      'label.TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE': '鼠标移动容差',
-      'label.TIPPY_TOOLTIPS_OPTIONS': 'Tippy 选项',
+      'label.ENABLE_FLOATING_TOOLTIPS': '使用 Floating UI 工具提示',
+      'label.FLOATING_TOOLTIPS_STATIONARY_DELAY': '鼠标停止后的延迟',
+      'label.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE': '鼠标移动容差',
+      'label.FLOATING_TOOLTIPS_SHOW_DELAY': '触摸／聚焦延迟',
+      'label.FLOATING_TOOLTIPS_OPTIONS': 'Floating UI 选项',
+      'tooltip.highlightedBy': '高亮依据：',
+      'tooltip.blockedBy': '屏蔽原因：',
+      'tooltip.blockableBy': '符合屏蔽条件：',
+      'tooltip.skippedDueTo': '跳过屏蔽的原因：',
+      'tooltip.tags': '标签：{tags}',
+      'tooltip.userId': '用户 ID：{id}',
+      'tooltip.aiGenerated': 'AI 生成作品',
+      'tooltip.inOwnProfile': '位于自己的个人主页',
+      'tooltip.imageBookmarked': '作品已收藏',
+      'tooltip.imageHighlighted': '作品已高亮',
+      'tooltip.utag': 'UTag：{tag}',
       'date.weekday': '星期',
       'date.era': '纪元',
       'date.year': '年',
@@ -1049,7 +1078,8 @@
       'field.debugInfo': '在瀏覽器控制台顯示除錯訊息。',
       'field.languageInfo': '使用瀏覽器語言，或自行選擇語言。未有翻譯的文字會以英文顯示。',
       'field.highlightInfo': '留空即使用預設顏色（#32cd32）。未指定顏色的群組會採用此設定。填入「transparent」可隱藏高亮邊框，但不會停用高亮作品略過屏蔽的功能。',
-      'field.tippyJson': 'Tippy.js 進階選項（JSON）。',
+      'field.floatingJson': 'Floating UI 定位選項（JSON）。',
+      'field.floatingShowDelay': '觸控及鍵盤焦點的顯示延遲（毫秒）。',
       'field.combineRegexInfo': '可以加快比對，但合併正則表達式後，錨點和後顧斷言的結果可能有差異。',
       'field.highlightBypassInfo': '不能略過 UTags 的屏蔽。',
       'field.dateInfo': '透過 Intl.DateTimeFormat 選項自訂日期顯示格式。',
@@ -1135,10 +1165,22 @@
       'label.PIXIV_REMOVE_BLOCKED': '直接移除被屏蔽的作品（電腦版）',
       'label.UTAGS_INTEGRATION': '啟用 UTags 整合',
       'label.UTAGS_BLOCKED_TAGS': '要屏蔽的 UTag',
-      'label.ENABLE_TIPPY_TOOLTIPS': '使用 Tippy 提示框',
-      'label.TIPPY_TOOLTIPS_STATIONARY_DELAY': '鼠標停下後的延遲時間',
-      'label.TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE': '鼠標移動容許範圍',
-      'label.TIPPY_TOOLTIPS_OPTIONS': 'Tippy 選項',
+      'label.ENABLE_FLOATING_TOOLTIPS': '使用 Floating UI 提示框',
+      'label.FLOATING_TOOLTIPS_STATIONARY_DELAY': '鼠標停下後的延遲時間',
+      'label.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE': '鼠標移動容許範圍',
+      'label.FLOATING_TOOLTIPS_SHOW_DELAY': '觸控／焦點延遲',
+      'label.FLOATING_TOOLTIPS_OPTIONS': 'Floating UI 選項',
+      'tooltip.highlightedBy': '高亮原因：',
+      'tooltip.blockedBy': '屏蔽原因：',
+      'tooltip.blockableBy': '符合屏蔽條件：',
+      'tooltip.skippedDueTo': '略過屏蔽的原因：',
+      'tooltip.tags': '標籤：{tags}',
+      'tooltip.userId': '用戶 ID：{id}',
+      'tooltip.aiGenerated': 'AI 生成作品',
+      'tooltip.inOwnProfile': '位於自己的個人頁面',
+      'tooltip.imageBookmarked': '作品已收藏',
+      'tooltip.imageHighlighted': '作品已高亮顯示',
+      'tooltip.utag': 'UTag：{tag}',
       'date.weekday': '星期',
       'date.era': '紀元',
       'date.year': '年',
@@ -1245,7 +1287,8 @@
       'field.debugInfo': '在瀏覽器主控台顯示偵錯訊息。',
       'field.languageInfo': '使用瀏覽器語言或手動選擇語言。缺少翻譯的項目將顯示英文。',
       'field.highlightInfo': '留空將使用預設顏色（#32cd32）。未指定顏色的群組會沿用此設定。設為「transparent」可隱藏醒目標示邊框，但不會停用醒目標示作品的屏蔽略過功能。',
-      'field.tippyJson': 'Tippy.js 進階選項（JSON）。',
+      'field.floatingJson': 'Floating UI 定位選項（JSON）。',
+      'field.floatingShowDelay': '觸控與鍵盤焦點的顯示延遲（毫秒）。',
       'field.combineRegexInfo': '可加快比對速度，但合併正規表示式後，錨點與後顧斷言的行為可能有所不同。',
       'field.highlightBypassInfo': '無法略過 UTags 的屏蔽。',
       'field.dateInfo': '使用 Intl.DateTimeFormat 選項自訂日期顯示格式。',
@@ -1331,10 +1374,22 @@
       'label.PIXIV_REMOVE_BLOCKED': '直接移除被屏蔽的作品（電腦版）',
       'label.UTAGS_INTEGRATION': '啟用 UTags 整合',
       'label.UTAGS_BLOCKED_TAGS': '要屏蔽的 UTag',
-      'label.ENABLE_TIPPY_TOOLTIPS': '使用 Tippy 工具提示',
-      'label.TIPPY_TOOLTIPS_STATIONARY_DELAY': '滑鼠停止移動後的延遲',
-      'label.TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE': '允許的滑鼠移動幅度',
-      'label.TIPPY_TOOLTIPS_OPTIONS': 'Tippy 選項',
+      'label.ENABLE_FLOATING_TOOLTIPS': '使用 Floating UI 工具提示',
+      'label.FLOATING_TOOLTIPS_STATIONARY_DELAY': '滑鼠停止移動後的延遲',
+      'label.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE': '允許的滑鼠移動幅度',
+      'label.FLOATING_TOOLTIPS_SHOW_DELAY': '觸控／焦點延遲',
+      'label.FLOATING_TOOLTIPS_OPTIONS': 'Floating UI 選項',
+      'tooltip.highlightedBy': '醒目標示依據：',
+      'tooltip.blockedBy': '屏蔽原因：',
+      'tooltip.blockableBy': '符合屏蔽條件：',
+      'tooltip.skippedDueTo': '略過屏蔽的原因：',
+      'tooltip.tags': '標籤：{tags}',
+      'tooltip.userId': '使用者 ID：{id}',
+      'tooltip.aiGenerated': 'AI 生成作品',
+      'tooltip.inOwnProfile': '位於自己的個人頁面',
+      'tooltip.imageBookmarked': '作品已收藏',
+      'tooltip.imageHighlighted': '作品已醒目標示',
+      'tooltip.utag': 'UTag：{tag}',
       'date.weekday': '星期',
       'date.era': '紀元',
       'date.year': '年',
@@ -1875,6 +1930,26 @@
     }
   });
 
+  // Only expose supported positioning options.
+  const validateFloatingOptions = value => {
+    if (!isPlainObject(value)) throw new TypeError('Expected a Floating UI options object.');
+    const allowed = Object.keys(ENV_DEFAULTS.FLOATING_TOOLTIPS_OPTIONS);
+    for (const [key, option] of Object.entries(value)) {
+      if (!allowed.includes(key)) throw new TypeError(`Unknown Floating UI option: ${key}`);
+      if (key === 'placement') {
+        if (!/^(top|right|bottom|left)(-(start|end))?$/.test(option)) {
+          throw new TypeError('placement must be top, right, bottom, left, or a -start/-end variant.');
+        }
+      } else if (key === 'strategy') {
+        if (!['fixed', 'absolute'].includes(option)) throw new TypeError('strategy must be fixed or absolute.');
+      } else if (!Number.isFinite(option) ||
+        (key !== 'crossAxisOffset' && option < 0) ||
+        (key === 'maxWidth' && option <= 0)) {
+        throw new TypeError(`${key} must be a finite ${key === 'maxWidth' ? 'positive' : key === 'crossAxisOffset' ? '' : 'non-negative '}number.`);
+      }
+    }
+  };
+
   // UI serialization only. No storage changes occur until Save, Reset or Import.
   const settingToEditor = (key, value) => {
     if (key === 'SETTINGS_LANGUAGE') return value === 'zh' ? 'zh-CN' : value === 'zh-Hant' ? 'zh-TW' : value;
@@ -1885,7 +1960,7 @@
     if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
       return tagsToEditor(value, key === 'PIXIV_HIGHLIGHTED_TAGS');
     }
-    if (key === 'TIPPY_TOOLTIPS_OPTIONS') return settingsJson(value);
+    if (key === 'FLOATING_TOOLTIPS_OPTIONS') return settingsJson(value);
     if (key.startsWith('SELECTORS_')) return Array.isArray(value) ? value.join('\n') : value || '';
     return value;
   };
@@ -1899,7 +1974,7 @@
     if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
       return tagsFromEditor(value, key === 'PIXIV_HIGHLIGHTED_TAGS');
     }
-    if (key === 'TIPPY_TOOLTIPS_OPTIONS') return JSON.parse(value);
+    if (key === 'FLOATING_TOOLTIPS_OPTIONS') return JSON.parse(value);
     if (key.startsWith('SELECTORS_')) {
       return Array.isArray(previous)
         ? value.split('\n').map(s => s.trim()).filter(Boolean)
@@ -1916,7 +1991,7 @@
     if (key === 'PIXIV_BLOCKED_USERS') return 'Users';
     if (key.startsWith('PIXIV_HIGHLIGHTED')) return 'Highlights';
     if (key.startsWith('PIXIV_')) return 'Filtering';
-    if (key.startsWith('TIPPY_') || key === 'ENABLE_TIPPY_TOOLTIPS') return 'Tooltips';
+    if (key.startsWith('FLOATING_TOOLTIPS_') || key === 'ENABLE_FLOATING_TOOLTIPS') return 'Tooltips';
     if (key.startsWith('UTAGS_')) return 'UTags';
     return 'Advanced';
   };
@@ -2006,9 +2081,13 @@
       } else if (key === 'DATE_CONVERSION_OPTIONS') {
         Object.assign(field, dateOptionsField);
         field.description = tr('field.dateInfo');
-      } else if (key === 'TIPPY_TOOLTIPS_OPTIONS') {
+      } else if (key === 'FLOATING_TOOLTIPS_OPTIONS') {
         Object.assign(field, jsonObjectField());
-        field.description = tr('field.tippyJson');
+        field.validate = value => {
+          try { validateFloatingOptions(JSON.parse(value)); } catch (error) { return error.message; }
+          return '';
+        };
+        field.description = tr('field.floatingJson');
       } else if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
         field.type = 'list';
         field.addLabel = tr('sections.add');
@@ -2097,8 +2176,9 @@
       if (key === 'PIXIV_BLOCK_AI') field.description = tr('field.blockAiInfo');
       if (key.endsWith('_COMBINE_REGEXES')) field.description = tr('field.combineRegexInfo');
       if (key === 'PIXIV_HIGHLIGHTED_BYPASS_BLOCK') field.description = tr('field.highlightBypassInfo');
-      if (key === 'TIPPY_TOOLTIPS_STATIONARY_DELAY') field.description = tr('field.delayInfo');
-      if (key === 'TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE') field.description = tr('field.toleranceInfo');
+      if (key === 'FLOATING_TOOLTIPS_STATIONARY_DELAY') field.description = tr('field.delayInfo');
+      if (key === 'FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE') field.description = tr('field.toleranceInfo');
+      if (key === 'FLOATING_TOOLTIPS_SHOW_DELAY') field.description = tr('field.floatingShowDelay');
       definitions[key] = field;
     }
     // Backup controls are managed locally and never persisted as configuration values.
@@ -2203,8 +2283,8 @@
       } else if (key === 'DATE_CONVERSION_LOCALES') {
         if (typeof value !== 'string') throw new TypeError(`${key}: expected a locale string.`);
         try { Intl.DateTimeFormat(value, get('DATE_CONVERSION_OPTIONS')); } catch (error) { throw new TypeError(`${key}: ${error.message}`); }
-      } else if (key === 'TIPPY_TOOLTIPS_OPTIONS') {
-        if (!isPlainObject(value)) throw new TypeError(`${key}: expected a JSON object.`);
+      } else if (key === 'FLOATING_TOOLTIPS_OPTIONS') {
+        validateFloatingOptions(value);
       } else if (key.startsWith('TEXT_') || def === null) {
         if (value !== null && typeof value !== 'string') {
           throw new TypeError(`${key}: expected a string or null.`);
@@ -2392,8 +2472,8 @@
     for (const key of ['DATE_CONVERSION', 'REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME',
       'TEXT_EDIT_BOOKMARK', 'PIXIV_BLOCK_AI', 'PIXIV_BLOCKED_TAGS',
       'PIXIV_HIGHLIGHTED_COLOR', 'PIXIV_HIGHLIGHTED_TAGS',
-      'TIPPY_TOOLTIPS_STATIONARY_DELAY', 'UTAGS_BLOCKED_TAGS',
-      'SELECTORS_HOME', 'SECTIONS_TOGGLE_BOOKMARKED', 'TIPPY_TOOLTIPS_OPTIONS']) {
+      'FLOATING_TOOLTIPS_STATIONARY_DELAY', 'UTAGS_BLOCKED_TAGS',
+      'SELECTORS_HOME', 'SECTIONS_TOGGLE_BOOKMARKED', 'FLOATING_TOOLTIPS_OPTIONS']) {
       insertBefore(key, 'pixiv-utils-settings-divider');
     }
     insertBefore('TEXT_EDIT_BOOKMARK', 'pixiv-utils-global-note', tr('text.fallback'));
@@ -3048,7 +3128,7 @@
         onBeforeClose: () => window.confirm(tr('message.discardChanges')),
         onBeforeSave: values => {
           // Defensive validation for additional conversions done during persistence.
-          for (const key of ['TIPPY_TOOLTIPS_OPTIONS', 'UTAGS_BLOCKED_TAGS', 'SECTIONS_TOGGLE_BOOKMARKED', 'PIXIV_BLOCKED_USERS']) {
+          for (const key of ['FLOATING_TOOLTIPS_OPTIONS', 'UTAGS_BLOCKED_TAGS', 'SECTIONS_TOGGLE_BOOKMARKED', 'PIXIV_BLOCKED_USERS']) {
             try { editorToSetting(key, values[key], ENV[key]); } catch (error) { alert(tr('message.validation', { key, error: error.message })); return false; }
           }
         },
@@ -4030,47 +4110,173 @@
     return pixivData || {};
   };
 
-  const setImageTitle = (element, options = {}) => {
-    const { pixivData, footer } = options;
+  // Structured tooltip details belong to an artwork element, not a global string.
+  // WeakMap entries naturally expire when Pixiv drops a recycled grid element.
+  const floatingTooltipDetails = new WeakMap();
+  // Bound when the shared Floating UI tooltip is initialized.
+  let syncActiveFloatingTooltip = () => {};
+
+  const createTooltipFooter = (heading, body) => ({ heading, body });
+
+  const normalizeTooltipFooter = footer => {
+    if (!footer) return [];
+    if (Array.isArray(footer)) return footer.filter(section => section?.body);
+    // Keep the existing plain-text footer contract for other callers/extensions.
+    return [{ heading: '', body: String(footer).trim() }];
+  };
+
+  const createModerationFooter = ({ highlightOpts, blockOpts }, { blocked = false, skipReason = [] } = {}) => {
+    const footer = [];
+    if (highlightOpts) footer.push(createTooltipFooter(tr('tooltip.highlightedBy'), highlightOpts.hint));
+    if (blockOpts) footer.push(createTooltipFooter(tr(blocked ? 'tooltip.blockedBy' : 'tooltip.blockableBy'), blockOpts.hint));
+    if (skipReason.length) footer.push(createTooltipFooter(tr('tooltip.skippedDueTo'), skipReason.join('\n')));
+    return footer;
+  };
+
+  const getImageModeration = pixivData => ({
+    highlightOpts: PIXIV_HIGHLIGHTED_TAGS_VALIDATED ? isImageHighlightedByData(pixivData) : false,
+    blockOpts: PIXIV_BLOCKED_TAGS_VALIDATED ? isImageBlockedByData(pixivData) : false
+  });
+
+  const createImageTooltipDetails = ({ pixivData = {}, footer, moderation = {} }) => {
+    const sections = normalizeTooltipFooter(footer);
+    const tags = Array.isArray(pixivData.tags) ? pixivData.tags : [];
+    const details = {
+      title: pixivData.title || '',
+      ai: Boolean(pixivData.ai),
+      tags,
+      date: pixivData.createDate || '',
+      footer: sections,
+      highlightedTagColors: moderation.highlightOpts?.tagColors || new Map(),
+      blockedTags: new Set(moderation.blockOpts?.blockedTags || []),
+      aiBlockable: Boolean(moderation.blockOpts?.blockedAI),
+      actuallyBlocked: Boolean(moderation.actuallyBlocked)
+    };
     const lines = [];
-    if (pixivData.title) lines.push(pixivData.title);
-    if (pixivData.ai) lines.push('AI-generated');
-    if (pixivData.tags.length) lines.push(pixivData.tags.join(', '));
-    if (pixivData.createDate) lines.push(pixivData.createDate);
-    if (footer) lines.push(footer);
+    if (details.title) lines.push(details.title);
+    if (details.ai) lines.push(tr('tooltip.aiGenerated'));
+    if (tags.length) lines.push(tags.join(', '));
+    if (details.date) lines.push(details.date);
+    for (const section of sections) {
+      if (section.heading) lines.push(section.heading);
+      if (section.body) lines.push(section.body);
+    }
+    return { ...details, plainText: lines.join('\n').trim() };
+  };
 
-    const title = lines.join('\n').trim();
-
-    if (!title.length) {
-      delete element.dataset.pixiv_utils_tooltip;
-      element.removeAttribute('title');
-      element._tippy?.destroy();
+  // Use textContent and DOM nodes instead of innerHTML: titles and tags come
+  // from untrusted Pixiv artwork metadata and must never be interpreted as HTML.
+  const renderImageTooltip = (container, target) => {
+    const details = floatingTooltipDetails.get(target);
+    if (!details) {
+      container.textContent = target.dataset.pixiv_utils_tooltip || '';
       return;
     }
+    const nodes = [];
+    const textRow = (tag, className, text) => {
+      const node = document.createElement(tag);
+      node.className = className;
+      node.textContent = text;
+      return node;
+    };
+    if (details.title) {
+      nodes.push(textRow('strong', 'pixiv-utils-tooltip-title', details.title));
+    }
+    if (details.ai) {
+      const state = details.actuallyBlocked && details.aiBlockable
+        ? 'blocked'
+        : details.aiBlockable ? 'blockable' : 'neutral';
+      const ai = textRow('span', 'pixiv-utils-tooltip-ai', tr('tooltip.aiGenerated'));
+      ai.dataset.state = state;
+      const row = document.createElement('div');
+      row.className = 'pixiv-utils-tooltip-ai-row';
+      row.append(ai);
+      nodes.push(row);
+    }
+    if (details.tags.length) {
+      const list = document.createElement('div');
+      list.className = 'pixiv-utils-tooltip-tags';
+      for (const [index, tag] of details.tags.entries()) {
+        if (index) list.append(textRow('span', 'pixiv-utils-tooltip-tag-separator', ', '));
+        const highlighted = details.highlightedTagColors.has(tag);
+        const blocked = details.blockedTags.has(tag);
+        if (!highlighted && !blocked) {
+          list.append(document.createTextNode(tag));
+          continue;
+        }
+        const node = textRow('span', 'pixiv-utils-tooltip-tag', tag);
+        node.dataset.match = highlighted && blocked ? 'both' : blocked ? 'blocked' : 'highlighted';
+        if (highlighted) {
+          const color = details.highlightedTagColors.get(tag);
+          if (typeof color === 'string' && CSS.supports('color', color)) {
+            node.style.setProperty('--pixiv-utils-tooltip-tag-color', color);
+          }
+        }
+        list.append(node);
+      }
+      nodes.push(list);
+    }
+    if (details.date) nodes.push(textRow('div', 'pixiv-utils-tooltip-date', details.date));
+    if (details.footer.length) {
+      const footer = document.createElement('div');
+      footer.className = 'pixiv-utils-tooltip-footer';
+      for (const section of details.footer) {
+        const row = document.createElement('div');
+        row.className = 'pixiv-utils-tooltip-footer-section';
+        if (section.heading) row.append(textRow('span', 'pixiv-utils-tooltip-footer-heading', section.heading));
+        if (section.body) row.append(textRow('span', 'pixiv-utils-tooltip-footer-body', section.body));
+        footer.append(row);
+      }
+      nodes.push(footer);
+    }
+    container.replaceChildren(...nodes);
+  };
 
-    if (CONFIG.ENABLE_TIPPY_TOOLTIPS) {
-      element.removeAttribute('title');
-      // Store the content for lazy delegated initialization and future updates.
-      element.dataset.pixiv_utils_tooltip = title;
-      element._tippy?.setContent(title);
-    } else {
+  const setImageTitle = (element, options = {}) => {
+    if (!element) return;
+    const details = createImageTooltipDetails(options);
+    if (!details.plainText) {
+      floatingTooltipDetails.delete(element);
       delete element.dataset.pixiv_utils_tooltip;
-      element._tippy?.destroy();
-      element.title = title;
+      element.removeAttribute('title');
+      syncActiveFloatingTooltip(element);
+      return;
+    }
+    if (CONFIG.ENABLE_FLOATING_TOOLTIPS) {
+      floatingTooltipDetails.set(element, details);
+      element.removeAttribute('title');
+      // Retain plain text for selector, accessibility and native fallback paths.
+      element.dataset.pixiv_utils_tooltip = details.plainText;
+      syncActiveFloatingTooltip(element);
+    } else {
+      floatingTooltipDetails.delete(element);
+      delete element.dataset.pixiv_utils_tooltip;
+      element.title = details.plainText;
     }
   };
+
+  // Central matching predicate shared by blocking and highlighting. Rule compilation
+  // (including combined regexes and flag handling) remains unchanged.
+  const matchesConfiguredTag = (tag, strings, regexps) =>
+    strings.has(tag) || regexps.some(pattern => pattern.test(tag));
 
   const isImageHighlightedByData = data => {
     const result = {
       highlightedTags: [],
+      tagColors: new Map(),
       hint: '',
       color: null
     };
 
     for (const config of PIXIV_HIGHLIGHTED_TAGS_FORMATTED) {
       for (const tag of data.tags) {
-        if (config.string.has(tag) || config.regexp.some(t => t.test(tag))) {
+        if (matchesConfiguredTag(tag, config.string, config.regexp)) {
           result.highlightedTags.push(tag);
+          // Retain each matched tag's group color for tooltip presentation.
+          // First match wins, consistent with the first-match color behavior.
+          if (!result.tagColors.has(tag)) {
+            result.tagColors.set(tag, config.color || CONFIG.PIXIV_HIGHLIGHTED_COLOR);
+          }
           if (!result.color && config.color) {
             result.color = config.color;
           }
@@ -4095,7 +4301,7 @@
       result.color = CONFIG.PIXIV_HIGHLIGHTED_COLOR;
     }
 
-    result.hint = `Tags: ${result.highlightedTags.join(', ')}`;
+    result.hint = tr('tooltip.tags', { tags: result.highlightedTags.join(', ') });
     return result;
   };
 
@@ -4128,18 +4334,18 @@
     // The artist match takes precedence in fast mode. No AI or tag checks are
     // necessary; incomplete metadata can still be blocked by a known user ID.
     if (CONFIG.PIXIV_BLOCKED_TAGS_FAST && blockedUserId !== null) {
-      result.hint = `User ID: ${blockedUserId}`;
+      result.hint = tr('tooltip.userId', { id: blockedUserId });
       return result;
     }
 
     result.blockedAI = CONFIG.PIXIV_BLOCK_AI && data.ai;
     if (CONFIG.PIXIV_BLOCKED_TAGS_FAST && result.blockedAI) {
-      result.hint = 'AI-generated';
+      result.hint = tr('tooltip.aiGenerated');
       return result;
     }
 
     for (const tag of data.tags || []) {
-      if (PIXIV_BLOCKED_TAGS_STRING.has(tag) || PIXIV_BLOCKED_TAGS_REGEXP.some(t => t.test(tag))) {
+      if (matchesConfiguredTag(tag, PIXIV_BLOCKED_TAGS_STRING, PIXIV_BLOCKED_TAGS_REGEXP)) {
         result.blockedTags.push(tag);
         if (CONFIG.PIXIV_BLOCKED_TAGS_FAST) break;
       }
@@ -4147,9 +4353,9 @@
 
     if (blockedUserId === null && !result.blockedAI && !result.blockedTags.length) return false;
 
-    if (blockedUserId !== null) result.hint += `User ID: ${blockedUserId}`;
-    if (result.blockedAI) result.hint += `${result.hint ? '\n' : ''}AI-generated`;
-    if (result.blockedTags.length) result.hint += `${result.hint ? '\n' : ''}Tags: ${result.blockedTags.join(', ')}`;
+    if (blockedUserId !== null) result.hint += tr('tooltip.userId', { id: blockedUserId });
+    if (result.blockedAI) result.hint += `${result.hint ? '\n' : ''}${tr('tooltip.aiGenerated')}`;
+    if (result.blockedTags.length) result.hint += `${result.hint ? '\n' : ''}${tr('tooltip.tags', { tags: result.blockedTags.join(', ') })}`;
     return result;
   };
 
@@ -4157,15 +4363,15 @@
     const skipReason = [];
 
     if (options.isOwnProfile) {
-      skipReason.push('In own profile');
+      skipReason.push(tr('tooltip.inOwnProfile'));
     }
 
     if (options.bookmarked) {
-      skipReason.push('Image is bookmarked');
+      skipReason.push(tr('tooltip.imageBookmarked'));
     }
 
     if (options.highlighted) {
-      skipReason.push('Image is highlighted');
+      skipReason.push(tr('tooltip.imageHighlighted'));
     }
 
     return skipReason;
@@ -4227,7 +4433,8 @@
     if (status) {
       setImageTitle(element, {
         pixivData: obj.pixivData,
-        footer: `Blocked by:\n${obj.options.hint}`
+        moderation: { ...obj.moderation, actuallyBlocked: true },
+        footer: createModerationFooter(obj.moderation, { blocked: true })
       });
       logDebug(`Image blocked (${obj.options.hint.replace('\n', ', ')})`, element);
     }
@@ -4338,44 +4545,34 @@
 
     const pixivData = await getImagePixivData(data.id, element, data.novel);
 
-    let footer = '';
+    const moderation = getImageModeration(pixivData);
+    const { highlightOpts, blockOpts } = moderation;
+    if (highlightOpts) doHighlightImage(element, { options: highlightOpts });
 
-    let highlightOpts = false;
-    if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
-      highlightOpts = isImageHighlightedByData(pixivData);
-      if (highlightOpts) {
-        doHighlightImage(element, { options: highlightOpts });
-        footer += `Highlighted by:\n${highlightOpts.hint}`;
-      }
+    let skipReason = [];
+    if (blockOpts) {
+      // Only block image if not in own profile, not bookmarked,
+      // or optionally, not highlighted.
+      skipReason = getImageBlockSkipReason({
+        isOwnProfile,
+        bookmarked,
+        highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
+      });
+      const blocked = doBlockImage(element, {
+        options: blockOpts,
+        data,
+        pixivData,
+        moderation,
+        skipReason: skipReason.join(', ')
+      });
+      if (blocked) return true;
     }
 
-    if (PIXIV_BLOCKED_TAGS_VALIDATED) {
-      const blockOpts = isImageBlockedByData(pixivData);
-      if (blockOpts) {
-        // Only block image if not in own profile, not bookmarked,
-        // or optionally, not highlighted.
-        const skipReason = getImageBlockSkipReason({
-          isOwnProfile,
-          bookmarked,
-          highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
-        });
-
-        const blocked = doBlockImage(element, {
-          options: blockOpts,
-          data,
-          pixivData,
-          skipReason: skipReason.join(', ')
-        });
-        if (blocked) {
-          return true;
-        }
-
-        footer += `\nBlockable by:\n${blockOpts.hint}` +
-          `\nSkipped due to:\n${skipReason.join('\n')}`;
-      }
-    }
-
-    setImageTitle(element, { pixivData, footer: footer.trim() });
+    setImageTitle(element, {
+      pixivData,
+      moderation,
+      footer: createModerationFooter(moderation, { skipReason })
+    });
 
     // Exit early if in own profile, and not in bookmarks tab.
     if (options.isOwnProfile && currentUrl.indexOf('/bookmarks') === -1) {
@@ -4464,40 +4661,25 @@
     if (pixivDataSource) {
       const pixivData = await getImagePixivData(data.id, pixivDataSource, data.novel);
       if (pixivData) {
-        let footer = '';
-
-        let highlightOpts = false;
-        if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
-          highlightOpts = isImageHighlightedByData(pixivData);
-          if (highlightOpts) {
-            // doHighlightImage(element, { options: highlightOpts });
-            footer += `Highlighted by:\n${highlightOpts.hint}`;
-          }
+        const moderation = getImageModeration(pixivData);
+        const { blockOpts, highlightOpts } = moderation;
+        let skipReason = [];
+        if (blockOpts) {
+          skipReason = getImageBlockSkipReason({
+            bookmarked: isImageBookmarked(element),
+            highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
+          });
+          const blocked = await doBlockMultiView(element, {
+            options: blockOpts,
+            skipReason: skipReason.join(', ')
+          });
+          if (blocked) return true;
         }
-
-        if (PIXIV_BLOCKED_TAGS_VALIDATED) {
-          const blockOpts = isImageBlockedByData(pixivData);
-          if (blockOpts) {
-            // Only block image if not bookmarked, or optionally, not highlighted.
-            const skipReason = getImageBlockSkipReason({
-              bookmarked: isImageBookmarked(element),
-              highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
-            });
-
-            const blocked = await doBlockMultiView(element, {
-              options: blockOpts,
-              skipReason: skipReason.join(', ')
-            });
-            if (blocked) {
-              return true;
-            }
-
-            footer += `\nBlockable by:\n${blockOpts.hint}` +
-              `\nSkipped due to:\n${skipReason.join('\n')}`;
-          }
-        }
-
-        setImageTitle(element, { pixivData, footer });
+        setImageTitle(element, {
+          pixivData,
+          moderation,
+          footer: createModerationFooter(moderation, { skipReason })
+        });
       }
     }
 
@@ -4533,7 +4715,8 @@
 
     setImageTitle(obj.titleTarget, {
       pixivData: obj.pixivData,
-      footer: `Blocked by:\n${obj.options.hint}`
+      moderation: { ...obj.moderation, actuallyBlocked: true },
+      footer: createModerationFooter(obj.moderation, { blocked: true })
     });
     logDebug(`Expanded view blocked (${obj.options.hint})`, element);
 
@@ -4557,45 +4740,32 @@
 
     const pixivData = await getImagePixivData(data.id, image, data.novel);
     if (pixivData) {
-      let footer = '';
-
-      let highlightOpts = false;
-      if (PIXIV_HIGHLIGHTED_TAGS_VALIDATED) {
-        highlightOpts = isImageHighlightedByData(pixivData);
-        if (highlightOpts) {
-          // doHighlightImage(image, { options: highlightOpts });
-          footer += `Highlighted by:\n${highlightOpts.hint}`;
-        }
-      }
-
+      const moderation = getImageModeration(pixivData);
+      const { highlightOpts, blockOpts } = moderation;
+      let skipReason = [];
       if (PIXIV_BLOCKED_TAGS_VALIDATED) {
         // Always reset expanded view's blocked status first.
         delete image.dataset.pixiv_utils_expanded_view_blocked;
-
-        const blockOpts = isImageBlockedByData(pixivData);
-        if (blockOpts) {
-          // Only block image if not bookmarked, or optionally, not highlighted.
-          const skipReason = getImageBlockSkipReason({
-            bookmarked: isImageBookmarked(element),
-            highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
-          });
-
-          blocked = doBlockExpandedView(image, {
-            titleTarget,
-            options: blockOpts,
-            pixivData,
-            skipReason: skipReason.join(', ')
-          });
-
-          if (!blocked) {
-            footer += `\nBlockable by:\n${blockOpts.hint}` +
-              `\nSkipped due to:\n${skipReason.join('\n')}`;
-          }
-        }
       }
-
+      if (blockOpts) {
+        skipReason = getImageBlockSkipReason({
+          bookmarked: isImageBookmarked(element),
+          highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
+        });
+        blocked = doBlockExpandedView(image, {
+          titleTarget,
+          options: blockOpts,
+          pixivData,
+          moderation,
+          skipReason: skipReason.join(', ')
+        });
+      }
       if (!blocked) {
-        setImageTitle(titleTarget, { pixivData, footer: footer.trim() });
+        setImageTitle(titleTarget, {
+          pixivData,
+          moderation,
+          footer: createModerationFooter(moderation, { skipReason })
+        });
       }
     }
 
@@ -4872,8 +5042,11 @@
       if (skipReason.length) {
         setImageTitle(image, {
           pixivData,
-          footer: `Blockable by:\nUTag: ${utag}` +
-            `\nSkipped due to:\n${skipReason.join('\n')}`
+          moderation: getImageModeration(pixivData),
+          footer: [
+            createTooltipFooter(tr('tooltip.blockableBy'), tr('tooltip.utag', { tag: utag })),
+            createTooltipFooter(tr('tooltip.skippedDueTo'), skipReason.join('\n'))
+          ]
         });
         logDebug(`Image is blockable, but skipped (reason: ${skipReason.join(', ')})`, image);
         return false;
@@ -4886,9 +5059,9 @@
         });
         if (status) {
           setImageTitle(image, {
-            data,
             pixivData,
-            footer: `Blocked by:\nUTag: ${utag}`
+            moderation: { ...getImageModeration(pixivData), actuallyBlocked: true },
+            footer: [createTooltipFooter(tr('tooltip.blockedBy'), tr('tooltip.utag', { tag: utag }))]
           });
           logDebug(`Image blocked (UTag: ${utag})`, image);
         }
@@ -5003,138 +5176,429 @@
     imagesIntersectionObserver.observe(element);
   };
 
+  /** FLOATING UI TOOLTIPS (one delegated, reusable instance) **/
+
+  const initFloatingTooltips = () => {
+    const tooltipSelector = '[data-pixiv_utils_tooltip]';
+    if (typeof FloatingUIDOM === 'undefined' || typeof FloatingUIDOM.computePosition !== 'function') {
+      console.error('[Pixiv Utils]: Floating UI unavailable; falling back to native titles.');
+      // No further tooltip events are registered if the @require dependency failed.
+      for (const element of document.querySelectorAll(tooltipSelector)) {
+        element.title = element.dataset.pixiv_utils_tooltip;
+      }
+      syncActiveFloatingTooltip = element => {
+        if (element.dataset.pixiv_utils_tooltip) element.title = element.dataset.pixiv_utils_tooltip;
+        else element.removeAttribute('title');
+      };
+      return;
+    }
+
+    const { computePosition, autoUpdate, offset, flip, shift, arrow } = FloatingUIDOM;
+    const defaults = ENV_DEFAULTS.FLOATING_TOOLTIPS_OPTIONS;
+    let options = defaults;
+    try {
+      validateFloatingOptions(CONFIG.FLOATING_TOOLTIPS_OPTIONS);
+      options = { ...defaults, ...CONFIG.FLOATING_TOOLTIPS_OPTIONS };
+    } catch (error) {
+      console.warn('[Pixiv Utils]: Invalid Floating UI options; using defaults.', error);
+    }
+
+    const mouseDelay = Math.max(0, Number(CONFIG.FLOATING_TOOLTIPS_STATIONARY_DELAY) || 0);
+    const showDelay = Math.max(0, Number(CONFIG.FLOATING_TOOLTIPS_SHOW_DELAY) || 0);
+    const mouseTolerance = Math.max(0, Number(CONFIG.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE) || 0);
+    const mouseToleranceSq = mouseTolerance * mouseTolerance;
+    const touchToleranceSq = Math.max(10, mouseTolerance) ** 2;
+
+    GM_addStyle(/*css*/`
+      .pixiv-utils-floating-tooltip {
+        position: fixed;
+        z-index: 9999;
+        width: max-content;
+        max-width: min(var(--pixiv-utils-floating-max-width, 350px), calc(100vw - 16px));
+        padding: 5px 9px;
+        border-radius: 4px;
+        --pixiv-utils-tooltip-bg: rgba(58, 58, 58, 0.94);
+        background: var(--pixiv-utils-tooltip-bg);
+        color: #d6d6d6;
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 1.4;
+        white-space: pre-line;
+        overflow-wrap: anywhere;
+        pointer-events: none;
+        box-sizing: border-box;
+      }
+      .pixiv-utils-tooltip-title {
+        display: block;
+        font-weight: 700;
+        color: #f4f4f4;
+      }
+      .pixiv-utils-tooltip-ai-row { margin-top: 3px; }
+      .pixiv-utils-tooltip-ai {
+        display: inline-block;
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-size: 0.86em;
+        background: rgba(255,255,255,0.08);
+        color: #bcbcbc;
+      }
+      .pixiv-utils-tooltip-ai[data-state="blockable"] {
+        background: rgba(255, 132, 82, 0.15);
+        color: #f2b8a1;
+      }
+      .pixiv-utils-tooltip-ai[data-state="blocked"] {
+        background: rgba(255, 97, 97, 0.27);
+        color: #ffcece;
+        font-weight: 600;
+      }
+      .pixiv-utils-tooltip-tags { margin-top: 3px; }
+      .pixiv-utils-tooltip-tag-separator { color: #9ea1a7; }
+      .pixiv-utils-tooltip-tag {
+        border-radius: 2px;
+        padding: 0 2px;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+      }
+      .pixiv-utils-tooltip-tag[data-match="highlighted"],
+      .pixiv-utils-tooltip-tag[data-match="both"] {
+        background: rgba(63, 190, 98, 0.18);
+        border-bottom: 2px solid var(--pixiv-utils-tooltip-tag-color, #32cd32);
+      }
+      .pixiv-utils-tooltip-tag[data-match="blocked"],
+      .pixiv-utils-tooltip-tag[data-match="both"] {
+        color: #ffd5d5;
+        background: rgba(234, 84, 84, 0.24);
+      }
+      .pixiv-utils-tooltip-tag[data-match="blocked"] {
+        border-bottom: 2px solid #fa8080;
+      }
+      .pixiv-utils-tooltip-tag[data-match="both"] {
+        background: linear-gradient(90deg, rgba(63,190,98,0.2), rgba(234,84,84,0.25));
+      }
+      .pixiv-utils-tooltip-date {
+        margin-top: 3px;
+        color: #aeb1b7;
+        font-size: 0.91em;
+      }
+      .pixiv-utils-tooltip-footer {
+        margin-top: 7px;
+        padding-top: 6px;
+        border-top: 1px solid rgba(255,255,255,0.22);
+        font-size: 0.92em;
+      }
+      .pixiv-utils-tooltip-footer-section + .pixiv-utils-tooltip-footer-section {
+        margin-top: 5px;
+      }
+      .pixiv-utils-tooltip-footer-heading {
+        display: block;
+        font-weight: 600;
+        color: #e2e2e2;
+      }
+      .pixiv-utils-tooltip-footer-body { display: block; }
+      .pixiv-utils-floating-tooltip[data-open] {
+        animation: pixiv-utils-floating-enter 120ms ease-out both;
+      }
+      .pixiv-utils-floating-arrow {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        background: var(--pixiv-utils-tooltip-bg);
+        pointer-events: none;
+      }
+      /* Render only the half facing outside the tooltip. Unlike a rotated
+         square, these triangles never paint over the translucent body. */
+      .pixiv-utils-floating-arrow[data-side="bottom"] {
+        clip-path: polygon(50% 0, 0 50%, 100% 50%);
+      }
+      .pixiv-utils-floating-arrow[data-side="top"] {
+        clip-path: polygon(0 50%, 100% 50%, 50% 100%);
+      }
+      .pixiv-utils-floating-arrow[data-side="right"] {
+        clip-path: polygon(0 50%, 50% 0, 50% 100%);
+      }
+      .pixiv-utils-floating-arrow[data-side="left"] {
+        clip-path: polygon(50% 0, 100% 50%, 50% 100%);
+      }
+      @keyframes pixiv-utils-floating-enter {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+    `);
+
+    const tooltip = document.createElement('div');
+    tooltip.id = 'pixiv-utils-floating-tooltip';
+    tooltip.className = 'pixiv-utils-floating-tooltip';
+    tooltip.setAttribute('role', 'tooltip');
+    tooltip.style.display = 'none';
+    tooltip.style.position = options.strategy;
+    tooltip.style.setProperty('--pixiv-utils-floating-max-width', `${options.maxWidth}px`);
+    const content = document.createElement('div');
+    const arrowElement = document.createElement('div');
+    arrowElement.className = 'pixiv-utils-floating-arrow';
+    arrowElement.dataset.side = options.placement.split('-')[0];
+    arrowElement.setAttribute('aria-hidden', 'true');
+    tooltip.append(content, arrowElement);
+    document.body.append(tooltip);
+
+    let activeTarget = null;
+    let activeMode = null;
+    let pendingTarget = null;
+    let pendingTimer = null;
+    let hoveredMouseTarget = null;
+    let mouseX = 0;
+    let mouseY = 0;
+    let mouseTracking = false;
+    let touchOrigin = null;
+    let lastTouchAt = -Infinity;
+    let stopPositioning = null;
+    let activeObserver = null;
+    let previousAriaDescription = null;
+    let positionSerial = 0;
+
+    const stopMouseTracking = () => {
+      if (!mouseTracking) return;
+      document.body.removeEventListener('pointermove', trackMouseMovement);
+      mouseTracking = false;
+    };
+
+    const clearPending = () => {
+      clearTimeout(pendingTimer);
+      pendingTimer = null;
+      pendingTarget = null;
+      touchOrigin = null;
+    };
+
+    const hideTooltip = () => {
+      ++positionSerial; // Discard already-running computePosition promises.
+      stopPositioning?.();
+      stopPositioning = null;
+      activeObserver?.disconnect();
+      activeObserver = null;
+      if (activeTarget) {
+        if (previousAriaDescription === null) activeTarget.removeAttribute('aria-describedby');
+        else activeTarget.setAttribute('aria-describedby', previousAriaDescription);
+      }
+      previousAriaDescription = null;
+      activeTarget = null;
+      activeMode = null;
+      tooltip.style.display = 'none';
+      tooltip.removeAttribute('data-open');
+    };
+
+    const cancelTooltip = () => {
+      clearPending();
+      stopMouseTracking();
+      hoveredMouseTarget = null;
+      hideTooltip();
+    };
+
+    const isEligible = target => target?.isConnected &&
+      Boolean(target.dataset.pixiv_utils_tooltip) &&
+      !target.hasAttribute('data-pixiv_utils_toggle_bookmarked_hide');
+
+    const updatePosition = (reference, target) => {
+      const request = ++positionSerial;
+      computePosition(reference, tooltip, {
+        placement: options.placement,
+        strategy: options.strategy,
+        middleware: [
+          offset({ mainAxis: options.mainAxisOffset, crossAxis: options.crossAxisOffset }),
+          flip(),
+          shift({ padding: options.shiftPadding }),
+          arrow({ element: arrowElement })
+        ]
+      }).then(({ x, y, placement, middlewareData }) => {
+        if (request !== positionSerial || target !== activeTarget || !isEligible(target)) return;
+        tooltip.style.left = `${x}px`;
+        tooltip.style.top = `${y}px`;
+        // Reset previous placement's properties when Floating UI flips sides.
+        arrowElement.style.top = arrowElement.style.right = '';
+        arrowElement.style.bottom = arrowElement.style.left = '';
+        const { x: ax, y: ay } = middlewareData.arrow || {};
+        if (ax != null) arrowElement.style.left = `${ax}px`;
+        if (ay != null) arrowElement.style.top = `${ay}px`;
+        const side = placement.split('-')[0];
+        const opposite = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' }[side];
+        // Half of the 12px arrow box sits beyond the edge, with only its
+        // exterior triangle painted. Keep the box square for flip() geometry.
+        arrowElement.dataset.side = side;
+        arrowElement.style[opposite] = '-6px';
+      }).catch(error => logDebug('Floating UI positioning error:', error));
+    };
+
+    const showTooltip = (target, mode) => {
+      if (!isEligible(target)) return;
+      if (activeTarget === target && activeMode === mode) return;
+      hideTooltip();
+      activeTarget = target;
+      activeMode = mode;
+      previousAriaDescription = target.getAttribute('aria-describedby');
+      const describedBy = previousAriaDescription?.trim();
+      if (!describedBy?.split(/\s+/).includes(tooltip.id)) {
+        target.setAttribute('aria-describedby', [describedBy, tooltip.id].filter(Boolean).join(' '));
+      }
+      renderImageTooltip(content, target);
+      tooltip.style.display = 'block';
+      tooltip.setAttribute('data-open', '');
+
+      // Matches Tippy's followCursor: 'initial' for mouse, but anchors touch/focus
+      // to the artwork element (and keeps keyboard tooltips usable).
+      const reference = mode === 'mouse'
+        ? {
+            contextElement: target,
+            getBoundingClientRect: () => ({
+              x: mouseX,
+              y: mouseY,
+              top: mouseY,
+              bottom: mouseY,
+              left: mouseX,
+              right: mouseX,
+              width: 0,
+              height: 0
+            })
+          }
+        : target;
+      const update = () => {
+        if (!isEligible(target)) { hideTooltip(); return; }
+        updatePosition(reference, target);
+      };
+      stopPositioning = autoUpdate(reference, tooltip, update);
+      activeObserver = new MutationObserver(() => {
+        if (!isEligible(target)) { hideTooltip(); return; }
+        renderImageTooltip(content, target);
+        update();
+      });
+      activeObserver.observe(target, {
+        attributes: true,
+        attributeFilter: ['data-pixiv_utils_tooltip', 'data-pixiv_utils_toggle_bookmarked_hide']
+      });
+    };
+
+    syncActiveFloatingTooltip = element => {
+      if (element !== activeTarget) return;
+      if (!isEligible(element)) { hideTooltip(); return; }
+      renderImageTooltip(content, element);
+      // A content change can affect size before ResizeObserver runs.
+      // autoUpdate's ResizeObserver will correct positioning after layout.
+    };
+
+    const queueShow = (target, mode, delay) => {
+      clearPending();
+      if (!isEligible(target)) return;
+      pendingTarget = target;
+      pendingTimer = setTimeout(() => {
+        pendingTimer = null;
+        if (pendingTarget !== target) return;
+        pendingTarget = null;
+        if (mode === 'mouse') {
+          stopMouseTracking();
+          if (hoveredMouseTarget !== target ||
+            !target.contains(document.elementFromPoint(mouseX, mouseY))) return;
+        } else if (mode === 'focus' && !target.contains(document.activeElement)) return;
+        showTooltip(target, mode);
+      }, delay);
+    };
+
+    const startMouseTracking = () => {
+      if (mouseTracking) return;
+      document.body.addEventListener('pointermove', trackMouseMovement, { passive: true });
+      mouseTracking = true;
+    };
+
+    const trackMouseMovement = event => {
+      if (event.pointerType !== 'mouse' || !hoveredMouseTarget) return;
+      const dx = event.clientX - mouseX;
+      const dy = event.clientY - mouseY;
+      if (dx * dx + dy * dy < mouseToleranceSq) return;
+      mouseX = event.clientX;
+      mouseY = event.clientY;
+      if (activeMode === 'mouse' && activeTarget === hoveredMouseTarget) return;
+      queueShow(hoveredMouseTarget, 'mouse', mouseDelay);
+    };
+
+    document.body.addEventListener('pointerover', event => {
+      if (event.pointerType !== 'mouse') return;
+      const target = event.target.closest?.(tooltipSelector);
+      if (!target || target === hoveredMouseTarget) return;
+      // Mouse entry should not interrupt an existing keyboard-focus tooltip.
+      if (target === activeTarget && activeMode === 'focus') {
+        hoveredMouseTarget = target;
+        return;
+      }
+      cancelTooltip();
+      hoveredMouseTarget = target;
+      mouseX = event.clientX;
+      mouseY = event.clientY;
+      startMouseTracking();
+      queueShow(target, 'mouse', mouseDelay);
+    });
+
+    document.body.addEventListener('pointerout', event => {
+      if (event.pointerType !== 'mouse' || !hoveredMouseTarget ||
+        !hoveredMouseTarget.contains(event.target) ||
+        hoveredMouseTarget.contains(event.relatedTarget)) return;
+      clearPending();
+      stopMouseTracking();
+      if (activeMode === 'mouse') hideTooltip();
+      hoveredMouseTarget = null;
+    });
+
+    document.body.addEventListener('pointerdown', event => {
+      const target = event.target.closest?.(tooltipSelector);
+      if (!target || (activeTarget && activeTarget !== target)) cancelTooltip();
+      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+      lastTouchAt = Date.now();
+      clearPending();
+      stopMouseTracking();
+      hoveredMouseTarget = null;
+      if (!target) return;
+      // Tap and long-press may show a tooltip; scrolling cancels the pending show.
+      queueShow(target, 'touch', showDelay);
+      touchOrigin = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    });
+
+    document.body.addEventListener('pointermove', event => {
+      if (!touchOrigin || event.pointerId !== touchOrigin.id) return;
+      const dx = event.clientX - touchOrigin.x;
+      const dy = event.clientY - touchOrigin.y;
+      if (dx * dx + dy * dy >= touchToleranceSq) clearPending();
+    }, { passive: true });
+    document.body.addEventListener('pointercancel', event => {
+      if (touchOrigin?.id === event.pointerId) clearPending();
+    });
+
+    document.body.addEventListener('focusin', event => {
+      // Mobile browsers may focus a link after pointerdown; don't double-schedule.
+      if (Date.now() - lastTouchAt < 700) return;
+      const target = event.target.closest?.(tooltipSelector);
+      if (!target) return;
+      if (activeTarget === target) return;
+      if (activeTarget) hideTooltip();
+      queueShow(target, 'focus', showDelay);
+    });
+
+    document.body.addEventListener('focusout', event => {
+      const target = event.target.closest?.(tooltipSelector);
+      if (!target || target.contains(event.relatedTarget)) return;
+      if (pendingTarget === target) clearPending();
+      if (activeTarget === target && activeMode === 'focus') hideTooltip();
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') cancelTooltip();
+    });
+    window.addEventListener('detectnavigate', cancelTooltip);
+    window.addEventListener('pagehide', cancelTooltip);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) cancelTooltip();
+    });
+  };
+
   /** SENTINEL */
 
   waitPageLoaded().then(() => {
-    // Init Tippy.js for tooltips.
-    if (CONFIG.ENABLE_TIPPY_TOOLTIPS) {
-      GM_addStyle(GM_getResourceText('tippyCss'));
-
-      GM_addStyle(/*css*/`
-        .tippy-box[data-theme~='pixiv-utils'] {
-          background-color: rgba(58, 58, 58, 0.88);
-          color: #d6d6d6;
-
-          .tippy-content {
-            white-space: pre-line;
-          }
-        }
-      `);
-
-      tippy.setDefaultProps(CONFIG.TIPPY_TOOLTIPS_OPTIONS);
-
-      // Keep delegated Tippy initialization, but delay mouse tooltips until the cursor is still.
-      const tooltipSelector = '[data-pixiv_utils_tooltip]';
-      const stationaryDelay = Math.max(0, Number(CONFIG.TIPPY_TOOLTIPS_STATIONARY_DELAY) || 0);
-      const movementTolerance = Math.max(0, Number(CONFIG.TIPPY_TOOLTIPS_MOVEMENT_TOLERANCE) || 0);
-      const movementToleranceSquared = movementTolerance * movementTolerance;
-
-      let hoveredTooltip = null;
-      let stationaryTimer = null;
-      let cursorStationary = false;
-      let lastMouseX = 0;
-      let lastMouseY = 0;
-
-      const stopStationaryTimer = () => {
-        clearTimeout(stationaryTimer);
-        stationaryTimer = null;
-        document.body.removeEventListener('pointermove', trackMouseMovement);
-      };
-
-      let lastPointerType = 'mouse';
-      const cancelPendingTooltip = () => {
-        stopStationaryTimer();
-        hoveredTooltip?._tippy?.hide();
-        hoveredTooltip = null;
-        cursorStationary = false;
-      };
-      // Leave mouse and touch clicks alone. Cancel only after actual SPA navigation
-      // or a full page unload; harmless clicks should not dismiss a tooltip.
-      window.addEventListener('detectnavigate', cancelPendingTooltip);
-      window.addEventListener('pagehide', cancelPendingTooltip);
-
-      const trackMouseMovement = event => {
-        if (event.pointerType !== 'mouse') {
-          return;
-        }
-
-        const dx = event.clientX - lastMouseX;
-        const dy = event.clientY - lastMouseY;
-        if (dx * dx + dy * dy < movementToleranceSquared) {
-          return;
-        }
-
-        lastMouseX = event.clientX;
-        lastMouseY = event.clientY;
-        startStationaryTimer();
-      };
-
-      const startStationaryTimer = () => {
-        clearTimeout(stationaryTimer);
-        cursorStationary = false;
-        stationaryTimer = setTimeout(() => {
-          stationaryTimer = null;
-          document.body.removeEventListener('pointermove', trackMouseMovement);
-
-          if (!hoveredTooltip?.isConnected ||
-            !hoveredTooltip.contains(document.elementFromPoint(lastMouseX, lastMouseY)) ||
-            !hoveredTooltip.dataset.pixiv_utils_tooltip) {
-            hoveredTooltip = null;
-            return;
-          }
-
-          cursorStationary = true;
-          hoveredTooltip._tippy?.show();
-        }, stationaryDelay);
-      };
-
-      document.body.addEventListener('pointerover', event => {
-        // Keep Tippy's normal touch and pen behavior.
-        lastPointerType = event.pointerType;
-        if (event.pointerType !== 'mouse') {
-          stopStationaryTimer();
-          hoveredTooltip = null;
-          cursorStationary = false;
-          return;
-        }
-
-        const target = event.target.closest(tooltipSelector);
-        if (!target || target === hoveredTooltip) {
-          return;
-        }
-
-        stopStationaryTimer();
-        hoveredTooltip = target;
-        lastMouseX = event.clientX;
-        lastMouseY = event.clientY;
-        document.body.addEventListener('pointermove', trackMouseMovement, { passive: true });
-        startStationaryTimer();
-      });
-
-      document.body.addEventListener('pointerout', event => {
-        if (event.pointerType === 'mouse' && hoveredTooltip?.contains(event.target) &&
-          !hoveredTooltip.contains(event.relatedTarget)) {
-          stopStationaryTimer();
-          hoveredTooltip = null;
-          cursorStationary = false;
-        }
-      });
-
-      // Create individual tooltips on first interaction, including on touch and keyboard focus.
-      tippy.delegate(document.body, {
-        target: tooltipSelector,
-        content: element => element.dataset.pixiv_utils_tooltip,
-        onShow: instance => {
-          // Cancel Tippy's normal mouse-hover show until our stationary timer fires.
-          // Do not interfere with keyboard focus or touch-triggered tooltips.
-          if (!instance.reference.isConnected) return false;
-          if (lastPointerType === 'mouse' && !cursorStationary &&
-            !instance.reference.contains(document.activeElement)) return false;
-          // Do not show on items hidden by filter bookmarks.
-          if (instance.reference.dataset.pixiv_utils_toggle_bookmarked_hide) return false;
-        }
-      });
-    }
+    // A single reusable tooltip replaces Tippy's delegated per-element instances.
+    if (CONFIG.ENABLE_FLOATING_TOOLTIPS) initFloatingTooltips();
 
     // Immediately attempt to determine page type.
     determinePageType();
