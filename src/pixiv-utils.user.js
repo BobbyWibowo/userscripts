@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.7.6
+// @version            1.7.7
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -128,7 +128,8 @@
     ENABLE_FLOATING_TOOLTIPS: true,
     FLOATING_TOOLTIPS_STATIONARY_DELAY: 500, // ms
     FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE: 3, // px
-    FLOATING_TOOLTIPS_SHOW_DELAY: 500, // ms (touch / keyboard focus)
+    FLOATING_TOOLTIPS_SHOW_DELAY: 500, // ms (keyboard focus)
+    FLOATING_TOOLTIPS_TOUCH_HOLD_DELAY: 350, // ms
     FLOATING_TOOLTIPS_OPTIONS: {
       placement: 'bottom',
       strategy: 'fixed',
@@ -452,7 +453,8 @@
       'field.languageInfo': 'Use your browser language or choose one. Missing translations fall back to English.',
       'field.highlightInfo': 'Leave blank for the default (#32cd32). Groups without their own color inherit this setting. Use "transparent" to hide highlight borders without disabling highlight bypass.',
       'field.floatingJson': 'Floating UI positioning options (JSON).',
-      'field.floatingShowDelay': 'Delay for touch and keyboard focus (ms).',
+      'field.floatingShowDelay': 'Delay for keyboard focus (ms).',
+      'field.floatingTouchHoldDelay': 'Hold duration before showing a tooltip on touchscreens (ms).',
       'field.combineRegexInfo': 'Faster matching, but anchors and lookbehinds may behave differently when combined.',
       'field.highlightBypassInfo': 'Does not override UTags blocking.',
       'field.dateInfo': 'Customize date display with Intl.DateTimeFormat options.',
@@ -541,7 +543,8 @@
       'label.ENABLE_FLOATING_TOOLTIPS': 'Use Floating UI tooltips',
       'label.FLOATING_TOOLTIPS_STATIONARY_DELAY': 'Stationary mouse delay',
       'label.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE': 'Mouse movement tolerance',
-      'label.FLOATING_TOOLTIPS_SHOW_DELAY': 'Touch / focus delay',
+      'label.FLOATING_TOOLTIPS_SHOW_DELAY': 'Keyboard focus delay',
+      'label.FLOATING_TOOLTIPS_TOUCH_HOLD_DELAY': 'Touch-and-hold delay',
       'label.FLOATING_TOOLTIPS_OPTIONS': 'Floating UI options',
       'tooltip.highlightedBy': 'Highlighted by:',
       'tooltip.blockedBy': 'Blocked by:',
@@ -661,7 +664,8 @@
       'field.languageInfo': 'ブラウザーの言語を使用するか、言語を選択してください。翻訳がない項目は英語で表示されます。',
       'field.highlightInfo': '空欄の場合は既定値（#32cd32）を使用します。色が未設定のグループにもこの色が適用されます。「transparent」を指定すると、ハイライトによるブロック回避機能を維持したまま枠線を非表示にできます。',
       'field.floatingJson': 'Floating UI の配置オプション（JSON）。',
-      'field.floatingShowDelay': 'タッチ・キーボードフォーカス時の表示待ち時間（ミリ秒）。',
+      'field.floatingShowDelay': 'キーボードフォーカス時の表示待ち時間（ミリ秒）。',
+      'field.floatingTouchHoldDelay': 'タッチ操作でツールチップを表示するまでの長押し時間（ミリ秒）。',
       'field.combineRegexInfo': 'マッチングが高速になりますが、正規表現を結合するとアンカーや後読みの動作が変わる場合があります。',
       'field.highlightBypassInfo': 'UTags によるブロックは回避できません。',
       'field.dateInfo': 'Intl.DateTimeFormat のオプションで日付の表示形式をカスタマイズします。',
@@ -750,7 +754,8 @@
       'label.ENABLE_FLOATING_TOOLTIPS': 'Floating UI ツールチップを使用',
       'label.FLOATING_TOOLTIPS_STATIONARY_DELAY': 'マウス停止後の待ち時間',
       'label.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE': 'マウス移動の許容範囲',
-      'label.FLOATING_TOOLTIPS_SHOW_DELAY': 'タッチ・フォーカス時の待ち時間',
+      'label.FLOATING_TOOLTIPS_SHOW_DELAY': 'キーボードフォーカス時の待ち時間',
+      'label.FLOATING_TOOLTIPS_TOUCH_HOLD_DELAY': 'タッチの長押し時間',
       'label.FLOATING_TOOLTIPS_OPTIONS': 'Floating UI のオプション',
       'tooltip.highlightedBy': 'ハイライト条件:',
       'tooltip.blockedBy': 'ブロック理由:',
@@ -870,7 +875,8 @@
       'field.languageInfo': '使用浏览器语言或手动选择语言。缺少翻译的内容将回退为英语。',
       'field.highlightInfo': '留空则使用默认颜色（#32cd32）。未指定颜色的分组会继承此设置。设置为“transparent”可隐藏高亮边框，同时保留高亮作品绕过屏蔽的功能。',
       'field.floatingJson': 'Floating UI 定位选项（JSON）。',
-      'field.floatingShowDelay': '触摸和键盘聚焦时的显示延迟（毫秒）。',
+      'field.floatingShowDelay': '键盘聚焦时的显示延迟（毫秒）。',
+      'field.floatingTouchHoldDelay': '触摸时长按多久才显示工具提示（毫秒）。',
       'field.combineRegexInfo': '可提高匹配速度，但合并正则表达式后，锚点和后行断言的行为可能有所不同。',
       'field.highlightBypassInfo': '无法绕过 UTags 的屏蔽。',
       'field.dateInfo': '使用 Intl.DateTimeFormat 选项自定义日期显示格式。',
@@ -959,7 +965,8 @@
       'label.ENABLE_FLOATING_TOOLTIPS': '使用 Floating UI 工具提示',
       'label.FLOATING_TOOLTIPS_STATIONARY_DELAY': '鼠标停止后的延迟',
       'label.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE': '鼠标移动容差',
-      'label.FLOATING_TOOLTIPS_SHOW_DELAY': '触摸／聚焦延迟',
+      'label.FLOATING_TOOLTIPS_SHOW_DELAY': '键盘聚焦延迟',
+      'label.FLOATING_TOOLTIPS_TOUCH_HOLD_DELAY': '触摸长按延迟',
       'label.FLOATING_TOOLTIPS_OPTIONS': 'Floating UI 选项',
       'tooltip.highlightedBy': '高亮依据：',
       'tooltip.blockedBy': '屏蔽原因：',
@@ -1079,7 +1086,8 @@
       'field.languageInfo': '使用瀏覽器語言，或自行選擇語言。未有翻譯的文字會以英文顯示。',
       'field.highlightInfo': '留空即使用預設顏色（#32cd32）。未指定顏色的群組會採用此設定。填入「transparent」可隱藏高亮邊框，但不會停用高亮作品略過屏蔽的功能。',
       'field.floatingJson': 'Floating UI 定位選項（JSON）。',
-      'field.floatingShowDelay': '觸控及鍵盤焦點的顯示延遲（毫秒）。',
+      'field.floatingShowDelay': '鍵盤焦點的顯示延遲（毫秒）。',
+      'field.floatingTouchHoldDelay': '觸控時長按多久才顯示提示框（毫秒）。',
       'field.combineRegexInfo': '可以加快比對，但合併正則表達式後，錨點和後顧斷言的結果可能有差異。',
       'field.highlightBypassInfo': '不能略過 UTags 的屏蔽。',
       'field.dateInfo': '透過 Intl.DateTimeFormat 選項自訂日期顯示格式。',
@@ -1168,7 +1176,8 @@
       'label.ENABLE_FLOATING_TOOLTIPS': '使用 Floating UI 提示框',
       'label.FLOATING_TOOLTIPS_STATIONARY_DELAY': '鼠標停下後的延遲時間',
       'label.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE': '鼠標移動容許範圍',
-      'label.FLOATING_TOOLTIPS_SHOW_DELAY': '觸控／焦點延遲',
+      'label.FLOATING_TOOLTIPS_SHOW_DELAY': '鍵盤焦點延遲',
+      'label.FLOATING_TOOLTIPS_TOUCH_HOLD_DELAY': '觸控長按延遲',
       'label.FLOATING_TOOLTIPS_OPTIONS': 'Floating UI 選項',
       'tooltip.highlightedBy': '高亮原因：',
       'tooltip.blockedBy': '屏蔽原因：',
@@ -1288,7 +1297,8 @@
       'field.languageInfo': '使用瀏覽器語言或手動選擇語言。缺少翻譯的項目將顯示英文。',
       'field.highlightInfo': '留空將使用預設顏色（#32cd32）。未指定顏色的群組會沿用此設定。設為「transparent」可隱藏醒目標示邊框，但不會停用醒目標示作品的屏蔽略過功能。',
       'field.floatingJson': 'Floating UI 定位選項（JSON）。',
-      'field.floatingShowDelay': '觸控與鍵盤焦點的顯示延遲（毫秒）。',
+      'field.floatingShowDelay': '鍵盤焦點的顯示延遲（毫秒）。',
+      'field.floatingTouchHoldDelay': '觸控時長按多久才顯示工具提示（毫秒）。',
       'field.combineRegexInfo': '可加快比對速度，但合併正規表示式後，錨點與後顧斷言的行為可能有所不同。',
       'field.highlightBypassInfo': '無法略過 UTags 的屏蔽。',
       'field.dateInfo': '使用 Intl.DateTimeFormat 選項自訂日期顯示格式。',
@@ -1377,7 +1387,8 @@
       'label.ENABLE_FLOATING_TOOLTIPS': '使用 Floating UI 工具提示',
       'label.FLOATING_TOOLTIPS_STATIONARY_DELAY': '滑鼠停止移動後的延遲',
       'label.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE': '允許的滑鼠移動幅度',
-      'label.FLOATING_TOOLTIPS_SHOW_DELAY': '觸控／焦點延遲',
+      'label.FLOATING_TOOLTIPS_SHOW_DELAY': '鍵盤焦點延遲',
+      'label.FLOATING_TOOLTIPS_TOUCH_HOLD_DELAY': '觸控長按延遲',
       'label.FLOATING_TOOLTIPS_OPTIONS': 'Floating UI 選項',
       'tooltip.highlightedBy': '醒目標示依據：',
       'tooltip.blockedBy': '屏蔽原因：',
@@ -2179,6 +2190,7 @@
       if (key === 'FLOATING_TOOLTIPS_STATIONARY_DELAY') field.description = tr('field.delayInfo');
       if (key === 'FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE') field.description = tr('field.toleranceInfo');
       if (key === 'FLOATING_TOOLTIPS_SHOW_DELAY') field.description = tr('field.floatingShowDelay');
+      if (key === 'FLOATING_TOOLTIPS_TOUCH_HOLD_DELAY') field.description = tr('field.floatingTouchHoldDelay');
       definitions[key] = field;
     }
     // Backup controls are managed locally and never persisted as configuration values.
@@ -5205,9 +5217,10 @@
 
     const mouseDelay = Math.max(0, Number(CONFIG.FLOATING_TOOLTIPS_STATIONARY_DELAY) || 0);
     const showDelay = Math.max(0, Number(CONFIG.FLOATING_TOOLTIPS_SHOW_DELAY) || 0);
+    const touchHoldDelay = Math.max(0, Number(CONFIG.FLOATING_TOOLTIPS_TOUCH_HOLD_DELAY) || 0);
     const mouseTolerance = Math.max(0, Number(CONFIG.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE) || 0);
     const mouseToleranceSq = mouseTolerance * mouseTolerance;
-    const touchToleranceSq = Math.max(10, mouseTolerance) ** 2;
+    const touchToleranceSq = Math.max(12, mouseTolerance) ** 2;
 
     GM_addStyle(/*css*/`
       .pixiv-utils-floating-tooltip {
@@ -5295,6 +5308,16 @@
         color: #e2e2e2;
       }
       .pixiv-utils-tooltip-footer-body { display: block; }
+      .pixiv-utils-floating-tooltip[data-mode="touch"] {
+        pointer-events: auto;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      /* On iOS, prevent the link/image callout that competes with long press.
+         This does not disable tapping, scrolling, or text selection globally. */
+      @media (hover: none) and (pointer: coarse) {
+        [data-pixiv_utils_tooltip] { -webkit-touch-callout: none; }
+      }
       .pixiv-utils-floating-tooltip[data-open] {
         animation: pixiv-utils-floating-enter 120ms ease-out both;
       }
@@ -5348,7 +5371,9 @@
     let mouseX = 0;
     let mouseY = 0;
     let mouseTracking = false;
-    let touchOrigin = null;
+    let touchGesture = null;
+    let cancelledTouchForMenu = null;
+    let suppressedTouchClick = null;
     let lastTouchAt = -Infinity;
     let stopPositioning = null;
     let activeObserver = null;
@@ -5365,7 +5390,6 @@
       clearTimeout(pendingTimer);
       pendingTimer = null;
       pendingTarget = null;
-      touchOrigin = null;
     };
 
     const hideTooltip = () => {
@@ -5383,12 +5407,16 @@
       activeMode = null;
       tooltip.style.display = 'none';
       tooltip.removeAttribute('data-open');
+      tooltip.removeAttribute('data-mode');
     };
 
     const cancelTooltip = () => {
       clearPending();
       stopMouseTracking();
       hoveredMouseTarget = null;
+      touchGesture = null;
+      cancelledTouchForMenu = null;
+      suppressedTouchClick = null;
       hideTooltip();
     };
 
@@ -5440,6 +5468,7 @@
       renderImageTooltip(content, target);
       tooltip.style.display = 'block';
       tooltip.setAttribute('data-open', '');
+      tooltip.dataset.mode = mode;
 
       // Matches Tippy's followCursor: 'initial' for mouse, but anchors touch/focus
       // to the artwork element (and keeps keyboard tooltips usable).
@@ -5495,7 +5524,9 @@
           if (hoveredMouseTarget !== target ||
             !target.contains(document.elementFromPoint(mouseX, mouseY))) return;
         } else if (mode === 'focus' && !target.contains(document.activeElement)) return;
+        else if (mode === 'touch' && touchGesture?.target !== target) return;
         showTooltip(target, mode);
+        if (mode === 'touch' && touchGesture?.target === target) touchGesture.opened = true;
       }, delay);
     };
 
@@ -5543,29 +5574,143 @@
       hoveredMouseTarget = null;
     });
 
+    // Touch is a deliberate long-press gesture, not a delayed tap. Keep its
+    // state separate from pointer hover/focus so normal taps still navigate.
+    const rememberTouchClick = (target, x, y) => {
+      suppressedTouchClick = { target, x, y, until: Date.now() + 1000 };
+    };
+
+    // Capture before Pixiv's delegated link handlers; suppress only the click
+    // produced by a consumed touch gesture, never arbitrary later clicks.
+    window.addEventListener('click', event => {
+      const suppressed = suppressedTouchClick;
+      if (!suppressed) return;
+      if (Date.now() > suppressed.until) { suppressedTouchClick = null; return; }
+      if (event.pointerType && event.pointerType !== 'touch') return;
+      const dx = event.clientX - suppressed.x;
+      const dy = event.clientY - suppressed.y;
+      if (dx * dx + dy * dy > 25 ** 2 ||
+        !(suppressed.target === event.target || suppressed.target.contains?.(event.target) ||
+          event.target.contains?.(suppressed.target))) return;
+      suppressedTouchClick = null;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+
+    // The tooltip itself consumes its dismissal tap; the underlying artwork
+    // never receives the event, even if the tooltip overlaps its link.
+    tooltip.addEventListener('click', event => {
+      if (activeMode !== 'touch') return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      hideTooltip();
+    });
+    tooltip.addEventListener('pointerdown', event => {
+      if (activeMode === 'touch') event.stopPropagation();
+    });
+    tooltip.addEventListener('touchstart', event => {
+      if (activeMode === 'touch') event.stopPropagation();
+    }, { passive: true });
+
     document.body.addEventListener('pointerdown', event => {
+      if (event.pointerType === 'touch') return;
       const target = event.target.closest?.(tooltipSelector);
       if (!target || (activeTarget && activeTarget !== target)) cancelTooltip();
-      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
-      lastTouchAt = Date.now();
-      clearPending();
-      stopMouseTracking();
-      hoveredMouseTarget = null;
-      if (!target) return;
-      // Tap and long-press may show a tooltip; scrolling cancels the pending show.
-      queueShow(target, 'touch', showDelay);
-      touchOrigin = { id: event.pointerId, x: event.clientX, y: event.clientY };
     });
 
-    document.body.addEventListener('pointermove', event => {
-      if (!touchOrigin || event.pointerId !== touchOrigin.id) return;
-      const dx = event.clientX - touchOrigin.x;
-      const dy = event.clientY - touchOrigin.y;
-      if (dx * dx + dy * dy >= touchToleranceSq) clearPending();
+    document.body.addEventListener('touchstart', event => {
+      lastTouchAt = Date.now();
+      // A new physical gesture must not inherit a previous hold's click guard.
+      suppressedTouchClick = null;
+      cancelledTouchForMenu = null;
+      clearPending();
+      touchGesture = null;
+      if (event.touches.length !== 1 || event.changedTouches.length !== 1) return;
+      const touch = event.changedTouches[0];
+      const target = event.target.closest?.(tooltipSelector);
+      // A touch outside an already-open popover closes it and consumes the
+      // tap. A long hold can still open a different artwork immediately.
+      if (activeMode === 'touch') {
+        rememberTouchClick(event.target, touch.clientX, touch.clientY);
+        hideTooltip();
+      } else if (activeMode) hideTooltip();
+      stopMouseTracking();
+      hoveredMouseTarget = null;
+      if (!isEligible(target)) return;
+      touchGesture = {
+        id: touch.identifier,
+        target,
+        x: touch.clientX,
+        y: touch.clientY,
+        opened: false
+      };
+      queueShow(target, 'touch', touchHoldDelay);
     }, { passive: true });
-    document.body.addEventListener('pointercancel', event => {
-      if (touchOrigin?.id === event.pointerId) clearPending();
-    });
+
+    document.body.addEventListener('touchmove', event => {
+      const gesture = touchGesture;
+      if (!gesture) return;
+      if (event.touches.length !== 1) {
+        clearPending();
+        touchGesture = null;
+        return;
+      }
+      const touch = [...event.changedTouches].find(item => item.identifier === gesture.id);
+      if (!touch) return;
+      const dx = touch.clientX - gesture.x;
+      const dy = touch.clientY - gesture.y;
+      if (dx * dx + dy * dy >= touchToleranceSq) {
+        clearPending();
+        touchGesture = null;
+        cancelledTouchForMenu = null;
+        if (gesture.opened && activeMode === 'touch') hideTooltip();
+      }
+    }, { passive: true });
+
+    const finishTouch = (event, cancelled) => {
+      const gesture = touchGesture;
+      if (!gesture || ![...event.changedTouches].some(item => item.identifier === gesture.id)) return;
+      const opened = gesture.opened || (activeTarget === gesture.target && activeMode === 'touch');
+      if (opened) {
+        rememberTouchClick(gesture.target, gesture.x, gesture.y);
+        cancelledTouchForMenu = { target: gesture.target, until: Date.now() + 400 };
+      } else if (cancelled) {
+        // Some browsers cancel pointer/touch streams immediately before a
+        // contextmenu event. Preserve only a very short eligible candidate.
+        cancelledTouchForMenu = { target: gesture.target, until: Date.now() + 400 };
+      }
+      clearPending();
+      touchGesture = null;
+      // A completed long press stays open until a deliberate dismissal.
+    };
+    document.body.addEventListener('touchend', event => finishTouch(event, false));
+    document.body.addEventListener('touchcancel', event => finishTouch(event, true));
+
+    // Context menus can fire before our hold timer, or after touchcancel.
+    // Suppress only eligible touch-initiated artwork callouts. No mouse
+    // right-clicks or unrelated page context menus are affected.
+    document.addEventListener('contextmenu', event => {
+      const gesture = touchGesture;
+      const candidate = gesture ||
+        (cancelledTouchForMenu && Date.now() <= cancelledTouchForMenu.until
+          ? cancelledTouchForMenu
+          : null);
+      if (!candidate || !isEligible(candidate.target) ||
+        !(candidate.target === event.target || candidate.target.contains(event.target))) return;
+      event.preventDefault();
+      cancelledTouchForMenu = null;
+      clearPending();
+      if (gesture) gesture.opened = true;
+      rememberTouchClick(candidate.target, gesture?.x ?? event.clientX, gesture?.y ?? event.clientY);
+      showTooltip(candidate.target, 'touch');
+    }, true);
+
+    // Never leave a touch popover floating over content after scrolling.
+    document.addEventListener('scroll', () => {
+      if (touchGesture) { clearPending(); touchGesture = null; }
+      cancelledTouchForMenu = null;
+      if (activeMode === 'touch') hideTooltip();
+    }, true);
 
     document.body.addEventListener('focusin', event => {
       // Mobile browsers may focus a link after pointerdown; don't double-schedule.
