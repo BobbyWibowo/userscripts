@@ -32,12 +32,10 @@ export default [
         GM_addStyle: 'readonly',
         GM_getResourceText: 'readonly',
         GM_getValue: 'readonly',
-        GM_getValues: 'readonly',
         GM_info: 'readonly',
         GM_listValues: 'readonly',
         GM_registerMenuCommand: 'readonly',
         GM_setValue: 'readonly',
-        GM_setValues: 'readonly'
       }
     },
     plugins: {

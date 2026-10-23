@@ -13,10 +13,8 @@
 // @grant        GM_addStyle
 // @grant        GM_getResourceText
 // @grant        GM_getValue
-// @grant        GM_getValues
 // @grant        GM_listValues
 // @grant        GM_setValue
-// @grant        GM_setValues
 // @grant        GM_registerMenuCommand
 // @grant        window.onurlchange
 // @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
@@ -359,24 +357,17 @@
     UTAGS_BLOCKED_TAGS: ['block', 'hide']
   };
 
-  const ENV = {};
+  const ENV_KEYS = Object.keys(ENV_DEFAULTS);
+  const settingOrDefault = (key, value) => value ?? ENV_DEFAULTS[key];
+  const getSetting = key => settingOrDefault(key, GM_getValue(key, ENV_DEFAULTS[key]));
 
-  // GM_getValues returns undefined for missing keys, but null is a valid override.
-  // Use GM_listValues to distinguish a missing key from one deliberately set to null.
-  const defaultKeys = Object.keys(ENV_DEFAULTS);
+  const ENV = {};
   const existingKeys = new Set(GM_listValues());
-  const storedValues = GM_getValues(defaultKeys);
-  const missingValues = {};
-  for (const key of defaultKeys) {
-    if (!existingKeys.has(key)) {
-      ENV[key] = ENV_DEFAULTS[key];
-      missingValues[key] = ENV_DEFAULTS[key];
-    } else {
-      // Retain the old nullish fallback for non-null defaults without rewriting storage.
-      ENV[key] = storedValues[key] ?? ENV_DEFAULTS[key];
-    }
+  for (const key of ENV_KEYS) {
+    if (!existingKeys.has(key)) GM_setValue(key, ENV_DEFAULTS[key]);
+    // Retain the old nullish fallback for non-null defaults without rewriting storage.
+    ENV[key] = getSetting(key);
   }
-  if (Object.keys(missingValues).length) GM_setValues(missingValues);
 
   // Settings UI and button text translations. Fill ja/zh/zh-Hant as available;
   // missing/empty translations automatically fall back to en per individual string.
@@ -1234,7 +1225,7 @@
 
   // Runtime UI text comes from i18n only when a TEXT_* override is nullish.
   // An explicitly stored empty string is a deliberate override, not a fallback.
-  for (const key of Object.keys(ENV_DEFAULTS)) {
+  for (const key of ENV_KEYS) {
     if (key.startsWith('TEXT_') && CONFIG[key] == null) CONFIG[key] = tr(`text.${key}`);
   }
 
@@ -1879,7 +1870,7 @@
     if (!isPlainObject(imported)) throw new TypeError(tr('backup.objectError'));
     const get = key => Object.hasOwn(imported, key)
       ? imported[key]
-      : GM_getValue(key, ENV_DEFAULTS[key]);
+      : getSetting(key);
     const textRuleValid = value => typeof value === 'string' ||
       (Array.isArray(value) && value.length === 2 && typeof value[0] === 'string' &&
         typeof value[1] === 'string' && (() => {
@@ -1981,12 +1972,13 @@
       if (!Object.keys(imported).length) throw new Error(tr('backup.emptyObject'));
       validateBackupSettings(imported);
       if (!window.confirm(tr('backup.importConfirm', { count: Object.keys(imported).length }))) return false;
-      GM_setValues(imported); // Same per-key storage and partial-import behavior as before.
-      if (panel?.isOpen) {
-        const latest = GM_getValues(Object.keys(ENV_DEFAULTS));
-        for (const key of Object.keys(ENV_DEFAULTS)) {
-          panel.set(key, settingToEditor(key, latest[key] == null ? ENV_DEFAULTS[key] : latest[key]));
+      for (const [key, value] of Object.entries(imported)) {
+        GM_setValue(key, value);
+        if (panel?.isOpen && Object.hasOwn(ENV_DEFAULTS, key)) {
+          panel.set(key, settingToEditor(key, settingOrDefault(key, value)));
         }
+      }
+      if (panel?.isOpen) {
         // Update the stored-value baseline, so Save doesn't undo imported values.
         await panel._load();
         panel._mark();
@@ -2028,7 +2020,8 @@
         return button;
       };
       addButton(tr('backup.export'), () => {
-        textarea.value = settingsJson(GM_getValues(GM_listValues()));
+        textarea.value = settingsJson(Object.fromEntries(
+          GM_listValues().map(key => [key, GM_getValue(key)])));
       });
       addButton(tr('backup.copy'), async () => {
         if (!textarea.value.trim()) return alert(tr('backup.emptyCopy'));
@@ -2385,12 +2378,13 @@
     async _load () {
       // gmConfig 1.0.0 originally loads a single JSON string. Directly read the
       // exact same per-key values as the rest of this userscript instead.
-      this._storedOriginals = GM_getValues(Object.keys(ENV_DEFAULTS));
+      this._storedOriginals = {};
       this._initialEditorValues = {};
       for (const [key, field] of Object.entries(this._fields)) {
         if (!(key in ENV_DEFAULTS)) continue; // backup buttons have no storage key
-        const stored = this._storedOriginals[key];
-        const uiValue = settingToEditor(key, stored == null ? ENV_DEFAULTS[key] : stored);
+        const stored = GM_getValue(key, ENV_DEFAULTS[key]);
+        this._storedOriginals[key] = stored;
+        const uiValue = settingToEditor(key, settingOrDefault(key, stored));
         field.value = uiValue;
         this._initialEditorValues[key] = JSON.stringify(uiValue);
       }
@@ -2399,17 +2393,16 @@
 
     async save () {
       const current = this._vals();
-      const changed = {};
       for (const [key, fallback] of Object.entries(ENV_DEFAULTS)) {
         if (!(key in current)) continue;
-        if (!this._resetting && JSON.stringify(current[key]) === this._initialEditorValues[key]) continue;
-        const stored = this._storedOriginals[key];
-        changed[key] = this._resetting ? fallback : editorToSetting(key, current[key], stored);
-      }
-      if (Object.keys(changed).length) GM_setValues(changed);
-      Object.assign(this._storedOriginals, changed);
-      for (const key of Object.keys(ENV_DEFAULTS)) {
-        if (key in current) this._initialEditorValues[key] = JSON.stringify(current[key]);
+        const currentJson = JSON.stringify(current[key]);
+        if (!this._resetting && currentJson === this._initialEditorValues[key]) continue;
+        const stored = this._resetting
+          ? fallback
+          : editorToSetting(key, current[key], this._storedOriginals[key]);
+        GM_setValue(key, stored);
+        this._storedOriginals[key] = stored;
+        this._initialEditorValues[key] = currentJson;
       }
       this._mark();
       this._clean = this._json();
@@ -2656,7 +2649,7 @@
     if (settingsOpening || settingsPanel?.isOpen) return;
     settingsOpening = true;
     try {
-      settingsUiLocale = resolveSettingsLocale(GM_getValue('SETTINGS_LANGUAGE', 'auto'));
+      settingsUiLocale = resolveSettingsLocale(getSetting('SETTINGS_LANGUAGE'));
       await waitPageLoaded();
       const SettingsConstructor = await loadSettingsConstructor();
       const panel = new SettingsConstructor();
