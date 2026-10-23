@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.7.7
+// @version            1.7.8
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -168,7 +168,8 @@
       '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
       '.works-item:not(.works-item-illust):has(.thumb:not([src^="data"]))', // mobile (novel)
       '.works-item-novel-editor-recommend:has(.cover:not([style^="data"]))', // mobile's novels page's editor's picks
-      '.stacclist > li.illust' // mobile's feed page
+      '.stacclist > li.illust', // mobile's feed page
+      '[class*="works-item-illust__"]:has([class*="style_thumb"]:not([src^="data"]))' // mobile (discovery feed)
     ],
 
     SELECTORS_IMAGE_TITLE: [
@@ -201,7 +202,8 @@
       '._layout-thumbnail', // rankings page
       '.imgoverlay', // mobile's feed page
       '.bookmark', // mobile
-      '.hSoPoc' // mobile
+      '.hSoPoc', // mobile
+      '[class*="style_bookmark__"]' // mobile (rankings page)
     ],
 
     SELECTORS_IMAGE_BOOKMARKED: [
@@ -327,7 +329,7 @@
         selectorImagesContainer: '.works-grid-list',
         sanityCheck: () => {
           // Skip if in own profile (intended for bookmarks page).
-          return document.querySelector('.ui-button[href*="setting_profile.php"]');
+          return document.querySelector('.ui-button[href*="/settings/profile"]');
         }
       },
       // Mobile artist page's home tab
@@ -3443,8 +3445,16 @@
     margin-top: -26px;
   }
 
-  :not(#higher_specificity) .absolute.right-0 .pixiv_utils_edit_bookmark {
-    margin-top: 6px;
+  /* some novel items */
+  :not(#higher_specificity) {
+    .absolute.right-0,
+    .novel-series-thumbnail,
+    .works-item-novel,
+    .works-item-novel-editor-recommend {
+      .pixiv_utils_edit_bookmark {
+        margin-top: 6px;
+      }
+    }
   }
 
   .pixiv_utils_edit_bookmark {
@@ -4046,7 +4056,7 @@
           // Try children that may not be reflected in its deeper .child props.
           if (source === null && props.children?.props?.children && Array.isArray(props.children?.props?.children)) {
             for (const child of props.children.props.children) {
-              if (child.props?.thumbnail) {
+              if (child?.props?.thumbnail) {
                 source = child.props?.thumbnail;
                 break;
               }
