@@ -171,6 +171,7 @@
       '.ranking-items > .ranking-item', // rankings page
       'div[style*="main-ranking"] ol > li', // rankings page (new)
       'div[data-ga4-label="works_content"] div[data-ga4-label="thumbnail"]', // tags page (new)
+      'body > div > div[style*="translateY"] ul li.inline-block > div > div > div:has(a[href*="artworks/"] img[src])', // recommended users after following
       '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
       '.works-item:not(.works-item-illust):has(.thumb:not([src^="data"]))', // mobile (novel)
       '.works-item-novel-editor-recommend:has(.cover:not([style^="data"]))', // mobile's novels page's editor's picks
@@ -222,7 +223,7 @@
     ],
 
     SELECTORS_EXPANDED_VIEW_CONTROLS: [
-      'div[style*="translateY"] section', // desktop
+      'main div[style*="translateY"] section', // desktop
       '.work-interactions' // mobile
     ],
 
@@ -249,6 +250,7 @@
     SELECTORS_RECOMMENDED_USER_CONTAINER: [
       'section > .grid > :nth-child(2) .flex-col.gap-8:first-child .flex-row.items-center:not(.mr-auto)', // home's recommended users sidebar
       'nav:has(a[href*="tags/"]) ~ h2:has(span) + div.grid > li.list-none', // tags page's users tab
+      'body > div > div[style*="translateY"] ul li.inline-block' // recommended users after following
     ],
 
     SELECTORS_TAG_BUTTON: [
@@ -2782,7 +2784,8 @@
   ].join(', ');
 
   const SELECTORS_IMAGE_NO_CONTROLS = [
-    'aside:has(iframe[src*="premium_lp"]) > ul > li' // tags page's popular works
+    'aside:has(iframe[src*="premium_lp"]) > ul > li', // tags page's popular works
+    'body > div > div[style*="translateY"] ul li.inline-block > div > div > div' // recommended users after following
   ].join(', ');
 
   const SELECTORS_IMAGE_MOBILE = '.works-item';
@@ -3157,6 +3160,21 @@
 
     &[data-pixiv_utils_highlight]:nth-child(3) ${SELECTORS_IMAGE_HIGHLIGHTED} {
       border-bottom-right-radius: 8px;
+    }
+  }
+
+  /* recommended users after following */
+  body > div > div[style*="translateY"] ul li.inline-block > div > div > div:has(a[href*="artworks/"] img[src]) {
+    &[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
+      border-radius: 0;
+    }
+
+    &[data-pixiv_utils_highlight]:nth-child(1) ${SELECTORS_IMAGE_HIGHLIGHTED} {
+      border-top-left-radius: 8px;
+    }
+
+    &[data-pixiv_utils_highlight]:nth-child(3) ${SELECTORS_IMAGE_HIGHLIGHTED} {
+      border-top-right-radius: 8px;
     }
   }
 
@@ -4503,6 +4521,25 @@
     return blocked;
   };
 
+  const doRecommendedUser = element => {
+    const artistLink = element.querySelector('a[href*="users/"]');
+    if (artistLink) {
+      const match = artistLink.href.match(/users\/(\d+)/);
+      if (match) {
+        const blocked = PIXIV_BLOCKED_USERS_SET.has(match[1]);
+
+        if (blocked) {
+          element.style.setProperty('display', 'none', 'important');
+          logDebug(`Recommended user removed (${match[1]})`);
+        }
+
+        return blocked;
+      }
+    }
+
+    return false;
+  };
+
   const doUtags = async (element, options) => {
     let image = element.closest(CONFIG.SELECTORS_IMAGE);
 
@@ -4885,6 +4922,13 @@
     if (PIXIV_BLOCKED_TAGS_STRING.size || PIXIV_BLOCKED_TAGS_REGEXP.length) {
       sentinel.on(CONFIG.SELECTORS_TAG_BUTTON, element => {
         processNewElement(doTagButton, element);
+      });
+    }
+
+    // Users
+    if (PIXIV_BLOCKED_USERS_SET.size) {
+      sentinel.on(CONFIG.SELECTORS_RECOMMENDED_USER_CONTAINER, element => {
+        processNewElement(doRecommendedUser, element);
       });
     }
 
