@@ -1347,6 +1347,25 @@
     });
   };
 
+  const path = location.pathname;
+
+  // Codes beyond this block will not execute for these routes (mainly for efficiency).
+  if (path.startsWith('/bookmark_add.php') || path.startsWith('/novel/bookmark_add.php')) {
+    if (CONFIG.DATE_CONVERSION) {
+      waitPageLoaded().then(() => {
+        GM_addStyle(addPageDateStyle);
+        const date = document.querySelector('.bookmark-detail-unit .meta');
+        if (date) {
+          // This page has the date display hardcoded to Japan time without an accompanying timestamp.
+          convertDate(date, true);
+        }
+      });
+    }
+
+    log('bookmark_add.php detected. Excluding date conversion, script has terminated early.');
+    return;
+  }
+
   /** SETTINGS PANEL (gmConfig 1.0.0, existing per-key GM storage) **/
 
   // The library has no public storage adapter. Its TypeScript-private _load method and
@@ -2878,25 +2897,6 @@
   };
 
   GM_registerMenuCommand('⚙️ Settings', openSettingsPanel);
-
-  const path = location.pathname;
-
-  // Codes beyond this block will not execute for these routes (mainly for efficiency).
-  if (path.startsWith('/bookmark_add.php') || path.startsWith('/novel/bookmark_add.php')) {
-    if (CONFIG.DATE_CONVERSION) {
-      waitPageLoaded().then(() => {
-        GM_addStyle(addPageDateStyle);
-        const date = document.querySelector('.bookmark-detail-unit .meta');
-        if (date) {
-          // This page has the date display hardcoded to Japan time without an accompanying timestamp.
-          convertDate(date, true);
-        }
-      });
-    }
-
-    log('bookmark_add.php detected. Excluding date conversion, script has terminated early.');
-    return;
-  }
 
   /** MAIN UTILS */
 
