@@ -11,7 +11,6 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=pixiv.net
 // @run-at       document-start
 // @grant        GM_addStyle
-// @grant        GM_info
 // @grant        GM_getResourceText
 // @grant        GM_getValue
 // @grant        GM_getValues
