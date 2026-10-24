@@ -3955,7 +3955,15 @@
   const _TB_MIN = 0;
   const _TB_MAX = 2;
 
-  let toggleBookmarkedMode = null;
+  const getToggleBookmarkedMode = element => {
+    const section = element.closest('[data-pixiv_utils_toggle_bookmarked_section]');
+    return section ? Number(section.dataset.pixiv_utils_toggle_bookmarked_mode) : null;
+  };
+
+  const setToggleBookmarkedMode = (section, imagesContainer, mode) => {
+    section.dataset.pixiv_utils_toggle_bookmarked_mode = mode;
+    imagesContainer.dataset.pixiv_utils_toggle_bookmarked_mode = mode;
+  };
 
   const isImageBookmarked = element => {
     const hasBookmarkedClass = Boolean(element.querySelector(CONFIG.SELECTORS_IMAGE_BOOKMARKED));
@@ -4433,11 +4441,10 @@
 
     element.dataset.pixiv_utils_blocked = true;
 
-    // Process in toggle bookmarked sections.
-    if (element.closest('[data-pixiv_utils_toggle_bookmarked_section]')) {
-      if (toggleBookmarkedMode !== 0) {
-        element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
-      }
+    // Process using this section's current filter, not another section's mode.
+    const sectionMode = getToggleBookmarkedMode(element);
+    if (sectionMode !== null && sectionMode !== 0) {
+      element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
     }
 
     // For mobile, never remove blocked, as it does not behave well with Pixiv's in-place navigation.
@@ -4533,12 +4540,13 @@
       return true;
     }
 
-    // Process new entries in toggled bookmarked sections.
+    // Process new entries using their own section's current filter mode.
     const bookmarked = isImageBookmarked(element);
-    if (element.closest('[data-pixiv_utils_toggle_bookmarked_section]')) {
-      if (toggleBookmarkedMode === 1 && bookmarked) {
+    const sectionMode = getToggleBookmarkedMode(element);
+    if (sectionMode !== null) {
+      if (sectionMode === 1 && bookmarked) {
         element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
-      } else if (toggleBookmarkedMode === 2 && !bookmarked) {
+      } else if (sectionMode === 2 && !bookmarked) {
         element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
       } else {
         delete element.dataset.pixiv_utils_toggle_bookmarked_hide;
@@ -4897,44 +4905,34 @@
   };
 
   let toggling = false;
-  const toggleBookmarked = (button, imagesContainer, options = {}) => {
-    if (toggling) {
-      return false;
-    }
-
+  const toggleBookmarked = (section, button, imagesContainer, options = {}) => {
+    if (toggling) return false;
     toggling = true;
 
-    if (options.sync) {
-      toggleBookmarkedMode = GM_getValue('PREF_TOGGLE_BOOKMARKED_MODE', _TB_MIN);
-    } else if (options.rightClick) {
-      toggleBookmarkedMode--;
-    } else {
-      toggleBookmarkedMode++;
-    }
+    let mode = options.sync
+      ? GM_getValue('PREF_TOGGLE_BOOKMARKED_MODE', _TB_MIN)
+      : Number(section.dataset.pixiv_utils_toggle_bookmarked_mode) + (options.rightClick ? -1 : 1);
 
-    if (toggleBookmarkedMode > _TB_MAX) {
-      toggleBookmarkedMode = _TB_MIN;
-    } else if (toggleBookmarkedMode < _TB_MIN) {
-      toggleBookmarkedMode = _TB_MAX;
-    }
+    if (mode > _TB_MAX) mode = _TB_MIN;
+    else if (mode < _TB_MIN) mode = _TB_MAX;
 
-    updateToggleBookmarkedButton(button, toggleBookmarkedMode);
+    setToggleBookmarkedMode(section, imagesContainer, mode);
+    updateToggleBookmarkedButton(button, mode);
 
     // Invalid stored modes should not modify the current filter state.
-    if (Number.isInteger(toggleBookmarkedMode)) {
+    if (Number.isInteger(mode)) {
       for (const image of imagesContainer.querySelectorAll(CONFIG.SELECTORS_IMAGE)) {
-        const hide = toggleBookmarkedMode !== 0 &&
-        (Boolean(image.dataset.pixiv_utils_blocked) ||
-          (toggleBookmarkedMode === 1 ? isImageBookmarked(image) : !isImageBookmarked(image)));
+        const hide = mode !== 0 &&
+          (Boolean(image.dataset.pixiv_utils_blocked) ||
+            (mode === 1 ? isImageBookmarked(image) : !isImageBookmarked(image)));
         if (hide) image.dataset.pixiv_utils_toggle_bookmarked_hide = true;
         else delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
       }
     }
 
-    GM_setValue('PREF_TOGGLE_BOOKMARKED_MODE', toggleBookmarkedMode);
-
+    // The most recently selected mode is still the default for new sections.
+    GM_setValue('PREF_TOGGLE_BOOKMARKED_MODE', mode);
     toggling = false;
-
     return true;
   };
 
@@ -4963,15 +4961,17 @@
       logDebug('Refreshing toggle bookmarked section due to images container update', element);
     }
 
-    // Load latest state from storage for the first time.
-    if (toggleBookmarkedMode === null) {
-      toggleBookmarkedMode = GM_getValue('PREF_TOGGLE_BOOKMARKED_MODE', _TB_MIN);
-    }
+    // Keep the section's temporary mode when its image container is replaced.
+    // New sections initialize from the last saved preference.
+    const mode = element.dataset.pixiv_utils_toggle_bookmarked_mode === undefined
+      ? GM_getValue('PREF_TOGGLE_BOOKMARKED_MODE', _TB_MIN)
+      : Number(element.dataset.pixiv_utils_toggle_bookmarked_mode);
 
     // Mark as processed.
     const uuid = element.dataset.pixiv_utils_toggle_bookmarked_section || uuidv4();
     element.dataset.pixiv_utils_toggle_bookmarked_section =
       imagesContainer.dataset.pixiv_utils_toggle_bookmarked_section = uuid;
+    setToggleBookmarkedMode(element, imagesContainer, mode);
 
     // Clear old button if it's being refreshed.
     const oldButtonContainer = element.querySelector('.pixiv_utils_toggle_bookmarked_container');
@@ -4984,7 +4984,7 @@
 
     const button = document.createElement('a');
     button.className = 'pixiv_utils_toggle_bookmarked';
-    updateToggleBookmarkedButton(button, toggleBookmarkedMode);
+    updateToggleBookmarkedButton(button, mode);
 
     if (CONFIG.TEXT_TOGGLE_BOOKMARKED_TOOLTIP) {
       button.title = CONFIG.TEXT_TOGGLE_BOOKMARKED_TOOLTIP;
@@ -4993,7 +4993,7 @@
     // Left click.
     button.addEventListener('click', event => {
       event.preventDefault();
-      toggleBookmarked(button, imagesContainer, {
+      toggleBookmarked(element, button, imagesContainer, {
         sync: event.shiftKey
       });
     });
@@ -5001,7 +5001,7 @@
     // Right click.
     button.addEventListener('contextmenu', event => {
       event.preventDefault();
-      toggleBookmarked(button, imagesContainer, {
+      toggleBookmarked(element, button, imagesContainer, {
         rightClick: true
       });
     });
