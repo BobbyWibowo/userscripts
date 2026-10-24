@@ -155,7 +155,8 @@
     SELECTORS_IMAGE: [
       'ul > li:has(a[href*="artworks/"] img[src], a[href*="artworks/"] figure)', // desktop
       'figcaption ul > div > div:has(a[href*="artworks/"] img[src])', // recommended works after bookmarking
-      'ul > div:not(.list-none):has(a[href*="artworks/"] img[src]):not(:has(ul, .gtm-illust-recommend-thumbnail-link))',
+      'ul > div:not(.list-none):has(a[href*="artworks/"] img[src]):not(:has(.gtm-illust-recommend-thumbnail-link, .gtm-illust-toppage-recommend-user-profile))',
+      'div:has(> div > div > div > a.gtm-illust-toppage-recommend-user-work[href*="artworks/"] img[src])', // recommended users on home's illustrations tab
       'ul > li:has(a[href*="novel/"])', // desktop (novel)
       'nav:not([style]) > div:has(a[href*="artworks/"] img[src])',
       'nav:not([style]) > div:has(a[href*="novel/"])',
@@ -198,7 +199,7 @@
 
     SELECTORS_IMAGE_CONTROLS: [
       'div:has(> [data-ga4-label="bookmark_button"], > .gtm-illust-recommend-bookmark)',
-      '[data-ga4-label="thumbnail_link"] ~ div:has(> button[type="button"] > svg)',
+      ':is([data-gtm-value], [data-ga4-label="thumbnail_link"]) ~ div:has(> button[type="button"] > svg)',
       '._layout-thumbnail', // rankings page
       '.imgoverlay', // mobile's feed page
       '.bookmark', // mobile
@@ -244,7 +245,8 @@
     SELECTORS_RECOMMENDED_USER_CONTAINER: [
       'section > .grid > :nth-child(2) .flex-col.gap-8:first-child .flex-row.items-center:not(.mr-auto)', // home's recommended users sidebar
       'nav:has(a[href*="tags/"]) ~ h2:has(span) + div.grid > li.list-none', // tags page's users tab
-      'body > div > div[style*="translateY"] ul li.inline-block' // recommended users after following
+      'body > div > div[style*="translateY"] ul li.inline-block', // recommended users after following
+      'ul > div:has(.gtm-illust-toppage-recommend-user-profile)' // recommended users on home's illustrations tab
     ],
 
     SELECTORS_TAG_BUTTON: [
@@ -3244,7 +3246,9 @@
 
   const SELECTORS_IMAGE_CONTAINER_SIMPLIFIED = [
     'div[open]:has(a[href*="users/"])', // user profile popup
-    'aside > section > nav' // expanded view's other works sidebar
+    'aside > section > nav', // expanded view's other works sidebar
+    'body > div > div[style*="translateY"] ul li.inline-block > div > div', // recommended users after following
+    'div:has(> div > div > div > div > a.gtm-illust-toppage-recommend-user-work)' // recommended users on home's illustrations tab
   ].join(', ');
 
   const SELECTORS_IMAGE_SMALL = [
@@ -3253,8 +3257,7 @@
   ].join(', ');
 
   const SELECTORS_IMAGE_NO_CONTROLS = [
-    'aside:has(iframe[src*="premium_lp"]) > ul > li', // tags page's popular works
-    'body > div > div[style*="translateY"] ul li.inline-block > div > div > div' // recommended users after following
+    'aside:has(iframe[src*="premium_lp"]) > ul > li' // tags page's popular works
   ].join(', ');
 
   const SELECTORS_IMAGE_MOBILE = '.works-item';
@@ -3616,7 +3619,9 @@
   }
 
   /* recommended users after following */
-  body > div > div[style*="translateY"] ul li.inline-block > div > div > div:has(a[href*="artworks/"] img[src]) {
+  body > div > div[style*="translateY"] ul li.inline-block > div > div > div:has(a[href*="artworks/"] img[src]),
+  /* recommended users on home's illustrations tab */
+  div:has(> div > div > div > a.gtm-illust-toppage-recommend-user-work[href*="artworks/"] img[src]) {
     &[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
       border-radius: 0;
     }
