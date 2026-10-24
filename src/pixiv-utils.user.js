@@ -3768,47 +3768,52 @@
   const WAIT_FOR_POLL = 1000; // ms
   const WAIT_FOR_TIMEOUT = 30000; // ms; callers can safely retry on later observations.
 
-  const waitForIntervals = {};
+  // Share one polling timer across all pending element lookups. Each request
+  // retains its own deadline, detached-element check and navigation cancellation.
+  const pendingWaitFors = new Set();
+  let waitForTimer = null;
+  const finishWaitFor = (pending, result) => {
+    if (pending.done) return;
+    pending.done = true;
+    pendingWaitFors.delete(pending);
+    if (!pendingWaitFors.size && waitForTimer !== null) {
+      clearInterval(waitForTimer);
+      waitForTimer = null;
+    }
+    pending.resolve(result);
+  };
 
   const waitFor = (func, element = document, timeout = WAIT_FOR_TIMEOUT) => {
     if (typeof func !== 'function') return Promise.resolve(null);
 
     return new Promise(resolve => {
-      let interval = null;
       const deadline = performance.now() + timeout;
-      const finish = result => {
-        if (interval !== null) {
-          clearInterval(interval);
-          delete waitForIntervals[interval];
-          interval = null;
-        }
-        resolve(result);
-      };
-      const find = () => {
+      const pending = { element, resolve, done: false, check: null };
+      pending.check = () => {
         // Pixiv can unmount an artwork without changing the URL.
-        if (element !== document && !element.isConnected) {
-          finish(null);
-          return true;
-        }
-        if (performance.now() >= deadline) {
-          finish(null);
-          return true;
+        if ((element !== document && !element.isConnected) || performance.now() >= deadline) {
+          finishWaitFor(pending, null);
+          return;
         }
         let result;
         try { result = func(element); } catch (error) {
           console.warn('[Pixiv Utils]: waitFor check failed:', error);
-          finish(null);
-          return true;
+          finishWaitFor(pending, null);
+          return;
         }
-        if (result) {
-          finish(result);
-          return true;
-        }
-        return false;
+        if (result) finishWaitFor(pending, result);
       };
-      if (!find()) {
-        interval = setInterval(find, WAIT_FOR_POLL);
-        waitForIntervals[interval] = { func, element, resolve: finish };
+
+      // Check immediately, just as before; enqueue only unresolved requests.
+      pending.check();
+      if (pending.done) return;
+      pendingWaitFors.add(pending);
+      if (waitForTimer === null) {
+        waitForTimer = setInterval(() => {
+          for (const request of [...pendingWaitFors]) {
+            if (pendingWaitFors.has(request)) request.check();
+          }
+        }, WAIT_FOR_POLL);
       }
     });
   };
@@ -5190,15 +5195,9 @@
   };
 
   window.addEventListener('detectnavigate', event => {
-    const intervals = Object.keys(waitForIntervals);
-    for (const interval of intervals) {
-      clearInterval(interval);
-      waitForIntervals[interval].resolve();
-      delete waitForIntervals[interval];
-    }
-    if (intervals.length > 0) {
-      logDebug(`Cleared ${intervals.length} pending waitFor interval(s).`);
-    }
+    const pendingCount = pendingWaitFors.size;
+    for (const pending of [...pendingWaitFors]) finishWaitFor(pending, null);
+    if (pendingCount) logDebug(`Cleared ${pendingCount} pending waitFor request(s).`);
 
     cleanupDetachedElementObservers();
 
@@ -5888,10 +5887,8 @@
 
     if (CONFIG.MODE !== 'PROD') {
       setInterval(() => {
-        const intervals = Object.keys(waitForIntervals);
-        if (intervals.length > 0) {
-          // Debug first pending interval.
-          logDebug('waitFor', waitForIntervals[intervals[0]].element);
+        if (pendingWaitFors.size) {
+          logDebug('waitFor', pendingWaitFors.values().next().value.element);
         }
       }, 2500);
     }
