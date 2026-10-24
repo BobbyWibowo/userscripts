@@ -2349,9 +2349,7 @@
         // Update the stored-value baseline, so Save doesn't undo imported values.
         await panel._load();
         panel._mark();
-        syncColoredGroupToggles();
-        syncSettingsDecorations();
-        initListOrderControls(panel);
+        refreshSettingsEnhancements(panel, false);
       }
       alert(tr('backup.imported'));
       return true;
@@ -3143,6 +3141,13 @@
 
   let settingsPanel = null;
   let settingsOpening = false;
+  const refreshSettingsEnhancements = (panel, localize = true) => {
+    syncColoredGroupToggles();
+    syncSettingsDecorations();
+    initListOrderControls(panel);
+    if (localize) localizePanelChrome(panel);
+  };
+
   const openSettingsPanel = async () => {
     if (settingsOpening || settingsPanel?.isOpen) return;
     settingsOpening = true;
@@ -3164,9 +3169,7 @@
           }
         },
         onOpen: () => {
-          syncColoredGroupToggles();
-          syncSettingsDecorations();
-          initListOrderControls(panel);
+          refreshSettingsEnhancements(panel, false);
           // Nested list changes do not fire top-level onChange. Refresh only the
           // affected highlighted group (or the highlighted list for top-level changes).
           panel._dlg?.addEventListener('click', event => {
@@ -3203,10 +3206,7 @@
               queueMicrotask(() => {
                 if (!panel.isOpen) return;
                 panel.reinit(makeSettingsDefinitions(), settingsPanelTitle());
-                syncColoredGroupToggles();
-                syncSettingsDecorations();
-                initListOrderControls(panel);
-                localizePanelChrome(panel);
+                refreshSettingsEnhancements(panel);
               });
             }
           }
@@ -3225,10 +3225,7 @@
           if (locale !== settingsUiLocale) {
             settingsUiLocale = locale;
             panel.reinit(makeSettingsDefinitions(), settingsPanelTitle());
-            syncColoredGroupToggles();
-            syncSettingsDecorations();
-            initListOrderControls(panel);
-            localizePanelChrome(panel);
+            refreshSettingsEnhancements(panel);
           }
           alert(tr('message.reset'));
         }
