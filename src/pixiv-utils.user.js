@@ -3259,88 +3259,49 @@
 
   const SELECTORS_IMAGE_MOBILE = '.works-item';
 
+  // Both rule types compile literal tags and regexes identically. Keep one
+  // compiler while retaining highlighted group order and explicit color priority.
+  const compileTagRules = (tags, combineRegexes) => {
+    const result = { string: new Set(), regexp: [] };
+    const byFlags = new Map();
+    for (const tag of tags || []) {
+      if (typeof tag === 'string') {
+        result.string.add(tag);
+      } else if (Array.isArray(tag)) {
+        const flags = tag[1] || '';
+        if (combineRegexes) {
+          if (!byFlags.has(flags)) byFlags.set(flags, []);
+          byFlags.get(flags).push(tag[0]);
+        } else {
+          result.regexp.push(new RegExp(tag[0], flags));
+        }
+      }
+    }
+    if (combineRegexes) {
+      for (const [flags, patterns] of byFlags) {
+        result.regexp.push(new RegExp(patterns.join('|'), flags));
+      }
+    }
+    return result;
+  };
+
   const PIXIV_HIGHLIGHTED_TAGS_FORMATTED = [];
-
   for (const config of CONFIG.PIXIV_HIGHLIGHTED_TAGS) {
-    const buildTags = tags => {
-      const result = {
-        string: new Set(),
-        regexp: []
-      };
-
-      const regexpMap = {};
-
-      for (const tag of tags) {
-        if (typeof tag === 'string') {
-          result.string.add(tag);
-        } else if (Array.isArray(tag)) {
-          if (CONFIG.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES) {
-            const flags = tag[1] || '';
-            if (regexpMap[flags] === undefined) {
-              regexpMap[flags] = [];
-            }
-            regexpMap[flags].push(tag[0]);
-          } else {
-            result.regexp.push(new RegExp(tag[0], tag[1] || ''));
-          }
-        }
-      }
-
-      const regexpMapKeys = Object.keys(regexpMap);
-      if (CONFIG.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES && regexpMapKeys.length) {
-        for (const flags of regexpMapKeys) {
-          result.regexp.push(new RegExp(regexpMap[flags].join('|'), flags));
-        }
-      }
-
-      return result;
-    };
-
-    const _config = {};
-
-    if (typeof config === 'object' && !Array.isArray(config)) {
-      Object.assign(_config, buildTags(config.tags));
-      if (typeof config.color === 'string') {
-        _config.color = config.color;
-      }
-    } else {
-      Object.assign(_config, buildTags([config]));
-    }
-
-    if (_config.string.size || _config.regexp.length) {
-      PIXIV_HIGHLIGHTED_TAGS_FORMATTED.push(_config);
-    }
+    const grouped = config && typeof config === 'object' && !Array.isArray(config);
+    const compiled = compileTagRules(grouped ? config.tags : [config],
+      CONFIG.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES);
+    if (!compiled.string.size && !compiled.regexp.length) continue;
+    if (grouped && typeof config.color === 'string') compiled.color = config.color;
+    PIXIV_HIGHLIGHTED_TAGS_FORMATTED.push(compiled);
   }
 
   logDebug('PIXIV_HIGHLIGHTED_TAGS_FORMATTED = ', PIXIV_HIGHLIGHTED_TAGS_FORMATTED);
   const PIXIV_HIGHLIGHTED_TAGS_VALIDATED = PIXIV_HIGHLIGHTED_TAGS_FORMATTED.length;
 
-  const PIXIV_BLOCKED_TAGS_STRING = new Set();
-  const PIXIV_BLOCKED_TAGS_REGEXP = [];
-  const PIXIV_BLOCKED_TAGS_REGEXP_MAP = {};
-
-  for (const tag of CONFIG.PIXIV_BLOCKED_TAGS) {
-    if (typeof tag === 'string') {
-      PIXIV_BLOCKED_TAGS_STRING.add(tag);
-    } else if (Array.isArray(tag)) {
-      if (CONFIG.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES) {
-        const flags = tag[1] || '';
-        if (PIXIV_BLOCKED_TAGS_REGEXP_MAP[flags] === undefined) {
-          PIXIV_BLOCKED_TAGS_REGEXP_MAP[flags] = [];
-        }
-        PIXIV_BLOCKED_TAGS_REGEXP_MAP[flags].push(tag[0]);
-      } else {
-        PIXIV_BLOCKED_TAGS_REGEXP.push(new RegExp(tag[0], tag[1] || ''));
-      }
-    }
-  }
-
-  const PIXIV_BLOCKED_TAGS_REGEXP_MAP_KEYS = Object.keys(PIXIV_BLOCKED_TAGS_REGEXP_MAP);
-  if (CONFIG.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES && PIXIV_BLOCKED_TAGS_REGEXP_MAP_KEYS.length) {
-    for (const flags of PIXIV_BLOCKED_TAGS_REGEXP_MAP_KEYS) {
-      PIXIV_BLOCKED_TAGS_REGEXP.push(new RegExp(PIXIV_BLOCKED_TAGS_REGEXP_MAP[flags].join('|'), flags));
-    }
-  }
+  const blockedTagRules = compileTagRules(CONFIG.PIXIV_BLOCKED_TAGS,
+    CONFIG.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES);
+  const PIXIV_BLOCKED_TAGS_STRING = blockedTagRules.string;
+  const PIXIV_BLOCKED_TAGS_REGEXP = blockedTagRules.regexp;
 
   logDebug('PIXIV_BLOCKED_TAGS_STRING = ', PIXIV_BLOCKED_TAGS_STRING);
   logDebug('PIXIV_BLOCKED_TAGS_REGEXP = ', PIXIV_BLOCKED_TAGS_REGEXP);
