@@ -4134,19 +4134,35 @@
   };
 
   const PIXIV_DATA_CACHE = new SimpleCache(96);
+  // Coalesce simultaneous reads for the SAME source element. Different cards
+  // can expose different amounts of metadata, so do not merge their in-flight
+  // reads solely on artwork ID (incomplete results must stay independently retryable).
+  const pendingPixivData = new WeakMap();
 
   const getImagePixivData = async (id, element, isNovel = false) => {
     const cacheKey = `${isNovel ? 'novel' : 'illust'}:${id}`;
     const cache = PIXIV_DATA_CACHE.get(cacheKey);
-    if (cache !== undefined) {
-      return cache;
-    }
+    if (cache !== undefined) return cache;
 
-    const pixivData = await extractImagePixivData(element);
-    if (pixivData?.complete) {
-      PIXIV_DATA_CACHE.set(cacheKey, pixivData);
+    let pending = pendingPixivData.get(element);
+    if (!pending) {
+      pending = new Map();
+      pendingPixivData.set(element, pending);
     }
-    return pixivData || {};
+    if (pending.has(cacheKey)) return pending.get(cacheKey);
+
+    const task = (async () => {
+      const pixivData = await extractImagePixivData(element);
+      if (pixivData?.complete) PIXIV_DATA_CACHE.set(cacheKey, pixivData);
+      return pixivData || {};
+    })();
+    pending.set(cacheKey, task);
+    try {
+      return await task;
+    } finally {
+      if (pending.get(cacheKey) === task) pending.delete(cacheKey);
+      if (!pending.size) pendingPixivData.delete(element);
+    }
   };
 
   // Structured tooltip details belong to an artwork element, not a global string.
