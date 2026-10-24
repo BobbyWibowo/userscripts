@@ -1541,16 +1541,32 @@
   }
   `;
 
-  const DATE_FORMAT = new Intl.DateTimeFormat(CONFIG.DATE_CONVERSION_LOCALES, CONFIG.DATE_CONVERSION_OPTIONS);
+  // Initialize formatters only when dates are actually needed (page conversion
+  // or artwork metadata). A malformed stored format must not abort the script.
+  let dateFormatters = null;
+  const getDateFormatter = (includeTime = true) => {
+    if (!dateFormatters) {
+      const create = (locale, options) => {
+        const dateOnly = { ...options };
+        for (const key of ['hour12', 'hourCycle', 'hour', 'minute', 'second']) delete dateOnly[key];
+        return {
+          full: new Intl.DateTimeFormat(locale, options),
+          dateOnly: new Intl.DateTimeFormat(locale, dateOnly)
+        };
+      };
+      try {
+        dateFormatters = create(CONFIG.DATE_CONVERSION_LOCALES, CONFIG.DATE_CONVERSION_OPTIONS);
+      } catch (error) {
+        console.warn('[Pixiv Utils]: Invalid date formatting configuration; using defaults:', error);
+        dateFormatters = create(ENV_DEFAULTS.DATE_CONVERSION_LOCALES, ENV_DEFAULTS.DATE_CONVERSION_OPTIONS);
+      }
+    }
+    return includeTime ? dateFormatters.full : dateFormatters.dateOnly;
+  };
 
-  const DATE_FORMAT_NO_HMS_OPTIONS = Object.assign({}, CONFIG.DATE_CONVERSION_OPTIONS);
-  delete DATE_FORMAT_NO_HMS_OPTIONS.hour12;
-  delete DATE_FORMAT_NO_HMS_OPTIONS.hourCycle;
-  delete DATE_FORMAT_NO_HMS_OPTIONS.hour;
-  delete DATE_FORMAT_NO_HMS_OPTIONS.minute;
-  delete DATE_FORMAT_NO_HMS_OPTIONS.second;
-
-  const DATE_FORMAT_NO_HMS = new Intl.DateTimeFormat(CONFIG.DATE_CONVERSION_LOCALES, DATE_FORMAT_NO_HMS_OPTIONS);
+  const formatArtworkDate = date => {
+    try { return getDateFormatter().format(new Date(date)); } catch { return null; }
+  };
 
   const convertDate = (element, fixJapanTime = false) => {
     // Support "updated on" popups
@@ -1614,12 +1630,7 @@
       duplicateDate.dataset.pixiv_utils_date_prefix = prefix;
     }
 
-    let dateString = '';
-    if (dateHasHMS) {
-      dateString = DATE_FORMAT.format(date);
-    } else {
-      dateString = DATE_FORMAT_NO_HMS.format(date);
-    }
+    const dateString = getDateFormatter(dateHasHMS).format(date);
 
     duplicateDate.dataset.pixiv_utils_date_timestamp = timestamp;
     duplicateDate.textContent = prefix + dateString;
@@ -4050,10 +4061,7 @@
         data.tags = _data.tags;
 
         if (Number.isFinite(_data.upload_timestamp)) {
-          try {
-            const dateString = DATE_FORMAT.format(new Date(_data.upload_timestamp * 1000));
-            data.createDate = dateString;
-          } catch {}
+          data.createDate = formatArtworkDate(_data.upload_timestamp * 1000);
         }
       }
     } else {
@@ -4118,12 +4126,7 @@
             const date = Number.isFinite(source.illust_upload_timestamp)
               ? (source.illust_upload_timestamp * 1000)
               : source.createDate;
-            if (date !== undefined) {
-              try {
-                const dateString = DATE_FORMAT.format(new Date(date));
-                data.createDate = dateString;
-              } catch {}
-            }
+            if (date !== undefined) data.createDate = formatArtworkDate(date);
           }
 
           // Source metadata identifies the artwork's artist more reliably than
