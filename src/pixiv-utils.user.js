@@ -5130,22 +5130,48 @@
   };
 
   let imagesIntersectionObserver = null;
+  // Track deferred work independently of the observer instance so SPA navigation
+  // can transfer connected targets to the replacement instead of dropping them.
+  const pendingImageIntersections = new Map();
+  let pendingImageCleanupTimer = null;
+  const cleanupPendingImageIntersections = () => {
+    for (const [element] of pendingImageIntersections) {
+      if (element.isConnected) continue;
+      pendingImageIntersections.delete(element);
+      imagesIntersectionObserver?.unobserve(element);
+      delete element.pixiv_utils_intersection_observer;
+    }
+    if (!pendingImageIntersections.size && pendingImageCleanupTimer !== null) {
+      clearInterval(pendingImageCleanupTimer);
+      pendingImageCleanupTimer = null;
+    }
+  };
 
   const initImagesIntersectionObserver = () => {
-    if (imagesIntersectionObserver !== null) {
-      imagesIntersectionObserver.disconnect();
-    }
-
-    imagesIntersectionObserver = new IntersectionObserver(entries => {
+    imagesIntersectionObserver?.disconnect();
+    const observer = new IntersectionObserver(entries => {
+      // A disconnected observer can still deliver already-queued notifications.
+      if (observer !== imagesIntersectionObserver) return;
       for (const entry of entries) {
-        const opts = entry.target.pixiv_utils_intersection_observer;
-        if (entry.isIntersecting && typeof opts.func === 'function') {
-          opts.func(entry.target, opts.options);
-          imagesIntersectionObserver.unobserve(entry.target);
+        const opts = pendingImageIntersections.get(entry.target);
+        if (!opts) { observer.unobserve(entry.target); continue; }
+        if (!entry.target.isConnected) {
+          pendingImageIntersections.delete(entry.target);
+          observer.unobserve(entry.target);
           delete entry.target.pixiv_utils_intersection_observer;
+          continue;
         }
+        if (!entry.isIntersecting) continue;
+        pendingImageIntersections.delete(entry.target);
+        observer.unobserve(entry.target);
+        delete entry.target.pixiv_utils_intersection_observer;
+        if (typeof opts.func === 'function') opts.func(entry.target, opts.options);
       }
+      cleanupPendingImageIntersections();
     }, { delay: 0, threshold: 0 });
+    imagesIntersectionObserver = observer;
+    cleanupPendingImageIntersections();
+    for (const element of pendingImageIntersections.keys()) observer.observe(element);
   };
 
   let isHome = false;
@@ -5178,10 +5204,22 @@
   });
 
   const processNewElement = (func, element, options = {}) => {
-    if (isElementPassedOrVisible(element)) return func(element, options);
-    // If not in viewport, observe intersection.
-    element.pixiv_utils_intersection_observer = { func, options };
-    imagesIntersectionObserver.observe(element);
+    if (isElementPassedOrVisible(element)) {
+      if (pendingImageIntersections.delete(element)) {
+        imagesIntersectionObserver?.unobserve(element);
+        delete element.pixiv_utils_intersection_observer;
+        cleanupPendingImageIntersections();
+      }
+      return func(element, options);
+    }
+    // The latest requested work supersedes older deferred options for this card.
+    const pending = { func, options };
+    pendingImageIntersections.set(element, pending);
+    element.pixiv_utils_intersection_observer = pending;
+    imagesIntersectionObserver?.observe(element);
+    if (pendingImageCleanupTimer === null) {
+      pendingImageCleanupTimer = setInterval(cleanupPendingImageIntersections, 10000);
+    }
   };
 
   /** FLOATING UI TOOLTIPS (one delegated, reusable instance) **/
