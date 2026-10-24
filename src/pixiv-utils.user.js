@@ -2821,11 +2821,28 @@
     overflow-y: auto;
     overflow-x: hidden;
   }
+  /* The tablist is placed above the scrolling settings body, visually
+     separated from the header and fields like a floating toolbar. */
   .gc-p .gc-tb {
+    position: relative;
+    z-index: 1;
     flex: 0 0 auto;
-    border-bottom: 0 !important;
-    box-shadow: none !important;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    min-width: 0;
+    max-width: calc(100% - 24px);
+    margin: 8px 12px 0;
+    padding: 5px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    border: 1px solid rgba(128, 128, 128, 0.25) !important;
+    border-radius: 12px;
+    background: rgba(128, 128, 128, 0.12);
     background-image: none !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14) !important;
   }
   .gc-p .gc-tb::before, .gc-p .gc-tb::after { content: none !important; }
   /* Rounded controls and list cards, without affecting input dimensions. */
@@ -2844,10 +2861,20 @@
   /* Keep tab geometry stable; use a filled selected state instead of the
      active bottom underline, which clashed with gmConfig's tab strip. */
   .gc-p .gc-tb > button {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 7px 12px;
+    border: 0 !important;
+    border-radius: 8px;
     font-weight: 400 !important;
-    border-bottom: 0 !important;
+    white-space: nowrap;
     box-shadow: none !important;
     background-image: none !important;
+  }
+  @media (hover: hover) {
+    .gc-p .gc-tb > button:hover {
+      background-color: rgba(128, 128, 128, 0.16);
+    }
   }
   .gc-p .gc-tb > button:is([aria-selected="true"], [data-active="true"], .active, .gc-a, .gc-ta) {
     background-color: rgba(128, 128, 128, 0.22) !important;
@@ -3040,14 +3067,13 @@
       padding: 10px 12px;
     }
     .gc-p .gc-tb {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      overscroll-behavior-x: contain;
-      scrollbar-width: thin;
+      max-width: calc(100% - 20px);
+      margin: 6px 10px 8px;
+      padding: 4px;
     }
     .gc-p .gc-tb > button {
-      flex: 0 0 auto;
-      white-space: nowrap;
+      min-height: 38px;
+      padding: 7px 10px;
     }
     .gc-p .gc-f {
       flex-wrap: wrap; gap: 6px; padding: 8px 12px;
@@ -3148,7 +3174,20 @@
 
   let settingsPanel = null;
   let settingsOpening = false;
+  const floatSettingsTabs = panel => {
+    const form = panel._dlg?.querySelector(':scope > form');
+    const body = form?.querySelector(':scope > .gc-b');
+    const tabs = body?.querySelector(':scope > .gc-tb');
+    if (!tabs) return;
+
+    // gmConfig renders tabs inside its scrollable body. Move the same tablist
+    // above the body, retaining its event listeners and active-tab state.
+    // reinit() replaces only the body, so discard its previous floating tablist.
+    form.querySelector(':scope > .gc-tb')?.remove();
+    body.before(tabs);
+  };
   const refreshSettingsEnhancements = (panel, localize = true) => {
+    floatSettingsTabs(panel);
     syncColoredGroupToggles();
     syncSettingsDecorations();
     initListOrderControls(panel);
