@@ -3316,7 +3316,8 @@
     PIXIV_BLOCKED_USERS_SET.size ||
     CONFIG.PIXIV_BLOCK_AI;
 
-  const SELECTORS_UTAGS = CONFIG.UTAGS_BLOCKED_TAGS.map(s => `[data-utags_tag="${s}"]`).join(', ');
+  const SELECTORS_UTAGS = CONFIG.UTAGS_BLOCKED_TAGS.map(s =>
+    `[data-utags_tag="${CSS.escape(s)}"]`).join(', ');
   logDebug('SELECTORS_UTAGS =', SELECTORS_UTAGS);
 
   let currentUrl = new URL(window.location.href, window.location.origin).href;
