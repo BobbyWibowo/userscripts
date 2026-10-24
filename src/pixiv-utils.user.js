@@ -4193,6 +4193,29 @@
     blockOpts: PIXIV_BLOCKED_TAGS_VALIDATED ? isImageBlockedByData(pixivData) : false
   });
 
+  // Share filtering decisions between standard cards, multi-view and expanded
+  // view; presentation and actual blocking remain view-specific.
+  const evaluateArtworkModeration = (pixivData, { isOwnProfile = false, bookmarked = false } = {}) => {
+    const moderation = getImageModeration(pixivData);
+    const skipReason = moderation.blockOpts
+      ? getImageBlockSkipReason({
+        isOwnProfile,
+        bookmarked,
+        highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && moderation.highlightOpts
+      })
+      : [];
+    return { pixivData, moderation, skipReason };
+  };
+
+  const setModerationTooltip = (target, evaluation, blocked = false) => {
+    setImageTitle(target, {
+      pixivData: evaluation.pixivData,
+      moderation: blocked ? { ...evaluation.moderation, actuallyBlocked: true } : evaluation.moderation,
+      footer: createModerationFooter(evaluation.moderation,
+        blocked ? { blocked: true } : { skipReason: evaluation.skipReason })
+    });
+  };
+
   const createImageTooltipDetails = ({ pixivData = {}, footer, moderation = {} }) => {
     const sections = normalizeTooltipFooter(footer);
     const tags = Array.isArray(pixivData.tags) ? pixivData.tags : [];
@@ -4485,11 +4508,7 @@
     });
 
     if (status) {
-      setImageTitle(element, {
-        pixivData: obj.pixivData,
-        moderation: { ...obj.moderation, actuallyBlocked: true },
-        footer: createModerationFooter(obj.moderation, { blocked: true })
-      });
+      setModerationTooltip(element, obj.evaluation, true);
       logDebug(`Image blocked (${obj.options.hint.replace('\n', ', ')})`, element);
     }
 
@@ -4608,34 +4627,22 @@
 
     const pixivData = await getImagePixivData(data.id, element, data.novel);
 
-    const moderation = getImageModeration(pixivData);
+    const evaluation = evaluateArtworkModeration(pixivData, { isOwnProfile, bookmarked });
+    const { moderation, skipReason } = evaluation;
     const { highlightOpts, blockOpts } = moderation;
     if (highlightOpts) doHighlightImage(element, { options: highlightOpts });
 
-    let skipReason = [];
     if (blockOpts) {
-      // Only block image if not in own profile, not bookmarked,
-      // or optionally, not highlighted.
-      skipReason = getImageBlockSkipReason({
-        isOwnProfile,
-        bookmarked,
-        highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
-      });
       const blocked = doBlockImage(element, {
         options: blockOpts,
         data,
-        pixivData,
-        moderation,
+        evaluation,
         skipReason: skipReason.join(', ')
       });
       if (blocked) return true;
     }
 
-    setImageTitle(element, {
-      pixivData,
-      moderation,
-      footer: createModerationFooter(moderation, { skipReason })
-    });
+    setModerationTooltip(element, evaluation);
 
     // Exit early if in own profile, and not in bookmarks tab.
     if (options.isOwnProfile && currentUrl.indexOf('/bookmarks') === -1) {
@@ -4711,25 +4718,17 @@
     if (pixivDataSource) {
       const pixivData = await getImagePixivData(data.id, pixivDataSource, data.novel);
       if (pixivData) {
-        const moderation = getImageModeration(pixivData);
-        const { blockOpts, highlightOpts } = moderation;
-        let skipReason = [];
-        if (blockOpts) {
-          skipReason = getImageBlockSkipReason({
-            bookmarked: isImageBookmarked(element),
-            highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
-          });
-          const blocked = await doBlockMultiView(element, {
-            options: blockOpts,
-            skipReason: skipReason.join(', ')
+        const evaluation = evaluateArtworkModeration(pixivData, {
+          bookmarked: isImageBookmarked(element)
+        });
+        if (evaluation.moderation.blockOpts) {
+          const blocked = doBlockMultiView(element, {
+            options: evaluation.moderation.blockOpts,
+            skipReason: evaluation.skipReason.join(', ')
           });
           if (blocked) return true;
         }
-        setImageTitle(element, {
-          pixivData,
-          moderation,
-          footer: createModerationFooter(moderation, { skipReason })
-        });
+        setModerationTooltip(element, evaluation);
       }
     }
 
@@ -4754,11 +4753,7 @@
 
     element.dataset.pixiv_utils_expanded_view_blocked = true;
 
-    setImageTitle(obj.titleTarget, {
-      pixivData: obj.pixivData,
-      moderation: { ...obj.moderation, actuallyBlocked: true },
-      footer: createModerationFooter(obj.moderation, { blocked: true })
-    });
+    setModerationTooltip(obj.titleTarget, obj.evaluation, true);
     logDebug(`Expanded view blocked (${obj.options.hint})`, element);
 
     return true;
@@ -4781,33 +4776,22 @@
 
     const pixivData = await getImagePixivData(data.id, image, data.novel);
     if (pixivData) {
-      const moderation = getImageModeration(pixivData);
-      const { highlightOpts, blockOpts } = moderation;
-      let skipReason = [];
+      const evaluation = evaluateArtworkModeration(pixivData, {
+        bookmarked: isImageBookmarked(element)
+      });
       if (PIXIV_BLOCKED_TAGS_VALIDATED) {
         // Always reset expanded view's blocked status first.
         delete image.dataset.pixiv_utils_expanded_view_blocked;
       }
-      if (blockOpts) {
-        skipReason = getImageBlockSkipReason({
-          bookmarked: isImageBookmarked(element),
-          highlighted: CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && highlightOpts
-        });
+      if (evaluation.moderation.blockOpts) {
         blocked = doBlockExpandedView(image, {
           titleTarget,
-          options: blockOpts,
-          pixivData,
-          moderation,
-          skipReason: skipReason.join(', ')
+          options: evaluation.moderation.blockOpts,
+          evaluation,
+          skipReason: evaluation.skipReason.join(', ')
         });
       }
-      if (!blocked) {
-        setImageTitle(titleTarget, {
-          pixivData,
-          moderation,
-          footer: createModerationFooter(moderation, { skipReason })
-        });
-      }
+      if (!blocked) setModerationTooltip(titleTarget, evaluation);
     }
 
     // Init MutationObserver for dynamic expanded view.
@@ -5062,11 +5046,12 @@
       });
 
       const pixivData = await getImagePixivData(data.id, image, data.novel);
+      const moderation = getImageModeration(pixivData);
 
       if (skipReason.length) {
         setImageTitle(image, {
           pixivData,
-          moderation: getImageModeration(pixivData),
+          moderation,
           footer: [
             createTooltipFooter(tr('tooltip.blockableBy'), tr('tooltip.utag', { tag: utag })),
             createTooltipFooter(tr('tooltip.skippedDueTo'), skipReason.join('\n'))
@@ -5084,7 +5069,7 @@
         if (status) {
           setImageTitle(image, {
             pixivData,
-            moderation: { ...getImageModeration(pixivData), actuallyBlocked: true },
+            moderation: { ...moderation, actuallyBlocked: true },
             footer: [createTooltipFooter(tr('tooltip.blockedBy'), tr('tooltip.utag', { tag: utag }))]
           });
           logDebug(`Image blocked (UTag: ${utag})`, image);
