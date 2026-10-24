@@ -3858,6 +3858,10 @@
     return observer;
   };
 
+  const editBookmarkHref = (id, isNovel) => isNovel
+    ? `https://www.pixiv.net/novel/bookmark_add.php?id=${id}`
+    : `https://www.pixiv.net/bookmark_add.php?type=illust&illust_id=${id}`;
+
   const editBookmarkButton = (id, isNovel = false) => {
     const buttonContainer = document.createElement('div');
     buttonContainer.className = 'pixiv_utils_edit_bookmark_container';
@@ -3870,14 +3874,31 @@
       button.title = CONFIG.TEXT_EDIT_BOOKMARK_TOOLTIP;
     }
 
-    if (isNovel) {
-      button.href = `https://www.pixiv.net/novel/bookmark_add.php?id=${id}`;
-    } else {
-      button.href = `https://www.pixiv.net/bookmark_add.php?type=illust&illust_id=${id}`;
-    }
+    button.href = editBookmarkHref(id, isNovel);
 
     buttonContainer.append(button);
     return buttonContainer;
+  };
+
+  const hasEditBookmarkButton = (controls, id, isNovel) => {
+    const button = controls?.querySelector('.pixiv_utils_edit_bookmark_container .pixiv_utils_edit_bookmark');
+    return Boolean(button?.isConnected && controls.contains(button) &&
+      button.href === editBookmarkHref(id, isNovel));
+  };
+
+  const ensureEditBookmarkButton = (controls, id, isNovel, placement = 'prepend') => {
+    const existing = controls.querySelector('.pixiv_utils_edit_bookmark_container');
+    if (!CONFIG.ENABLE_EDIT_BOOKMARK) {
+      existing?.remove();
+      return false;
+    }
+    if (hasEditBookmarkButton(controls, id, isNovel)) return false;
+    existing?.remove();
+    const created = editBookmarkButton(id, isNovel);
+    if (placement === 'beforeLast' && controls.lastChild) controls.lastChild.before(created);
+    else if (placement === 'append') controls.append(created);
+    else controls.prepend(created);
+    return true;
   };
 
   // Ordered by priority; IMG SRCs are only considered where explicitly requested.
@@ -3967,6 +3988,13 @@
     if (target.userName === null && typeof name === 'string' && name) target.userName = name;
   };
 
+  const readReactArtistSources = (props, target) => {
+    for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
+      readArtistMetadata(props?.[key], target);
+      if (target.userId !== null && target.userName !== null) break;
+    }
+  };
+
   const extractArtistMetadata = element => {
     const artist = { userId: null, userName: null };
     if (element.__vue__) {
@@ -3976,12 +4004,7 @@
       // Preserves addImageArtist's original React __reactProps extraction path.
       const propsKey = Object.keys(element).find(k => k.startsWith('__reactProps'));
       const props = propsKey && element[propsKey]?.children?.props;
-      if (props) {
-        for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
-          readArtistMetadata(props[key], artist);
-          if (artist.userId !== null && artist.userName !== null) break;
-        }
-      }
+      if (props) readReactArtistSources(props, artist);
     }
     return artist;
   };
@@ -4458,8 +4481,7 @@
   };
 
   const addImageArtist = (element, pixivData) => {
-    // Reuse metadata already extracted for blocking. If another artwork source
-    // supplied cached data without the author's name, check the card props.
+    // Keep an attached matching label, but rebuild one removed by Pixiv.
     const artist = {
       userId: pixivData.userId ?? null,
       userName: pixivData.userName ?? null
@@ -4471,16 +4493,22 @@
     }
     if (artist.userId === null || !artist.userName) return false;
 
+    const href = `https://www.pixiv.net/users/${encodeURIComponent(artist.userId)}`;
+    const old = element.querySelector('.pixiv_utils_image_artist_container');
+    const link = old?.querySelector('.pixiv_utils_image_artist');
+    if (link?.isConnected && element.contains(link) &&
+      link.href === href && link.textContent === artist.userName) return false;
+    old?.remove();
+
     const div = document.createElement('div');
     div.className = 'pixiv_utils_image_artist_container';
-
-    const link = document.createElement('a');
-    link.className = 'pixiv_utils_image_artist';
-    link.href = `https://www.pixiv.net/users/${encodeURIComponent(artist.userId)}`;
-    link.textContent = artist.userName;
-
-    div.append(link);
+    const replacement = document.createElement('a');
+    replacement.className = 'pixiv_utils_image_artist';
+    replacement.href = href;
+    replacement.textContent = artist.userName;
+    div.append(replacement);
     element.append(div);
+    element.dataset.pixiv_utils_artist_added = true;
     return true;
   };
 
@@ -4515,7 +4543,10 @@
     }
 
     // Skip if edit bookmark button already inserted, unless forced.
-    if (element.querySelector('.pixiv_utils_edit_bookmark') && !options.forced) {
+    if (!options.forced &&
+      hasEditBookmarkButton(element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS), data.id, data.novel) &&
+      (!element.dataset.pixiv_utils_artist_added ||
+        element.querySelector('.pixiv_utils_image_artist_container'))) {
       return false;
     }
 
@@ -4600,11 +4631,6 @@
       return false;
     }
 
-    const oldImageArtist = element.querySelector('.pixiv_utils_image_artist_container');
-    if (oldImageArtist) {
-      oldImageArtist.remove();
-    }
-
     const doNotWaitControls = element.matches(SELECTORS_IMAGE_NO_CONTROLS);
 
     let imageControls = null;
@@ -4622,7 +4648,7 @@
     }
 
     if (!options.skipArtistTag) {
-      const artistTag = element.querySelector('a[href*="users/"]');
+      const artistTag = element.querySelector('a[href*="users/"]:not(.pixiv_utils_image_artist)');
 
       let hasVisibleArtistTag = Boolean(artistTag);
       // If the image itself is visible, but its built-in artist tag is not.
@@ -4631,30 +4657,22 @@
       }
 
       // Add artist tag if necessary.
-      if (!hasVisibleArtistTag &&
-        // never in mobile expanded view's artist bottom bar
+      const needsArtist = !hasVisibleArtistTag &&
         !element.closest('.user-details-card ~ div .works-horizontal-list') &&
-        (currentUrl.indexOf('users/') === -1 || // never in artist page (except bookmarks tab)
-          (currentUrl.indexOf('users/') !== -1 && currentUrl.indexOf('/bookmarks') !== -1))) {
-        addImageArtist(element, pixivData);
+        (currentUrl.indexOf('users/') === -1 || currentUrl.indexOf('/bookmarks') !== -1);
+      if (needsArtist) addImageArtist(element, pixivData);
+      else {
+        element.querySelector('.pixiv_utils_image_artist_container')?.remove();
+        delete element.dataset.pixiv_utils_artist_added;
       }
     }
 
-    if (imageControls) {
-      const oldEditBookmarkButton = imageControls.querySelector('.pixiv_utils_edit_bookmark_container');
-      if (oldEditBookmarkButton) {
-        oldEditBookmarkButton.remove();
-      }
-
-      if (CONFIG.ENABLE_EDIT_BOOKMARK) {
-        imageControls.prepend(editBookmarkButton(data.id, data.novel));
-      }
-    }
+    if (imageControls) ensureEditBookmarkButton(imageControls, data.id, data.novel);
 
     return true;
   };
 
-  const doBlockMultiView = async (element, obj = {}) => {
+  const doBlockMultiView = (element, obj = {}) => {
     if (obj.skipReason) {
       logDebug(`Multi view is blockable, but skipped (reason: ${obj.skipReason})`, element);
       return false;
@@ -4705,19 +4723,10 @@
       return true;
     }
 
-    // Skip if edit bookmark button already inserted.
-    if (element.querySelector('.pixiv_utils_edit_bookmark')) {
-      return false;
-    }
-
     const multiViewControls = element.querySelector(CONFIG.SELECTORS_MULTI_VIEW_CONTROLS);
-    if (!multiViewControls) {
-      return false;
-    }
-
-    if (CONFIG.ENABLE_EDIT_BOOKMARK) {
-      multiViewControls.lastChild.before(editBookmarkButton(data.id, data.novel));
-    }
+    if (!multiViewControls) return false;
+    if (hasEditBookmarkButton(multiViewControls, data.id, data.novel)) return false;
+    ensureEditBookmarkButton(multiViewControls, data.id, data.novel, 'beforeLast');
     return true;
   };
 
@@ -4805,10 +4814,8 @@
       image.dataset.pixiv_utils_last_id = data.id;
     }
 
-    // Skip if edit bookmark button already inserted, unless forced.
-    if (element.querySelector('.pixiv_utils_edit_bookmark') && !options.forced) {
-      return false;
-    }
+    // A replaced or detached button is not proof this control was processed.
+    if (!options.forced && hasEditBookmarkButton(element, data.id, data.novel)) return false;
 
     // Re-attempt to convert date.
     if (CONFIG.DATE_CONVERSION) {
@@ -4833,14 +4840,7 @@
     }
 
     if (id !== null) {
-      if (CONFIG.ENABLE_EDIT_BOOKMARK) {
-        const oldEditBookmarkButton = element.querySelector('.pixiv_utils_edit_bookmark_container');
-        if (oldEditBookmarkButton) {
-          oldEditBookmarkButton.remove();
-        }
-
-        element.append(editBookmarkButton(id, isNovel));
-      }
+      ensureEditBookmarkButton(element, id, isNovel, 'append');
 
       // Re-process expanded view's artist bottom bar.
       const images = document.querySelectorAll(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE);
@@ -4897,7 +4897,7 @@
     return true;
   };
 
-  const doToggleBookmarkedSection = async (element, sectionConfig) => {
+  const doToggleBookmarkedSection = (element, sectionConfig) => {
     // Skip if this config has a sanity check function, and it passes.
     if (typeof sectionConfig.sanityCheck === 'function' && sectionConfig.sanityCheck()) {
       return false;
