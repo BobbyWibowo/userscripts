@@ -400,7 +400,7 @@
       'rule.regex': 'Use regex',
       'rule.flags': 'Flags',
       'rule.patternPlaceholder': 'Enter tag or regex',
-      'rule.regexInfo': 'Regex flags: i (ignore case), m, s, u or v (not together). Avoid g/y; they can cause inconsistent matches.',
+      'rule.regexInfo': 'Allowed flags: i (ignore case), u (Unicode), v (Unicode sets). Do not combine u and v.',
       'rule.add': 'Add tag',
       'rule.addGroup': 'Add tag or colored group',
       'rule.addInGroup': 'Add tag',
@@ -612,7 +612,7 @@
       'rule.regex': '正規表現を使用',
       'rule.flags': 'フラグ',
       'rule.patternPlaceholder': 'タグまたは正規表現を入力',
-      'rule.regexInfo': '正規表現のフラグ：i（大文字・小文字を区別しない）、m、s、u または v（u と v は併用不可）。g／y は判定が不安定になるため避けてください。',
+      'rule.regexInfo': '使用可能なフラグ：i（大文字・小文字を無視）、u（Unicode）、v（Unicode 集合）。u と v は併用不可。',
       'rule.add': 'タグを追加',
       'rule.addGroup': 'タグまたは色付きグループを追加',
       'rule.addInGroup': 'タグを追加',
@@ -824,7 +824,7 @@
       'rule.regex': '使用正则表达式',
       'rule.flags': '标志',
       'rule.patternPlaceholder': '输入标签或正则表达式',
-      'rule.regexInfo': '正则表达式标志：i（忽略大小写）、m、s、u 或 v（u 和 v 不能同时使用）。请避免使用 g／y，以免匹配结果不一致。',
+      'rule.regexInfo': '可用标志：i（忽略大小写）、u（Unicode）、v（Unicode 集合）。u 和 v 不可同时使用。',
       'rule.add': '添加标签',
       'rule.addGroup': '添加标签或颜色分组',
       'rule.addInGroup': '添加标签',
@@ -1036,7 +1036,7 @@
       'rule.regex': '使用正則表達式',
       'rule.flags': '標誌',
       'rule.patternPlaceholder': '輸入標籤或正則表達式',
-      'rule.regexInfo': '正則表達式標誌：i（不區分大小寫）、m、s、u 或 v（u 與 v 不能同時使用）。避免使用 g／y，否則比對結果可能不一致。',
+      'rule.regexInfo': '可用標誌：i（不區分大小寫）、u（Unicode）、v（Unicode 集合）。u 與 v 不可同時使用。',
       'rule.add': '添加標籤',
       'rule.addGroup': '添加標籤或顏色群組',
       'rule.addInGroup': '添加標籤',
@@ -1248,7 +1248,7 @@
       'rule.regex': '使用正規表示式',
       'rule.flags': '旗標',
       'rule.patternPlaceholder': '輸入標籤或正規表示式',
-      'rule.regexInfo': '正規表示式旗標：i（不區分大小寫）、m、s、u 或 v（u 與 v 不可同時使用）。請避免使用 g／y，以免比對結果不一致。',
+      'rule.regexInfo': '允許的旗標：i（不區分大小寫）、u（Unicode）、v（Unicode 集合）。u 與 v 不可同時使用。',
       'rule.add': '新增標籤',
       'rule.addGroup': '新增標籤或色彩群組',
       'rule.addInGroup': '新增標籤',
@@ -1788,6 +1788,9 @@
     }
   });
 
+  // Tag strings are single-line. Only case and Unicode flags affect matching.
+  const validTagRegexFlags = flags => typeof flags === 'string' && /^[iuv]*$/.test(flags);
+
   const validateTagRules = (value, highlighted = false, combine = true) => {
     if (!Array.isArray(value)) return tr('rule.listRequired');
     const compiledGroups = new Map();
@@ -1796,6 +1799,7 @@
         if (!rule || typeof rule.value !== 'string') return tr('rule.needsText', { location });
         if (!rule.regex) continue;
         const flags = rule.flags || '';
+        if (!validTagRegexFlags(flags)) return `${location}: ${tr('rule.regexInfo')}`;
         try { RegExp(rule.value, flags); } catch (error) { return `${location}: ${error.message}`; }
         // Mirrors the runtime's grouping by the exact flags string.
         if (combine) {
@@ -1839,7 +1843,7 @@
       label: tr('rule.flags'),
       default: '',
       row: 'rule',
-      placeholder: 'i',
+      placeholder: 'iuv',
       depends: v => Boolean(v.regex)
     }
   });
@@ -2236,6 +2240,7 @@
       if (typeof value === 'string') return true;
       if (!Array.isArray(value) || value.length !== 2 ||
         typeof value[0] !== 'string' || typeof value[1] !== 'string') return false;
+      if (!validTagRegexFlags(value[1])) return false;
       try {
         RegExp(value[0], value[1]);
         return true;
