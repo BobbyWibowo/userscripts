@@ -4890,14 +4890,20 @@
     setToggleBookmarkedMode(section, imagesContainer, mode);
     updateToggleBookmarkedButton(button, mode);
 
-    // Invalid stored modes should not modify the current filter state.
+    // Read all bookmark states before writing visibility attributes, avoiding
+    // alternating computed-style reads and DOM changes across artwork cards.
     if (Number.isInteger(mode)) {
+      const visibility = [];
       for (const image of imagesContainer.querySelectorAll(CONFIG.SELECTORS_IMAGE)) {
         const hide = mode !== 0 &&
           (Boolean(image.dataset.pixiv_utils_blocked) ||
             (mode === 1 ? isImageBookmarked(image) : !isImageBookmarked(image)));
-        if (hide) image.dataset.pixiv_utils_toggle_bookmarked_hide = true;
-        else delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
+        visibility.push([image, hide]);
+      }
+      for (const [image, hide] of visibility) {
+        const hidden = image.hasAttribute('data-pixiv_utils_toggle_bookmarked_hide');
+        if (hide && !hidden) image.dataset.pixiv_utils_toggle_bookmarked_hide = true;
+        else if (!hide && hidden) delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
       }
     }
 
