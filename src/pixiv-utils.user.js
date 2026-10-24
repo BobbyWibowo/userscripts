@@ -3409,22 +3409,41 @@
 
   /** MAIN STYLES **/
 
-  const formatChildSelector = (parentSelector, childSelector) => {
-    const child = childSelector.startsWith('&')
-      ? childSelector.slice(1).trimStart()
-      : childSelector;
-    return `:is(${parentSelector}) ${child}`;
+  // Split only top-level commas; selectors may contain commas inside :is(),
+  // :has(), attribute values or quoted strings.
+  const splitSelectorList = selector => {
+    const parts = [];
+    let start = 0;
+    let depth = 0;
+    let quote = null;
+    let escaped = false;
+    for (let i = 0; i < selector.length; i++) {
+      const char = selector[i];
+      if (escaped) { escaped = false; continue; }
+      if (char === '\\') { escaped = true; continue; }
+      if (quote) { if (char === quote) quote = null; continue; }
+      if (char === '"' || char === "'") { quote = char; continue; }
+      if (char === '(' || char === '[') { depth++; continue; }
+      if (char === ')' || char === ']') { depth--; continue; }
+      if (char === ',' && depth === 0) {
+        parts.push(selector.slice(start, i).trim());
+        start = i + 1;
+      }
+    }
+    parts.push(selector.slice(start).trim());
+    return parts.filter(Boolean);
   };
 
-  const _formatSelectorsMultiViewControls = () => {
-    const multiViews = CONFIG.SELECTORS_MULTI_VIEW.split(', ');
-    const multiViewsControls = CONFIG.SELECTORS_MULTI_VIEW_CONTROLS.split(', ');
+  const formatChildSelector = (parentSelector, childSelector) =>
+    splitSelectorList(childSelector).map(selector => {
+      const child = selector.startsWith('&') ? selector.slice(1).trimStart() : selector;
+      return `:is(${parentSelector})${child ? ` ${child}` : ''}`;
+    }).join(', ');
 
-    return multiViews.flatMap(parent =>
-      multiViewsControls.map(child => formatChildSelector(parent, child)));
-  };
+  const _formatSelectorsMultiViewControls = () =>
+    splitSelectorList(formatChildSelector(CONFIG.SELECTORS_MULTI_VIEW, CONFIG.SELECTORS_MULTI_VIEW_CONTROLS));
 
-  const _SELECTORS_IMAGE_CONTROLS = CONFIG.SELECTORS_IMAGE_CONTROLS.split(', ');
+  const _SELECTORS_IMAGE_CONTROLS = splitSelectorList(CONFIG.SELECTORS_IMAGE_CONTROLS);
 
   const _FILTERED_SELECTORS_IMAGE_CONTROLS = _SELECTORS_IMAGE_CONTROLS
     .filter(s => !['._layout-thumbnail', '.novel-right-contents'].includes(s))
