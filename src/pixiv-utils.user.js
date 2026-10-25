@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.7.10
+// @version            1.7.11
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -104,6 +104,7 @@
     SELECTORS_DATE: null,
 
     REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME: false,
+    REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME: false,
 
     SECTIONS_TOGGLE_BOOKMARKED: null,
 
@@ -154,6 +155,7 @@
 
     SELECTORS_IMAGE: [
       'ul > li:has(a[href*="artworks/"] img[src], a[href*="artworks/"] figure)', // desktop
+      'ul > li:has(a[href*="collections/"] img[src])', // desktop (collections)
       'figcaption ul > div > div:has(a[href*="artworks/"] img[src])', // recommended works after bookmarking
       'ul > div:not(.list-none):has(a[href*="artworks/"] img[src]):not(:has(.gtm-illust-recommend-thumbnail-link, .gtm-illust-toppage-recommend-user-profile))',
       'div:has(> div > div > div > a.gtm-illust-toppage-recommend-user-work[href*="artworks/"] img[src])', // recommended users on home's illustrations tab
@@ -530,6 +532,7 @@
       'label.DATE_CONVERSION_OPTIONS': 'Date format',
       'label.SELECTORS_DATE': 'Date element selectors',
       'label.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME': 'Hide novel recommendations on Home',
+      'label.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME': 'Hide collections recommendations on Home',
       'label.ENABLE_KEYBINDS': 'Keyboard shortcuts',
       'label.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES': 'Combine regex patterns',
       'label.PIXIV_HIGHLIGHTED_TAGS_FAST': 'Stop after first matching colored group',
@@ -742,6 +745,7 @@
       'label.DATE_CONVERSION_OPTIONS': '日付の表示形式',
       'label.SELECTORS_DATE': '日付要素のセレクター',
       'label.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME': 'ホームのおすすめ小説を非表示',
+      'label.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME': 'ホームに表示されるおすすめコレクションを非表示にする',
       'label.ENABLE_KEYBINDS': 'キーボードショートカット',
       'label.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES': '正規表現のパターンを結合',
       'label.PIXIV_HIGHLIGHTED_TAGS_FAST': '最初に一致した色付きグループで検索を終了',
@@ -954,6 +958,7 @@
       'label.DATE_CONVERSION_OPTIONS': '日期格式',
       'label.SELECTORS_DATE': '日期元素选择器',
       'label.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME': '隐藏首页的小说推荐',
+      'label.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME': '隐藏首页的珍藏册推荐',
       'label.ENABLE_KEYBINDS': '键盘快捷键',
       'label.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES': '合并正则表达式模式',
       'label.PIXIV_HIGHLIGHTED_TAGS_FAST': '匹配到首个有颜色的分组后停止',
@@ -1166,6 +1171,7 @@
       'label.DATE_CONVERSION_OPTIONS': '日期格式',
       'label.SELECTORS_DATE': '日期元素選擇器',
       'label.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME': '隱藏首頁的小說推薦',
+      'label.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME': '隱藏主頁的珍藏冊推薦',
       'label.ENABLE_KEYBINDS': '鍵盤快捷鍵',
       'label.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES': '合併正則表達式',
       'label.PIXIV_HIGHLIGHTED_TAGS_FAST': '找到首個有設定顏色的群組後停止比對',
@@ -1378,6 +1384,7 @@
       'label.DATE_CONVERSION_OPTIONS': '日期格式',
       'label.SELECTORS_DATE': '日期元素選擇器',
       'label.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME': '隱藏首頁的小說推薦',
+      'label.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME': '隱藏首頁的珍藏冊推薦',
       'label.ENABLE_KEYBINDS': '鍵盤快捷鍵',
       'label.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES': '合併正規表示式模式',
       'label.PIXIV_HIGHLIGHTED_TAGS_FAST': '符合第一個設有顏色的群組後停止比對',
@@ -2020,7 +2027,8 @@
 
   const settingsTab = key => {
     if (key === 'SETTINGS_LANGUAGE' || key === 'DATE_CONVERSION' || key.startsWith('DATE_CONVERSION_') ||
-      key === 'ENABLE_KEYBINDS' || key === 'REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME') return 'General';
+      key === 'ENABLE_KEYBINDS' || key === 'REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME' ||
+      key === 'REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME') return 'General';
     if (key.includes('BOOKMARK') && !key.startsWith('SELECTORS_') &&
       key !== 'SECTIONS_TOGGLE_BOOKMARKED') return 'Bookmarks';
     if (key === 'PIXIV_BLOCKED_USERS') return 'Users';
@@ -3997,7 +4005,8 @@
     { selector: 'a[href*="artworks/"]', regex: /artworks\/(\d+)/ },
     { selector: 'a[href*="illust_id="]', regex: /illust_id=(\d+)/ },
     { selector: 'a[href*="novel/show.php?id="]', regex: /novel\/show\.php\?id=(\d+)/, novel: true },
-    { selector: 'a[href*="novel/series/"]', regex: /novel\/series\/(\d+)/, novel: true }
+    { selector: 'a[href*="novel/series/"]', regex: /novel\/series\/(\d+)/, novel: true },
+    { selector: 'a[href*="collections/"]', regex: /collections\/(\d+)/, collections: true }
   ];
 
   const findItemData = (element, tryImg = false) => {
@@ -4019,6 +4028,7 @@
         if (match) {
           result.id = match[1];
           result.novel = Boolean(method.novel);
+          result.collections = Boolean(method.collections);
         }
 
         break;
@@ -4654,6 +4664,12 @@
       return true;
     }
 
+    if (CONFIG.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME && options.isHome && data.collections) {
+      element.style.setProperty('display', 'none', 'important');
+      logDebug('Collections recommendation removed from home', element);
+      return true;
+    }
+
     // Process new entries using their own section's current filter mode.
     const bookmarked = isImageBookmarked(element);
     const sectionMode = getToggleBookmarkedMode(element);
@@ -4734,6 +4750,11 @@
 
     setModerationTooltip(element, evaluation);
 
+    // Exit early if collections, because they do not have independent bookmark edit page.
+    if (data.collections) {
+      return false;
+    }
+
     // Exit early if in own profile, and not in bookmarks tab.
     if (options.isOwnProfile && currentUrl.indexOf('/bookmarks') === -1) {
       return false;
@@ -4804,6 +4825,18 @@
       return false;
     }
 
+    if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome && data.novel) {
+      element.parentNode.style.setProperty('display', 'none', 'important');
+      logDebug('Novel recommendation removed from home', element);
+      return true;
+    }
+
+    if (CONFIG.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME && options.isHome && data.collections) {
+      element.parentNode.style.setProperty('display', 'none', 'important');
+      logDebug('Collections recommendation removed from home', element);
+      return true;
+    }
+
     const pixivDataSource = element.querySelector('div[data-ga4-label="thumbnail_link"]');
     if (pixivDataSource) {
       const pixivData = await getImagePixivData(data.id, pixivDataSource, data.novel);
@@ -4822,10 +4855,9 @@
       }
     }
 
-    if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome && data.novel) {
-      element.parentNode.style.setProperty('display', 'none', 'important');
-      logDebug('Novel recommendation removed from home', element);
-      return true;
+    // Exit early if collections, because they do not have independent bookmark edit page.
+    if (data.collections) {
+      return false;
     }
 
     const multiViewControls = element.querySelector(CONFIG.SELECTORS_MULTI_VIEW_CONTROLS);
