@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.7.9
+// @version            1.7.10
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -3185,6 +3185,41 @@
     // reinit() replaces only the body, so discard its previous floating tablist.
     form.querySelector(':scope > .gc-tb')?.remove();
     body.before(tabs);
+
+    // All tabs share one scroll container. Remember its scrollTop by stable tab
+    // index so switching to a shorter tab cannot lose the previous tab's offset.
+    // Keep the map on the panel so it survives a language-triggered reinit().
+    if (tabs._pixivScrollRestoreBound) return;
+    tabs._pixivScrollRestoreBound = true;
+    const positions = panel._pixivTabScrollPositions ||= new Map();
+    const buttons = () => [...tabs.querySelectorAll(':scope > button')];
+    const activeIndex = list => {
+      const index = list.findIndex(button =>
+        button.matches('[aria-selected="true"], [data-active="true"], .active, .gc-a, .gc-ta'));
+      return index >= 0 ? index : -1;
+    };
+    let currentIndex = activeIndex(buttons());
+    if (currentIndex < 0) currentIndex = 0;
+
+    // Capture before gmConfig's own click handler changes the active tab.
+    // Restore on the next frame, after the destination tab's layout is applied.
+    tabs.addEventListener('click', event => {
+      const target = event.target instanceof Element ? event.target.closest('button') : null;
+      if (!target || target.parentElement !== tabs) return;
+
+      const list = buttons();
+      const targetIndex = list.indexOf(target);
+      if (targetIndex < 0) return;
+
+      const outgoingIndex = activeIndex(list);
+      positions.set(outgoingIndex >= 0 ? outgoingIndex : currentIndex, body.scrollTop);
+      currentIndex = targetIndex;
+
+      requestAnimationFrame(() => {
+        if (!panel.isOpen || !body.isConnected || !tabs.isConnected) return;
+        body.scrollTop = positions.get(targetIndex) ?? 0;
+      });
+    }, true);
   };
   const refreshSettingsEnhancements = (panel, localize = true) => {
     floatSettingsTabs(panel);
