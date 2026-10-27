@@ -36,6 +36,7 @@ export default [
         GM_listValues: 'readonly',
         GM_registerMenuCommand: 'readonly',
         GM_setValue: 'readonly',
+        GM_xmlhttpRequest: 'readonly'
       }
     },
     plugins: {
