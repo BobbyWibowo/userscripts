@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.7.11
+// @version            1.7.12
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -4965,9 +4965,11 @@
       ensureEditBookmarkButton(element, id, isNovel, 'append');
 
       // Re-process expanded view's artist bottom bar.
-      const images = document.querySelectorAll(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE);
-      for (const image of images) {
-        processNewElement(doImage, image, { forced: true, skipArtistTag: true });
+      if (options.forced) {
+        const images = document.querySelectorAll(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE);
+        for (const image of images) {
+          processNewElement(doImage, image, { forced: true, skipArtistTag: true });
+        }
       }
 
       return true;
@@ -5918,9 +5920,9 @@
       processNewElement(doImage, element, { isHome, isOwnProfile });
     });
 
-    // Expanded view's artist bottom images (always process immediately)
+    // Expanded view's artist bottom images
     sentinel.on(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE, element => {
-      doImage(element, { isHome, isOwnProfile, skipArtistTag: true });
+      processNewElement(doImage, element, { isHome, isOwnProfile, skipArtistTag: true });
     });
 
     // Multi View Entries
