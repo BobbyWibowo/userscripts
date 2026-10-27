@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.7.14
+// @version            1.7.15
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -447,6 +447,8 @@
       'backup.download': 'Download',
       'backup.choose': 'Choose file',
       'backup.import': 'Import',
+      'alert.title': 'Notice',
+      'alert.ok': 'OK',
       'backup.emptyCopy': 'Export settings first.',
       'backup.copied': 'Text copied to clipboard.',
       'backup.clipboardFailed': "Couldn't copy automatically. The text is selected for manual copying.",
@@ -663,6 +665,8 @@
       'backup.download': 'ダウンロード',
       'backup.choose': 'ファイルを選択',
       'backup.import': 'インポート',
+      'alert.title': 'お知らせ',
+      'alert.ok': 'OK',
       'backup.emptyCopy': '先に設定をエクスポートしてください。',
       'backup.copied': 'テキストをクリップボードにコピーしました。',
       'backup.clipboardFailed': '自動的にコピーできませんでした。手動でコピーできるようテキストを選択しました。',
@@ -879,6 +883,8 @@
       'backup.download': '下载',
       'backup.choose': '选择文件',
       'backup.import': '导入',
+      'alert.title': '提示',
+      'alert.ok': '确定',
       'backup.emptyCopy': '请先导出设置。',
       'backup.copied': '文本已复制到剪贴板。',
       'backup.clipboardFailed': '无法自动复制。已选中文本，可手动复制。',
@@ -1095,6 +1101,8 @@
       'backup.download': '下載',
       'backup.choose': '選擇檔案',
       'backup.import': '匯入',
+      'alert.title': '提示',
+      'alert.ok': '確定',
       'backup.emptyCopy': '請先匯出設定。',
       'backup.copied': '文字已複製到剪貼簿。',
       'backup.clipboardFailed': '無法自動複製。已選取文字，可以手動複製。',
@@ -1311,6 +1319,8 @@
       'backup.download': '下載',
       'backup.choose': '選擇檔案',
       'backup.import': '匯入',
+      'alert.title': '提示',
+      'alert.ok': '確定',
       'backup.emptyCopy': '請先匯出設定。',
       'backup.copied': '文字已複製到剪貼簿。',
       'backup.clipboardFailed': '無法自動複製。已選取文字，可手動複製。',
@@ -1486,6 +1496,108 @@
 
   // Read the installed userscript version directly from its @version metadata.
   const settingsPanelTitle = () => `${tr('settingsTitle')} v${GM_info.script.version}`;
+
+  let customPromptDialog = null;
+  let customPromptMessage = null;
+  let customPromptCancel = null;
+  let customPromptOk = null;
+  let activePrompt = null;
+  const customPromptQueue = [];
+
+  const presentNextPrompt = () => {
+    if (!customPromptDialog || customPromptDialog.open || !customPromptQueue.length) return;
+    activePrompt = customPromptQueue.shift();
+    customPromptMessage.textContent = activePrompt.message;
+    customPromptDialog.setAttribute('role', activePrompt.confirm ? 'dialog' : 'alertdialog');
+    customPromptCancel.hidden = !activePrompt.confirm;
+    customPromptDialog.showModal();
+    (activePrompt.confirm ? customPromptCancel : customPromptOk).focus();
+  };
+
+  const closePrompt = accepted => {
+    if (!customPromptDialog?.open) return;
+    if (activePrompt) activePrompt.result = Boolean(accepted);
+    customPromptDialog.close();
+  };
+
+  const enqueuePrompt = (message, confirm) => {
+    initializePromptDialog();
+    const request = { message: String(message), confirm, result: false, resolve: null };
+    if (confirm) {
+      return new Promise(resolve => {
+        request.resolve = resolve;
+        customPromptQueue.push(request);
+        presentNextPrompt();
+      });
+    }
+    customPromptQueue.push(request);
+    presentNextPrompt();
+  };
+
+  const showAlert = message => enqueuePrompt(message, false);
+  const showConfirm = message => enqueuePrompt(message, true);
+
+  const initializePromptDialog = () => {
+    if (!customPromptDialog) {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'pixiv-utils-alert';
+      dialog.setAttribute('role', 'alertdialog');
+      dialog.setAttribute('aria-modal', 'true');
+      dialog.setAttribute('aria-labelledby', 'pixiv-utils-alert-title');
+      dialog.setAttribute('aria-describedby', 'pixiv-utils-alert-message');
+
+      const content = document.createElement('div');
+      content.className = 'pixiv-utils-alert-content';
+      const header = document.createElement('div');
+      header.className = 'pixiv-utils-alert-header';
+      const title = document.createElement('h2');
+      title.id = 'pixiv-utils-alert-title';
+      title.textContent = tr('alert.title');
+      const closeButton = document.createElement('button');
+      closeButton.type = 'button';
+      closeButton.className = 'pixiv-utils-alert-close';
+      closeButton.textContent = '✕';
+      closeButton.title = tr('action.close');
+      closeButton.setAttribute('aria-label', tr('action.close'));
+      closeButton.addEventListener('click', () => closePrompt(false));
+      header.append(title, closeButton);
+
+      const messageNode = document.createElement('p');
+      messageNode.id = 'pixiv-utils-alert-message';
+      messageNode.className = 'pixiv-utils-alert-message';
+      const actions = document.createElement('div');
+      actions.className = 'pixiv-utils-alert-actions';
+      const cancelButton = document.createElement('button');
+      cancelButton.type = 'button';
+      cancelButton.className = 'pixiv-utils-alert-cancel';
+      cancelButton.textContent = tr('action.cancel');
+      cancelButton.hidden = true;
+      cancelButton.addEventListener('click', () => closePrompt(false));
+      const okButton = document.createElement('button');
+      okButton.type = 'button';
+      okButton.className = 'pixiv-utils-alert-ok';
+      okButton.textContent = tr('alert.ok');
+      okButton.addEventListener('click', () => closePrompt(true));
+      actions.append(cancelButton, okButton);
+      content.append(header, messageNode, actions);
+      dialog.append(content);
+      dialog.addEventListener('click', event => {
+        if (event.target === dialog) closePrompt(false);
+      });
+      dialog.addEventListener('close', () => {
+        const request = activePrompt;
+        activePrompt = null;
+        request?.resolve?.(request.result);
+        presentNextPrompt();
+      });
+      (document.body || document.documentElement).append(dialog);
+      customPromptDialog = dialog;
+      customPromptMessage = messageNode;
+      customPromptCancel = cancelButton;
+      customPromptOk = okButton;
+    }
+    presentNextPrompt();
+  };
 
   const _DOCUMENT_FRAGMENT = document.createDocumentFragment();
   const isSelectorValid = selector => {
@@ -2383,7 +2495,7 @@
       if (!isPlainObject(imported)) throw new TypeError(tr('backup.objectError'));
       if (!Object.keys(imported).length) throw new Error(tr('backup.emptyObject'));
       validateBackupSettings(imported);
-      if (!window.confirm(tr('backup.importConfirm', { count: Object.keys(imported).length }))) return false;
+      if (!await showConfirm(tr('backup.importConfirm', { count: Object.keys(imported).length }))) return false;
       for (const [key, value] of Object.entries(imported)) {
         GM_setValue(key, value);
         if (panel?.isOpen && Object.hasOwn(ENV_DEFAULTS, key)) {
@@ -2396,10 +2508,10 @@
         panel._mark();
         refreshSettingsEnhancements(panel, false);
       }
-      alert(tr('backup.imported'));
+      showAlert(tr('backup.imported'));
       return true;
     } catch (error) {
-      alert(tr('backup.importError', { error: error.message }));
+      showAlert(tr('backup.importError', { error: error.message }));
       return false;
     }
   };
@@ -2434,18 +2546,18 @@
           GM_listValues().map(key => [key, GM_getValue(key)])));
       });
       addButton(tr('backup.copy'), async () => {
-        if (!textarea.value.trim()) return alert(tr('backup.emptyCopy'));
+        if (!textarea.value.trim()) return showAlert(tr('backup.emptyCopy'));
         try {
           await navigator.clipboard.writeText(textarea.value);
-          alert(tr('backup.copied'));
+          showAlert(tr('backup.copied'));
         } catch (error) {
           textarea.focus();
           textarea.select();
-          alert(tr('backup.clipboardFailed'));
+          showAlert(tr('backup.clipboardFailed'));
         }
       });
       addButton(tr('backup.download'), () => {
-        if (!textarea.value.trim()) return alert(tr('backup.emptyDownload'));
+        if (!textarea.value.trim()) return showAlert(tr('backup.emptyDownload'));
         const blob = new Blob([textarea.value], { type: 'application/json;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -2460,11 +2572,11 @@
       fileInput.addEventListener('change', async () => {
         const file = fileInput.files?.[0];
         if (!file) return;
-        try { textarea.value = await file.text(); } catch (error) { alert(tr('backup.fileError', { error: error.message })); }
+        try { textarea.value = await file.text(); } catch (error) { showAlert(tr('backup.fileError', { error: error.message })); }
         fileInput.value = '';
       });
       addButton(tr('backup.import'), () => {
-        if (!textarea.value.trim()) return alert(tr('backup.emptyImport'));
+        if (!textarea.value.trim()) return showAlert(tr('backup.emptyImport'));
         importExistingSettings(textarea.value);
       });
       root.append(instructions, textarea, buttons, fileInput);
@@ -2544,8 +2656,8 @@
       group.before(node);
     };
     for (const key of ['DATE_CONVERSION', 'REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME',
-      'TEXT_EDIT_BOOKMARK', 'PIXIV_BLOCK_AI', 'PIXIV_BLOCKED_TAGS',
-      'PIXIV_HIGHLIGHTED_COLOR', 'PIXIV_HIGHLIGHTED_TAGS',
+      'TEXT_EDIT_BOOKMARK', 'TEXT_TOGGLE_BOOKMARKED_SHOW_ALL', 'PIXIV_BLOCK_AI',
+      'PIXIV_BLOCKED_TAGS', 'PIXIV_HIGHLIGHTED_COLOR', 'PIXIV_HIGHLIGHTED_TAGS',
       'FLOATING_TOOLTIPS_STATIONARY_DELAY', 'UTAGS_BLOCKED_TAGS',
       'SELECTORS_HOME', 'SECTIONS_TOGGLE_BOOKMARKED', 'FLOATING_TOOLTIPS_OPTIONS']) {
       insertBefore(key, 'pixiv-utils-settings-divider');
@@ -2555,12 +2667,6 @@
     insertBefore('SELECTORS_HOME', 'pixiv-utils-global-note', tr('field.selectorInfo'));
     insertBefore('TEXT_TOGGLE_BOOKMARKED_SHOW_ALL', 'pixiv-utils-section-heading', tr('bookmark.stateHeading'));
     insertBefore('TEXT_TOGGLE_BOOKMARKED_SHOW_ALL', 'pixiv-utils-global-note', tr('bookmark.stateInfo'));
-    // Visually group the three mutually exclusive state labels without
-    // wrapping gmConfig's field nodes or changing how its serializer works.
-    for (const key of ['TEXT_TOGGLE_BOOKMARKED_SHOW_ALL',
-      'TEXT_TOGGLE_BOOKMARKED_SHOW_BOOKMARKED', 'TEXT_TOGGLE_BOOKMARKED_SHOW_NOT_BOOKMARKED']) {
-      fieldGroup(key)?.classList.add('pixiv-utils-bookmark-state-field');
-    }
     const mainColor = document.querySelector('.gc-p input[id="PIXIV_HIGHLIGHTED_COLOR"]');
     if (mainColor) {
       if (!mainColor.dataset.pixivUtilsColorListener) {
@@ -2819,7 +2925,7 @@
     }
 
     async reset () {
-      if (!window.confirm(tr('message.resetConfirm'))) return;
+      if (!await showConfirm(tr('message.resetConfirm'))) return;
       this._resetting = true;
       try { await super.reset(); } finally { this._resetting = false; }
     }
@@ -2832,6 +2938,116 @@
   };
 
   const settingsStyle = /*css*/`
+  .gc-p, .pixiv-utils-alert {
+    color-scheme: light dark;
+    --pixiv-utils-ui-surface: Canvas;
+    --pixiv-utils-ui-raised: color-mix(in srgb, CanvasText 6%, Canvas);
+    --pixiv-utils-ui-text: CanvasText;
+    --pixiv-utils-ui-muted: color-mix(in srgb, CanvasText 68%, Canvas);
+    --pixiv-utils-ui-border: color-mix(in srgb, CanvasText 20%, transparent);
+    --pixiv-utils-ui-subtle: color-mix(in srgb, CanvasText 7%, transparent);
+    --pixiv-utils-ui-accent: #0096fa;
+    --pixiv-utils-ui-radius: 8px;
+    --pixiv-utils-ui-shadow: 0 12px 36px rgba(0, 0, 0, 0.24);
+  }
+  .pixiv-utils-alert {
+    box-sizing: border-box;
+    width: min(440px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    max-height: calc(100dvh - 32px);
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--pixiv-utils-ui-border);
+    border-radius: var(--pixiv-utils-ui-radius);
+    background: var(--pixiv-utils-ui-surface);
+    color: var(--pixiv-utils-ui-text);
+    box-shadow: var(--pixiv-utils-ui-shadow);
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .pixiv-utils-alert::backdrop { background: rgba(0, 0, 0, 0.48); }
+  .pixiv-utils-alert-content { display: flex; flex-direction: column; max-height: inherit; }
+  .pixiv-utils-alert-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px 8px;
+  }
+  .pixiv-utils-alert-header h2 {
+    min-width: 0;
+    margin: 0;
+    color: var(--pixiv-utils-ui-text);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+  }
+  .pixiv-utils-alert-message {
+    margin: 0;
+    padding: 8px 16px 16px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+  }
+  .pixiv-utils-alert-actions { display: flex; justify-content: flex-end; padding: 0 16px 14px; }
+  .pixiv-utils-alert button {
+    box-sizing: border-box;
+    min-height: 40px;
+    border: 1px solid var(--pixiv-utils-ui-border);
+    border-radius: 6px;
+    background: var(--pixiv-utils-ui-raised);
+    color: var(--pixiv-utils-ui-text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .pixiv-utils-alert button:hover { border-color: var(--pixiv-utils-ui-accent); }
+  .pixiv-utils-alert button:focus-visible { outline: 2px solid var(--pixiv-utils-ui-accent); outline-offset: 2px; }
+  .pixiv-utils-alert button.pixiv-utils-alert-close {
+    display: grid;
+    flex: 0 0 36px;
+    place-items: center;
+    min-width: 36px;
+    width: 36px;
+    height: 36px;
+    max-height: 36px;
+    min-height: 36px;
+    padding: 0;
+    border-color: transparent !important;
+    border-radius: 6px !important;
+    background: transparent !important;
+    color: var(--pixiv-utils-ui-muted) !important;
+    font-size: 20px !important;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.12s, background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .pixiv-utils-alert button.pixiv-utils-alert-close:hover {
+    border-color: var(--pixiv-utils-ui-border) !important;
+    background: var(--pixiv-utils-ui-subtle) !important;
+    color: var(--pixiv-utils-ui-text) !important;
+    opacity: 1;
+  }
+  .pixiv-utils-alert-ok {
+    min-width: 76px;
+    padding: 7px 16px;
+    border-color: transparent !important;
+    background: var(--pixiv-utils-ui-accent) !important;
+    color: HighlightText !important;
+  }
+  .pixiv-utils-alert-ok:hover { filter: brightness(1.08); }
+  .pixiv-utils-alert-cancel { min-width: 76px; margin-right: 8px; padding: 7px 16px; }
+  @media (max-width: 480px) {
+    .pixiv-utils-alert { width: calc(100vw - 24px); max-width: calc(100vw - 24px); max-height: calc(100dvh - 32px); }
+    .pixiv-utils-alert-header { padding: 12px 12px 6px; }
+    .pixiv-utils-alert-message { max-height: calc(100dvh - 180px); padding: 8px 12px 14px; }
+    .pixiv-utils-alert-actions { padding: 0 12px 12px; }
+    .pixiv-utils-alert button { min-height: 44px; }
+    .pixiv-utils-alert button.pixiv-utils-alert-close { min-height: 36px; }
+  }
   /* gmConfig's .gc-c uses width:100%; account for padding and borders. */
   .gc-p, .gc-p * {
     box-sizing: border-box;
@@ -2839,6 +3055,126 @@
   .gc-p .gc-c, .gc-p input[type="text"], .gc-p textarea,
   .gc-p select, .gc-p .pixiv-utils-backup textarea {
     max-width: 100%;
+  }
+  .gc-p {
+    --gc-a: var(--pixiv-utils-ui-accent);
+    accent-color: var(--pixiv-utils-ui-accent);
+    color: var(--pixiv-utils-ui-text);
+    background: var(--pixiv-utils-ui-surface);
+    border: 1px solid var(--pixiv-utils-ui-border);
+    border-radius: var(--pixiv-utils-ui-radius);
+    box-shadow: var(--pixiv-utils-ui-shadow);
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .gc-p > form,
+  .gc-p .gc-hd, .gc-p .gc-b, .gc-p .gc-f {
+    color: var(--pixiv-utils-ui-text);
+    background: var(--pixiv-utils-ui-surface);
+  }
+  .gc-p .gc-hd, .gc-p .gc-f {
+    border-color: var(--pixiv-utils-ui-border);
+  }
+  .gc-p .gc-hd {
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--pixiv-utils-ui-border);
+  }
+  .gc-p .gc-hd > span {
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.35;
+  }
+  .gc-p .gc-hd > button.gc-ib {
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--pixiv-utils-ui-muted);
+    font-size: 20px;
+  }
+  .gc-p .gc-hd > button.gc-ib:hover {
+    border-color: var(--pixiv-utils-ui-border);
+    background: var(--pixiv-utils-ui-subtle);
+    color: var(--pixiv-utils-ui-text);
+  }
+  .gc-p .gc-f {
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--pixiv-utils-ui-border);
+    background: var(--pixiv-utils-ui-raised);
+  }
+  .gc-p .gc-f button {
+    min-height: 36px;
+    padding: 6px 13px;
+    border: 1px solid var(--pixiv-utils-ui-border);
+    border-radius: 6px;
+    background: var(--pixiv-utils-ui-surface);
+    background-image: none;
+    color: var(--pixiv-utils-ui-text);
+    font: inherit;
+    font-weight: 500;
+    box-shadow: none;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+  .gc-p .gc-f button:hover {
+    border-color: color-mix(in srgb, var(--pixiv-utils-ui-accent) 48%, var(--pixiv-utils-ui-border));
+    background: var(--pixiv-utils-ui-raised);
+  }
+  .gc-p .gc-f button.gc-bp {
+    border-color: var(--pixiv-utils-ui-accent);
+    background: var(--pixiv-utils-ui-accent);
+    color: #fff;
+    font-weight: 650;
+  }
+  .gc-p .gc-f button.gc-bp:hover {
+    border-color: color-mix(in srgb, var(--pixiv-utils-ui-accent) 84%, black);
+    background: color-mix(in srgb, var(--pixiv-utils-ui-accent) 84%, black);
+  }
+  .gc-p .gc-f > .gc-h {
+    color: var(--pixiv-utils-ui-muted);
+  }
+  .gc-p .gc-f > .gc-h button.pixiv-utils-reload-button {
+    min-height: 36px;
+    padding: 6px 13px;
+    border: 1px solid var(--pixiv-utils-ui-border);
+    border-radius: 6px;
+    background: var(--pixiv-utils-ui-surface);
+    color: var(--pixiv-utils-ui-text);
+    font: inherit;
+    font-weight: 500;
+  }
+  .gc-p .gc-f > .gc-h button.pixiv-utils-reload-button:hover {
+    border-color: var(--pixiv-utils-ui-accent);
+    background: var(--pixiv-utils-ui-raised);
+  }
+  .gc-p .gc-f > button.gc-ib {
+    flex: 0 0 36px;
+    width: 36px;
+    padding: 0;
+    border-color: transparent;
+    background: transparent;
+    color: var(--pixiv-utils-ui-muted);
+    font-size: 18px;
+  }
+  .gc-p .gc-f > button.gc-ib:hover {
+    border-color: var(--pixiv-utils-ui-border);
+    color: var(--pixiv-utils-ui-text);
+  }
+  .gc-p :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea) {
+    border-color: var(--pixiv-utils-ui-border);
+    border-radius: 6px;
+    background-color: var(--pixiv-utils-ui-surface);
+    color: var(--pixiv-utils-ui-text);
+  }
+  .gc-p :is(input, select, textarea, button):focus-visible {
+    outline: 2px solid var(--pixiv-utils-ui-accent);
+    outline-offset: 2px;
   }
   /* Keep the outer dialog height constant across tabs; scroll only its content. */
   .gc-p {
@@ -2876,25 +3212,33 @@
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     scrollbar-width: thin;
-    border: 1px solid rgba(128, 128, 128, 0.25) !important;
-    border-radius: 12px;
-    background: rgba(128, 128, 128, 0.12);
+    border: 1px solid var(--pixiv-utils-ui-border) !important;
+    border-radius: var(--pixiv-utils-ui-radius);
+    background: var(--pixiv-utils-ui-subtle);
     background-image: none !important;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14) !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12) !important;
   }
   .gc-p .gc-tb::before, .gc-p .gc-tb::after { content: none !important; }
-  /* Rounded controls and list cards, without affecting input dimensions. */
-  .gc-p :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea, button) {
-    border-radius: 5px;
-  }
+  /* Rounded list cards without affecting input dimensions. */
   .gc-p :is(.gc-li, .gc-list, .gc-li-b) {
-    border-radius: 7px;
+    border-radius: 6px;
   }
-  .gc-p :is(.gc-li-h, .gc-hd, .gc-f) {
-    border-radius: 5px;
+  .gc-p .gc-li {
+    border: 1px solid var(--pixiv-utils-ui-border);
+    background: var(--pixiv-utils-ui-raised);
   }
-  .gc-p :is(input, select, textarea, button):focus-visible {
-    outline-offset: 2px;
+  .gc-p .gc-li-h {
+    gap: 6px;
+    padding: 2px 3px 5px;
+    border-bottom: 1px solid var(--pixiv-utils-ui-border);
+    background: transparent;
+  }
+  .gc-p .gc-li-b {
+    padding: 5px 3px 2px;
+    background: transparent;
+  }
+  .gc-p .gc-li-t {
+    color: var(--pixiv-utils-ui-text);
   }
   /* Keep tab geometry stable; use a filled selected state instead of the
      active bottom underline, which clashed with gmConfig's tab strip. */
@@ -2903,7 +3247,7 @@
     min-height: 34px;
     padding: 7px 12px;
     border: 0 !important;
-    border-radius: 8px;
+    border-radius: 6px;
     font-weight: 400 !important;
     white-space: nowrap;
     box-shadow: none !important;
@@ -2911,12 +3255,13 @@
   }
   @media (hover: hover) {
     .gc-p .gc-tb > button:hover {
-      background-color: rgba(128, 128, 128, 0.16);
+      background-color: var(--pixiv-utils-ui-subtle);
     }
   }
   .gc-p .gc-tb > button:is([aria-selected="true"], [data-active="true"], .active, .gc-a, .gc-ta) {
-    background-color: rgba(128, 128, 128, 0.22) !important;
-    box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.26) !important;
+    background-color: var(--pixiv-utils-ui-accent) !important;
+    color: #fff !important;
+    box-shadow: inset 0 0 0 1px var(--pixiv-utils-ui-accent) !important;
   }
   .gc-p .gc-tb + .gc-b {
     border-top: 0 !important;
@@ -2926,13 +3271,6 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.35;
-  }
-  .gc-p .pixiv-utils-bookmark-state-field {
-    margin-inline-start: 12px;
-    padding-inline-start: 12px;
-    padding-block: 4px;
-    border-left: 2px solid rgba(128, 128, 128, 0.38);
-    background: rgba(128, 128, 128, 0.055);
   }
   .gc-p .gc-g:has(#ENABLE_KEYBINDS) .gc-h {
     white-space: pre-line;
@@ -2952,6 +3290,9 @@
   .gc-p .gc-list-items {
     min-width: 0;
     max-width: 100%;
+  }
+  .gc-p .gc-g {
+    margin-bottom: 4px;
   }
   .gc-p .gc-li-b > .gc-r .gc-g:has(input[id$="_regex"]) .gc-ck {
     /* Match the label height of neighboring textboxes before the checkbox. */
@@ -3025,11 +3366,40 @@
     align-self: flex-start;
     font: inherit;
     font-size: 11px;
-    padding: 3px 8px;
+    min-height: 30px;
+    padding: 4px 9px;
     cursor: pointer;
-    border: 1px solid;
-    border-radius: 4px;
+    border: 1px solid var(--pixiv-utils-ui-border);
+    border-radius: 6px;
+    background: var(--pixiv-utils-ui-surface);
+    color: var(--pixiv-utils-ui-text);
+  }
+  .gc-p .pixiv-utils-collapse-group:hover {
+    border-color: var(--pixiv-utils-ui-accent);
+    color: var(--pixiv-utils-ui-accent);
+  }
+  .gc-p .gc-list-add {
+    min-height: 34px;
+    padding: 5px 11px;
+    border: 1px solid var(--pixiv-utils-ui-accent);
+    border-radius: 6px;
     background: transparent;
+    color: var(--pixiv-utils-ui-accent);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 550;
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .gc-p .gc-list-add:hover:not(:disabled) {
+    background: var(--pixiv-utils-ui-accent);
+    color: #fff;
+  }
+  .gc-p .gc-list-add:disabled {
+    border-color: var(--pixiv-utils-ui-border);
+    color: var(--pixiv-utils-ui-muted);
+    cursor: not-allowed;
+    opacity: 0.65;
   }
   /* Native modal backdrop dims Pixiv without covering the settings UI. */
   dialog.gc-p::backdrop {
@@ -3039,7 +3409,7 @@
     min-width: 0;
   }
   .gc-p .pixiv-utils-list-position {
-    width: 48px; min-width: 0; padding: 3px 2px;
+    width: 60px; min-width: 0; padding: 3px 2px;
     margin-right: 6px;
     font: inherit; font-size: 12px; text-align: center;
   }
@@ -3075,6 +3445,9 @@
     width: 100%; min-height: 260px; box-sizing: border-box;
     font: 12px/1.5 monospace; resize: vertical;
   }
+  .gc-p textarea[id="FLOATING_TOOLTIPS_OPTIONS"] {
+    font: 12px/1.5 monospace; resize: vertical;
+  }
   .gc-p .pixiv-utils-backup-buttons {
     display: flex;
     flex-wrap: wrap;
@@ -3087,7 +3460,7 @@
   .gc-p .gc-f > .gc-h button {
     cursor: pointer;
   }
-  @media (max-width: 640px) {
+  @media (max-width: 480px) {
     .gc-p {
       position: fixed; inset: 0; margin: 0;
       width: 100vw !important; max-width: none !important;
@@ -3118,7 +3491,10 @@
       padding-bottom: max(8px, env(safe-area-inset-bottom));
     }
     .gc-p .gc-f button {
-      min-height: 34px;
+      min-height: 44px;
+    }
+    .gc-p .gc-f > .gc-h button.pixiv-utils-reload-button {
+      min-height: 44px;
     }
     .gc-p .gc-f > .gc-h {
       margin-right: auto;
@@ -3149,9 +3525,7 @@
     .gc-p .pixiv-utils-backup-buttons button {
       min-height: 36px;
     }
-  }
-  @media (max-width: 400px) {
-    /* Nested colored groups cannot fit three same-row controls on small phones. */
+    /* Stack regex fields on narrow screens to preserve usable input widths. */
     .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
       grid-template-columns: minmax(0, 1fr) 62px;
     }
@@ -3273,14 +3647,14 @@
     try {
       settingsUiLocale = resolveSettingsLocale(getSetting('SETTINGS_LANGUAGE'));
       await waitPageLoaded();
-      const SettingsConstructor = await loadSettingsConstructor();
       addSettingsStyleOnce();
+      const SettingsConstructor = await loadSettingsConstructor();
       const panel = new SettingsConstructor();
       await panel.init(makeSettingsDefinitions(), {
         title: settingsPanelTitle(),
         width: 'min(900px, 96vw)',
         closeOnSave: false, // Keep the Reload page button available after Save.
-        onBeforeClose: () => window.confirm(tr('message.discardChanges')),
+        onBeforeClose: () => showConfirm(tr('message.discardChanges')),
         onBeforeSave: values => {
           for (const [key, highlighted] of [
             ['PIXIV_BLOCKED_TAGS', false],
@@ -3292,13 +3666,13 @@
               Boolean(values[`${key}_COMBINE_REGEXES`])
             );
             if (error) {
-              alert(error);
+              showAlert(error);
               return false;
             }
           }
           // Defensive validation for additional conversions done during persistence.
           for (const key of ['FLOATING_TOOLTIPS_OPTIONS', 'UTAGS_BLOCKED_TAGS', 'SECTIONS_TOGGLE_BOOKMARKED', 'PIXIV_BLOCKED_USERS']) {
-            try { editorToSetting(key, values[key], ENV[key]); } catch (error) { alert(tr('message.validation', { key, error: error.message })); return false; }
+            try { editorToSetting(key, values[key], ENV[key]); } catch (error) { showAlert(tr('message.validation', { key, error: error.message })); return false; }
           }
         },
         onOpen: () => {
@@ -3347,12 +3721,13 @@
         footerContent: () => {
           const button = document.createElement('button');
           button.type = 'button';
+          button.className = 'pixiv-utils-reload-button';
           button.textContent = tr('action.reload');
           // gmConfig already supplies a beforeunload warning for unsaved edits.
           button.addEventListener('click', () => location.reload());
           return button;
         },
-        onSave: () => { alert(tr('message.save')); },
+        onSave: () => { showAlert(tr('message.save')); },
         onReset: () => {
           const locale = resolveSettingsLocale(ENV_DEFAULTS.SETTINGS_LANGUAGE);
           if (locale !== settingsUiLocale) {
@@ -3360,14 +3735,14 @@
             panel.reinit(makeSettingsDefinitions(), settingsPanelTitle());
             refreshSettingsEnhancements(panel);
           }
-          alert(tr('message.reset'));
+          showAlert(tr('message.reset'));
         }
       });
       settingsPanel = panel;
       await panel.open();
     } catch (error) {
       console.error('[Pixiv Utils]: Failed to open settings:', error);
-      alert(tr('message.openError', { error: error.message }));
+      showAlert(tr('message.openError', { error: error.message }));
     } finally { settingsOpening = false; }
   };
 
@@ -3555,6 +3930,8 @@
 
   const SELECTORS_IMAGE_HIGHLIGHTED =
     ':not(.page-count, [size="16"], [size="24"]):has(> img:not([src^="data"]))::after';
+
+  const SELECTORS_DATE_ORIGINAL = `:is(${CONFIG.SELECTORS_DATE}):not([data-pixiv_utils_duplicate_date])`;
 
   const mainStyle = /*css*/`
   .flex:has(+ .pixiv_utils_edit_bookmark_container) {
@@ -3853,11 +4230,9 @@
   [data-pixiv_utils_expanded_view_blocked] :is([role="presentation"], .swipe-detector):hover :is(img, canvas) {
     filter: unset;
   }
-  `;
 
-  const SELECTORS_DATE_ORIGINAL = `:is(${CONFIG.SELECTORS_DATE}):not([data-pixiv_utils_duplicate_date])`;
-
-  const mainDateStyle = /*css*/`
+  ${CONFIG.DATE_CONVERSION
+  ? /*css*/`
   ${SELECTORS_DATE_ORIGINAL} {
     display: none !important;
   }
@@ -3866,7 +4241,130 @@
     font-size: 14px !important;
     font-weight: bold !important;
     color: rgb(214, 214, 214) !important;
+  }`
+  : ''}
+
+  ${CONFIG.ENABLE_FLOATING_TOOLTIPS
+  ? /*css*/`
+  .pixiv-utils-floating-tooltip {
+    position: fixed;
+    z-index: 9999;
+    width: max-content;
+    max-width: min(var(--pixiv-utils-floating-max-width, 350px), calc(100vw - 16px));
+    padding: 5px 9px;
+    border-radius: 4px;
+    --pixiv-utils-tooltip-bg: rgba(58, 58, 58, 0.94);
+    background: var(--pixiv-utils-tooltip-bg);
+    color: #d6d6d6;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.4;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+    box-sizing: border-box;
   }
+  .pixiv-utils-tooltip-title {
+    display: block;
+    font-weight: 700;
+    color: #f4f4f4;
+  }
+  .pixiv-utils-tooltip-ai-row { margin-top: 3px; }
+  .pixiv-utils-tooltip-ai {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.86em;
+    background: rgba(255,255,255,0.08);
+    color: #bcbcbc;
+  }
+  .pixiv-utils-tooltip-ai[data-state="blockable"] {
+    background: rgba(255, 132, 82, 0.15);
+    color: #f2b8a1;
+  }
+  .pixiv-utils-tooltip-ai[data-state="blocked"] {
+    background: rgba(255, 97, 97, 0.27);
+    color: #ffcece;
+    font-weight: 600;
+  }
+  .pixiv-utils-tooltip-tags { margin-top: 3px; }
+  .pixiv-utils-tooltip-tag-separator { color: #9ea1a7; }
+  .pixiv-utils-tooltip-tag {
+    border-radius: 2px;
+    padding: 0 2px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  .pixiv-utils-tooltip-tag[data-match="highlighted"],
+  .pixiv-utils-tooltip-tag[data-match="both"] {
+    background: rgba(63, 190, 98, 0.18);
+    border-bottom: 2px solid var(--pixiv-utils-tooltip-tag-color, #32cd32);
+  }
+  .pixiv-utils-tooltip-tag[data-match="blocked"],
+  .pixiv-utils-tooltip-tag[data-match="both"] {
+    color: #ffd5d5;
+    background: rgba(234, 84, 84, 0.24);
+  }
+  .pixiv-utils-tooltip-tag[data-match="blocked"] {
+    border-bottom: 2px solid #fa8080;
+  }
+  .pixiv-utils-tooltip-tag[data-match="both"] {
+    background: linear-gradient(90deg, rgba(63,190,98,0.2), rgba(234,84,84,0.25));
+  }
+  .pixiv-utils-tooltip-date {
+    margin-top: 3px;
+    color: #aeb1b7;
+    font-size: 0.91em;
+  }
+  .pixiv-utils-tooltip-footer {
+    margin-top: 7px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255,255,255,0.22);
+    font-size: 0.92em;
+  }
+  .pixiv-utils-tooltip-footer-section + .pixiv-utils-tooltip-footer-section {
+    margin-top: 5px;
+  }
+  .pixiv-utils-tooltip-footer-heading {
+    display: block;
+    font-weight: 600;
+    color: #e2e2e2;
+  }
+  .pixiv-utils-tooltip-footer-body { display: block; }
+  .pixiv-utils-floating-tooltip[data-mode="touch"] {
+    pointer-events: auto;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .pixiv-utils-floating-tooltip[data-open] {
+    animation: pixiv-utils-floating-enter 120ms ease-out both;
+  }
+  .pixiv-utils-floating-arrow {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: var(--pixiv-utils-tooltip-bg);
+    pointer-events: none;
+  }
+  /* Render only the half facing outside the tooltip. Unlike a rotated
+     square, these triangles never paint over the translucent body. */
+  .pixiv-utils-floating-arrow[data-side="bottom"] {
+    clip-path: polygon(50% 0, 0 50%, 100% 50%);
+  }
+  .pixiv-utils-floating-arrow[data-side="top"] {
+    clip-path: polygon(0 50%, 100% 50%, 50% 100%);
+  }
+  .pixiv-utils-floating-arrow[data-side="right"] {
+    clip-path: polygon(0 50%, 50% 0, 50% 100%);
+  }
+  .pixiv-utils-floating-arrow[data-side="left"] {
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%);
+  }
+  @keyframes pixiv-utils-floating-enter {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }`
+  : ''}
   `;
 
   const BLOCKED_IMAGE_HTML = /*html*/`
@@ -3886,10 +4384,6 @@
   /** MAIN **/
 
   GM_addStyle(mainStyle);
-
-  if (CONFIG.DATE_CONVERSION) {
-    GM_addStyle(mainDateStyle);
-  }
 
   const uuidv4 = () => {
     return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
@@ -5426,127 +5920,6 @@
     const mouseTolerance = Math.max(0, Number(CONFIG.FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE) || 0);
     const mouseToleranceSq = mouseTolerance * mouseTolerance;
     const touchToleranceSq = Math.max(12, mouseTolerance) ** 2;
-
-    GM_addStyle(/*css*/`
-      .pixiv-utils-floating-tooltip {
-        position: fixed;
-        z-index: 9999;
-        width: max-content;
-        max-width: min(var(--pixiv-utils-floating-max-width, 350px), calc(100vw - 16px));
-        padding: 5px 9px;
-        border-radius: 4px;
-        --pixiv-utils-tooltip-bg: rgba(58, 58, 58, 0.94);
-        background: var(--pixiv-utils-tooltip-bg);
-        color: #d6d6d6;
-        font-family: inherit;
-        font-size: 14px;
-        line-height: 1.4;
-        white-space: pre-line;
-        overflow-wrap: anywhere;
-        pointer-events: none;
-        box-sizing: border-box;
-      }
-      .pixiv-utils-tooltip-title {
-        display: block;
-        font-weight: 700;
-        color: #f4f4f4;
-      }
-      .pixiv-utils-tooltip-ai-row { margin-top: 3px; }
-      .pixiv-utils-tooltip-ai {
-        display: inline-block;
-        padding: 1px 5px;
-        border-radius: 3px;
-        font-size: 0.86em;
-        background: rgba(255,255,255,0.08);
-        color: #bcbcbc;
-      }
-      .pixiv-utils-tooltip-ai[data-state="blockable"] {
-        background: rgba(255, 132, 82, 0.15);
-        color: #f2b8a1;
-      }
-      .pixiv-utils-tooltip-ai[data-state="blocked"] {
-        background: rgba(255, 97, 97, 0.27);
-        color: #ffcece;
-        font-weight: 600;
-      }
-      .pixiv-utils-tooltip-tags { margin-top: 3px; }
-      .pixiv-utils-tooltip-tag-separator { color: #9ea1a7; }
-      .pixiv-utils-tooltip-tag {
-        border-radius: 2px;
-        padding: 0 2px;
-        box-decoration-break: clone;
-        -webkit-box-decoration-break: clone;
-      }
-      .pixiv-utils-tooltip-tag[data-match="highlighted"],
-      .pixiv-utils-tooltip-tag[data-match="both"] {
-        background: rgba(63, 190, 98, 0.18);
-        border-bottom: 2px solid var(--pixiv-utils-tooltip-tag-color, #32cd32);
-      }
-      .pixiv-utils-tooltip-tag[data-match="blocked"],
-      .pixiv-utils-tooltip-tag[data-match="both"] {
-        color: #ffd5d5;
-        background: rgba(234, 84, 84, 0.24);
-      }
-      .pixiv-utils-tooltip-tag[data-match="blocked"] {
-        border-bottom: 2px solid #fa8080;
-      }
-      .pixiv-utils-tooltip-tag[data-match="both"] {
-        background: linear-gradient(90deg, rgba(63,190,98,0.2), rgba(234,84,84,0.25));
-      }
-      .pixiv-utils-tooltip-date {
-        margin-top: 3px;
-        color: #aeb1b7;
-        font-size: 0.91em;
-      }
-      .pixiv-utils-tooltip-footer {
-        margin-top: 7px;
-        padding-top: 6px;
-        border-top: 1px solid rgba(255,255,255,0.22);
-        font-size: 0.92em;
-      }
-      .pixiv-utils-tooltip-footer-section + .pixiv-utils-tooltip-footer-section {
-        margin-top: 5px;
-      }
-      .pixiv-utils-tooltip-footer-heading {
-        display: block;
-        font-weight: 600;
-        color: #e2e2e2;
-      }
-      .pixiv-utils-tooltip-footer-body { display: block; }
-      .pixiv-utils-floating-tooltip[data-mode="touch"] {
-        pointer-events: auto;
-        cursor: pointer;
-        touch-action: manipulation;
-      }
-      .pixiv-utils-floating-tooltip[data-open] {
-        animation: pixiv-utils-floating-enter 120ms ease-out both;
-      }
-      .pixiv-utils-floating-arrow {
-        position: absolute;
-        width: 12px;
-        height: 12px;
-        background: var(--pixiv-utils-tooltip-bg);
-        pointer-events: none;
-      }
-      /* Render only the half facing outside the tooltip. Unlike a rotated
-         square, these triangles never paint over the translucent body. */
-      .pixiv-utils-floating-arrow[data-side="bottom"] {
-        clip-path: polygon(50% 0, 0 50%, 100% 50%);
-      }
-      .pixiv-utils-floating-arrow[data-side="top"] {
-        clip-path: polygon(0 50%, 100% 50%, 50% 100%);
-      }
-      .pixiv-utils-floating-arrow[data-side="right"] {
-        clip-path: polygon(0 50%, 50% 0, 50% 100%);
-      }
-      .pixiv-utils-floating-arrow[data-side="left"] {
-        clip-path: polygon(50% 0, 100% 50%, 50% 100%);
-      }
-      @keyframes pixiv-utils-floating-enter {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-    `);
 
     const tooltip = document.createElement('div');
     tooltip.id = 'pixiv-utils-floating-tooltip';
