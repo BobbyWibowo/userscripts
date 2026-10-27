@@ -4550,7 +4550,8 @@
   const findItemData = (element, tryImg = false) => {
     const result = {
       id: null,
-      novel: false
+      novel: false,
+      collections: false
     };
 
     for (const method of ITEM_SOURCES) {
@@ -5196,16 +5197,18 @@
       return false;
     }
 
-    if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome && data.novel) {
-      element.style.setProperty('display', 'none', 'important');
-      logDebug('Novel recommendation removed from home', element);
-      return true;
-    }
+    if (options.isHome) {
+      if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && data.novel) {
+        element.style.setProperty('display', 'none', 'important');
+        logDebug('Novel recommendation removed from home', element);
+        return true;
+      }
 
-    if (CONFIG.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME && options.isHome && data.collections) {
-      element.style.setProperty('display', 'none', 'important');
-      logDebug('Collections recommendation removed from home', element);
-      return true;
+      if (CONFIG.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME && data.collections) {
+        element.style.setProperty('display', 'none', 'important');
+        logDebug('Collections recommendation removed from home', element);
+        return true;
+      }
     }
 
     // Process new entries using their own section's current filter mode.
@@ -5363,16 +5366,18 @@
       return false;
     }
 
-    if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && options.isHome && data.novel) {
-      element.parentNode.style.setProperty('display', 'none', 'important');
-      logDebug('Novel recommendation removed from home', element);
-      return true;
-    }
+    if (options.isHome) {
+      if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && data.novel) {
+        element.parentNode.style.setProperty('display', 'none', 'important');
+        logDebug('Novel recommendation removed from home', element);
+        return true;
+      }
 
-    if (CONFIG.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME && options.isHome && data.collections) {
-      element.parentNode.style.setProperty('display', 'none', 'important');
-      logDebug('Collections recommendation removed from home', element);
-      return true;
+      if (CONFIG.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME && data.collections) {
+        element.parentNode.style.setProperty('display', 'none', 'important');
+        logDebug('Collections recommendation removed from home', element);
+        return true;
+      }
     }
 
     const pixivDataSource = element.querySelector('div[data-ga4-label="thumbnail_link"]');
