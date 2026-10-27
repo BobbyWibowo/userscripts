@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pixiv Inactive Cleaner
 // @namespace    https://github.com/BobbyWibowo
-// @version      0.4.0
+// @version      0.4.1
 // @description  Find and optionally unfollow Pixiv artists whose latest artwork is older than a chosen cutoff.
 // @author       Bobby Wibowo
 // @license      MIT
@@ -11,6 +11,7 @@
 // @grant        GM_registerMenuCommand
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @noframes
 // ==/UserScript==
 
 (() => {

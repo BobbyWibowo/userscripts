@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili Blocked Users Exporter
 // @namespace    https://github.com/BobbyWibowo
-// @version      0.1.0
+// @version      0.1.1
 // @description  Export your Bilibili blocked-user list with follower counts, profile URLs, a CSV file, and a console table.
 // @author       Bobby Wibowo
 // @license      MIT
@@ -12,6 +12,7 @@
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
 // @connect      api.bilibili.com
+// @noframes
 // ==/UserScript==
 
 /**
@@ -465,6 +466,7 @@
       for (const row of rows) {
         assertActive(runId);
         try {
+          console.info(`[Bilibili Export] Fetching follower counts for MID ${row.mid}.`);
           row.followerCount = await fetchFollowerCount(row.mid, runId);
           if (row.followerCount === null) failures += 1;
         } catch (error) {
