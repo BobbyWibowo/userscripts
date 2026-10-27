@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.7.15
+// @version            1.7.16
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -138,7 +138,9 @@
       crossAxisOffset: 0, // px
       shiftPadding: 8, // px
       maxWidth: 350 // px
-    }
+    },
+
+    WAIT_FOR_POLL: 1000 // ms
   };
 
   /* Hard-coded preset values.
@@ -391,6 +393,7 @@
       'language.zh-HK': 'Chinese (Traditional, Hong Kong)',
       'language.zh-TW': 'Chinese (Traditional, Taiwan)',
       'label.MODE': 'Debug mode',
+      'label.WAIT_FOR_POLL': 'Element polling interval (ms)',
       'label.SETTINGS_LANGUAGE': 'Settings language',
       'label.PIXIV_BLOCKED_TAGS': 'Blocked tags',
       'label.PIXIV_HIGHLIGHTED_TAGS': 'Highlighted tags',
@@ -461,6 +464,7 @@
       'backup.objectError': 'Expected a JSON object.',
       'backup.emptyObject': 'The imported object is empty.',
       'field.debugInfo': 'Show debug messages in the browser console.',
+      'field.waitForPoll': 'Interval between checks for elements the script is waiting to find. Lower values check more often; higher values reduce polling frequency.',
       'field.languageInfo': 'Use your browser language or choose one. Missing translations fall back to English.',
       'field.highlightInfo': 'Leave blank for the default (#32cd32). Use "transparent" to hide borders without disabling highlight bypass.',
       'field.highlightFastInfo': 'An uncolored match still checks later groups for an explicit color. If none match, the default color is used.',
@@ -483,6 +487,7 @@
       'validation.arrayNull': 'Expected an array or null.',
       'validation.arrayObjects': 'Expected an array of objects.',
       'validation.string': 'Expected a string.',
+      'validation.positiveInteger': 'Enter a positive whole number.',
       'action.settings': 'Settings',
       'action.reload': 'Reload page',
       'action.save': 'Save',
@@ -609,6 +614,7 @@
       'language.zh-HK': '中国語（繁体字・香港）',
       'language.zh-TW': '中国語（繁体字・台湾）',
       'label.MODE': 'デバッグモード',
+      'label.WAIT_FOR_POLL': '要素のポーリング間隔（ミリ秒）',
       'label.SETTINGS_LANGUAGE': '設定画面の言語',
       'label.PIXIV_BLOCKED_TAGS': 'ブロックするタグ',
       'label.PIXIV_HIGHLIGHTED_TAGS': 'ハイライトするタグ',
@@ -679,6 +685,7 @@
       'backup.objectError': 'JSON オブジェクトを指定してください。',
       'backup.emptyObject': 'インポートするオブジェクトが空です。',
       'field.debugInfo': 'ブラウザーのコンソールにデバッグメッセージを表示します。',
+      'field.waitForPoll': 'スクリプトが検出を待っている要素を確認する間隔です。値を小さくすると確認頻度が上がり、大きくするとポーリング頻度が下がります。',
       'field.languageInfo': 'ブラウザーの言語を使用するか、言語を選択してください。翻訳がない項目は英語で表示されます。',
       'field.highlightInfo': '空欄の場合は既定色（#32cd32）を使用します。「transparent」を指定すると、ブロック回避機能を維持したまま枠線を非表示にできます。',
       'field.highlightFastInfo': '色なしのグループが一致しても、後続の色付きグループを探します。見つからなければ既定色を使用します。',
@@ -701,6 +708,7 @@
       'validation.arrayNull': '配列または null を指定してください。',
       'validation.arrayObjects': 'オブジェクトの配列を指定してください。',
       'validation.string': '文字列を指定してください。',
+      'validation.positiveInteger': '1以上の整数を入力してください。',
       'action.settings': '設定',
       'action.reload': 'ページを再読み込み',
       'action.save': '保存',
@@ -827,6 +835,7 @@
       'language.zh-HK': '繁体中文（香港）',
       'language.zh-TW': '繁体中文（台湾）',
       'label.MODE': '调试模式',
+      'label.WAIT_FOR_POLL': '等待目标元素的轮询间隔（毫秒）',
       'label.SETTINGS_LANGUAGE': '设置界面语言',
       'label.PIXIV_BLOCKED_TAGS': '屏蔽的标签',
       'label.PIXIV_HIGHLIGHTED_TAGS': '高亮的标签',
@@ -897,6 +906,7 @@
       'backup.objectError': '应提供 JSON 对象。',
       'backup.emptyObject': '导入的对象为空。',
       'field.debugInfo': '在浏览器控制台中显示调试信息。',
+      'field.waitForPoll': '此设置控制脚本检查待查找元素的间隔。数值越小，检查越频繁；数值越大，轮询频率越低。',
       'field.languageInfo': '使用浏览器语言或手动选择语言。缺少翻译的内容将回退为英语。',
       'field.highlightInfo': '留空时使用默认颜色（#32cd32）。设为“transparent”可隐藏边框，同时保留高亮作品绕过屏蔽的功能。',
       'field.highlightFastInfo': '匹配到未设置颜色的分组后，仍会查找后续有颜色的分组；若无匹配，则使用默认颜色。',
@@ -919,6 +929,7 @@
       'validation.arrayNull': '应提供数组或 null。',
       'validation.arrayObjects': '应提供对象数组。',
       'validation.string': '应提供字符串。',
+      'validation.positiveInteger': '请输入正整数。',
       'action.settings': '设置',
       'action.reload': '重新加载页面',
       'action.save': '保存',
@@ -1045,6 +1056,7 @@
       'language.zh-HK': '繁體中文（香港）',
       'language.zh-TW': '繁體中文（台灣）',
       'label.MODE': '除錯模式',
+      'label.WAIT_FOR_POLL': '等待目標元素的輪詢間隔（毫秒）',
       'label.SETTINGS_LANGUAGE': '設定介面語言',
       'label.PIXIV_BLOCKED_TAGS': '要屏蔽的標籤',
       'label.PIXIV_HIGHLIGHTED_TAGS': '要高亮顯示的標籤',
@@ -1115,6 +1127,7 @@
       'backup.objectError': '必須提供 JSON 物件。',
       'backup.emptyObject': '匯入的物件沒有內容。',
       'field.debugInfo': '在瀏覽器控制台顯示除錯訊息。',
+      'field.waitForPoll': '此設定控制腳本檢查待尋找元素的間隔。數值越小，檢查越頻密；數值越大，輪詢頻率越低。',
       'field.languageInfo': '使用瀏覽器語言，或自行選擇語言。未有翻譯的文字會以英文顯示。',
       'field.highlightInfo': '留空即使用預設顏色（#32cd32）。填入「transparent」可隱藏邊框，並保留高亮作品略過屏蔽的功能。',
       'field.highlightFastInfo': '匹配到未設定顏色的群組後，仍會尋找後續設有顏色的群組；若無匹配，則使用預設顏色。',
@@ -1137,6 +1150,7 @@
       'validation.arrayNull': '必須提供數組或 null。',
       'validation.arrayObjects': '必須提供物件數組。',
       'validation.string': '必須提供字串。',
+      'validation.positiveInteger': '請輸入正整數。',
       'action.settings': '設定',
       'action.reload': '重新載入頁面',
       'action.save': '儲存',
@@ -1263,6 +1277,7 @@
       'language.zh-HK': '繁體中文（香港）',
       'language.zh-TW': '繁體中文（台灣）',
       'label.MODE': '偵錯模式',
+      'label.WAIT_FOR_POLL': '等待目標元素的輪詢間隔（毫秒）',
       'label.SETTINGS_LANGUAGE': '設定介面語言',
       'label.PIXIV_BLOCKED_TAGS': '要屏蔽的標籤',
       'label.PIXIV_HIGHLIGHTED_TAGS': '要醒目標示的標籤',
@@ -1333,6 +1348,7 @@
       'backup.objectError': '應提供 JSON 物件。',
       'backup.emptyObject': '匯入的物件是空的。',
       'field.debugInfo': '在瀏覽器主控台顯示偵錯訊息。',
+      'field.waitForPoll': '此設定控制指令碼檢查待尋找元素的間隔。數值越小，檢查越頻繁；數值越大，輪詢頻率越低。',
       'field.languageInfo': '使用瀏覽器語言或手動選擇語言。缺少翻譯的項目將顯示英文。',
       'field.highlightInfo': '留空將使用預設顏色（#32cd32）。設為「transparent」可隱藏邊框，同時保留醒目標示作品的屏蔽略過功能。',
       'field.highlightFastInfo': '符合未設定顏色的群組後，仍會尋找後續設有顏色的群組；若無符合者，則使用預設顏色。',
@@ -1355,6 +1371,7 @@
       'validation.arrayNull': '應提供陣列或 null。',
       'validation.arrayObjects': '應提供物件陣列。',
       'validation.string': '應提供字串。',
+      'validation.positiveInteger': '請輸入正整數。',
       'action.settings': '設定',
       'action.reload': '重新載入頁面',
       'action.save': '儲存',
@@ -2197,6 +2214,8 @@
     const definitions = {};
     const tabOrder = ['General', 'Bookmarks', 'Filtering', 'Users', 'Highlights', 'Tooltips', 'UTags', 'Advanced'];
     const priority = {
+      MODE: -20,
+      WAIT_FOR_POLL: -10,
       // Group the behavior switches above the tag/color editors.
       PIXIV_BLOCKED_TAGS_FAST: -20,
       PIXIV_REMOVE_BLOCKED: -10,
@@ -2214,6 +2233,13 @@
         field.type = 'checkbox';
         field.label = tr('label.MODE');
         field.description = tr('field.debugInfo');
+      } else if (key === 'WAIT_FOR_POLL') {
+        field.type = 'number';
+        field.min = 1;
+        field.step = 1;
+        field.validate = value => Number.isSafeInteger(value) && value > 0
+          ? ''
+          : tr('validation.positiveInteger');
       } else if (key === 'SETTINGS_LANGUAGE') {
         field.type = 'select';
         field.options = {
@@ -2372,6 +2398,7 @@
       if (key === 'FLOATING_TOOLTIPS_MOVEMENT_TOLERANCE') field.description = tr('field.toleranceInfo');
       if (key === 'FLOATING_TOOLTIPS_SHOW_DELAY') field.description = tr('field.floatingShowDelay');
       if (key === 'FLOATING_TOOLTIPS_TOUCH_HOLD_DELAY') field.description = tr('field.floatingTouchHoldDelay');
+      if (key === 'WAIT_FOR_POLL') field.description = tr('field.waitForPoll');
       definitions[key] = field;
     }
     // Backup controls are managed locally and never persisted as configuration values.
@@ -2473,6 +2500,10 @@
         try { Intl.DateTimeFormat(value, get('DATE_CONVERSION_OPTIONS')); } catch (error) { throw new TypeError(`${key}: ${error.message}`); }
       } else if (key === 'FLOATING_TOOLTIPS_OPTIONS') {
         validateFloatingOptions(value);
+      } else if (key === 'WAIT_FOR_POLL') {
+        if (!Number.isSafeInteger(value) || value < 1) {
+          throw new TypeError(`${key}: expected a positive integer.`);
+        }
       } else if (key.startsWith('TEXT_') || def === null) {
         if (value !== null && typeof value !== 'string') {
           throw new TypeError(`${key}: expected a string or null.`);
@@ -4391,7 +4422,9 @@
     );
   };
 
-  const WAIT_FOR_POLL = 1000; // ms
+  const WAIT_FOR_POLL = Number.isSafeInteger(CONFIG.WAIT_FOR_POLL) && CONFIG.WAIT_FOR_POLL > 0
+    ? CONFIG.WAIT_FOR_POLL
+    : ENV_DEFAULTS.WAIT_FOR_POLL;
   const WAIT_FOR_TIMEOUT = 30000; // ms; callers can safely retry on later observations.
 
   // Share one polling timer across all pending element lookups. Each request
