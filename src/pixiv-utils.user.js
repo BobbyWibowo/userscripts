@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.7.13
+// @version            1.7.14
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -415,11 +415,14 @@
       'rule.expand': 'Expand tags',
       'rule.listRequired': 'Expected a list of rules.',
       'rule.needsText': '{location}: enter a tag or regex.',
+      'rule.itemLocation': '{tab} tab, item {item}',
+      'rule.groupItemLocation': '{tab} tab, group {group}, item {item}',
       'rule.groupLocation': 'Group {number}',
       'rule.location': 'Rule {number}',
       'rule.blockedLocation': 'Blocked rules',
-      'rule.groupNeedsTags': 'Group {number}: add a tag list.',
-      'rule.combinedRegex': 'Combined regex ({flags}): {error}',
+      'rule.groupNeedsTags': '{tab} tab, group {number}: add a tag list.',
+      'rule.invalidRegex': '{location}: {error}',
+      'rule.combinedRegex': '{location}: combined regex ({flags}): {error}',
       'rule.noFlags': 'no flags',
       'date.unspecified': 'Default',
       'date.systemTimezone': 'System time zone',
@@ -628,11 +631,14 @@
       'rule.expand': 'タグを展開',
       'rule.listRequired': 'ルールのリストを指定してください。',
       'rule.needsText': '{location}：タグまたは正規表現を入力してください。',
+      'rule.itemLocation': '{tab}タブの項目 {item}',
+      'rule.groupItemLocation': '{tab}タブ、グループ {group} の項目 {item}',
       'rule.groupLocation': 'グループ {number}',
       'rule.location': 'ルール {number}',
       'rule.blockedLocation': 'ブロックルール',
-      'rule.groupNeedsTags': 'グループ {number}：タグのリストを追加してください。',
-      'rule.combinedRegex': '結合した正規表現（{flags}）：{error}',
+      'rule.groupNeedsTags': '{tab}タブ、グループ {number}：タグのリストを追加してください。',
+      'rule.invalidRegex': '{location}：{error}',
+      'rule.combinedRegex': '{location}：結合した正規表現（{flags}）：{error}',
       'rule.noFlags': 'フラグなし',
       'date.unspecified': '既定値',
       'date.systemTimezone': 'システムのタイムゾーン',
@@ -841,11 +847,14 @@
       'rule.expand': '展开标签',
       'rule.listRequired': '请提供规则列表。',
       'rule.needsText': '{location}：请输入标签或正则表达式。',
+      'rule.itemLocation': '{tab}选项卡，第 {item} 项',
+      'rule.groupItemLocation': '{tab}选项卡，分组 {group}，第 {item} 项',
       'rule.groupLocation': '分组 {number}',
       'rule.location': '规则 {number}',
       'rule.blockedLocation': '屏蔽规则',
-      'rule.groupNeedsTags': '分组 {number}：请添加标签列表。',
-      'rule.combinedRegex': '合并后的正则表达式（{flags}）：{error}',
+      'rule.groupNeedsTags': '{tab}选项卡，分组 {number}：请添加标签列表。',
+      'rule.invalidRegex': '{location}：{error}',
+      'rule.combinedRegex': '{location}：合并后的正则表达式（{flags}）：{error}',
       'rule.noFlags': '无标志',
       'date.unspecified': '默认值',
       'date.systemTimezone': '系统时区',
@@ -1054,11 +1063,14 @@
       'rule.expand': '展開標籤',
       'rule.listRequired': '請提供規則列表。',
       'rule.needsText': '{location}：請輸入標籤或正則表達式。',
+      'rule.itemLocation': '{tab}分頁，第 {item} 項',
+      'rule.groupItemLocation': '{tab}分頁，群組 {group}，第 {item} 項',
       'rule.groupLocation': '群組 {number}',
       'rule.location': '規則 {number}',
       'rule.blockedLocation': '屏蔽規則',
-      'rule.groupNeedsTags': '群組 {number}：請添加標籤列表。',
-      'rule.combinedRegex': '合併正則表達式（{flags}）：{error}',
+      'rule.groupNeedsTags': '{tab}分頁，群組 {number}：請添加標籤列表。',
+      'rule.invalidRegex': '{location}：{error}',
+      'rule.combinedRegex': '{location}：合併正則表達式（{flags}）：{error}',
       'rule.noFlags': '沒有標誌',
       'date.unspecified': '預設',
       'date.systemTimezone': '系統時區',
@@ -1267,11 +1279,14 @@
       'rule.expand': '展開標籤',
       'rule.listRequired': '請提供規則清單。',
       'rule.needsText': '{location}：請輸入標籤或正規表示式。',
+      'rule.itemLocation': '{tab}索引標籤，第 {item} 項',
+      'rule.groupItemLocation': '{tab}索引標籤，群組 {group}，第 {item} 項',
       'rule.groupLocation': '群組 {number}',
       'rule.location': '規則 {number}',
       'rule.blockedLocation': '屏蔽規則',
-      'rule.groupNeedsTags': '群組 {number}：請新增標籤清單。',
-      'rule.combinedRegex': '合併後的正規表示式（{flags}）：{error}',
+      'rule.groupNeedsTags': '{tab}索引標籤，群組 {number}：請新增標籤清單。',
+      'rule.invalidRegex': '{location}：{error}',
+      'rule.combinedRegex': '{location}：合併後的正規表示式（{flags}）：{error}',
       'rule.noFlags': '無旗標',
       'date.unspecified': '預設值',
       'date.systemTimezone': '系統時區',
@@ -1798,20 +1813,37 @@
   // Tag strings are single-line. Only case and Unicode flags affect matching.
   const validTagRegexFlags = flags => typeof flags === 'string' && /^[iuv]*$/.test(flags);
 
+  const validateTagRegex = (pattern, flags) => {
+    if (!validTagRegexFlags(flags)) return tr('rule.regexInfo');
+    try { RegExp(pattern, flags); } catch (error) { return error.message; }
+    return '';
+  };
+
   const validateTagRules = (value, highlighted = false, combine = true) => {
     if (!Array.isArray(value)) return tr('rule.listRequired');
     const compiledGroups = new Map();
-    const check = (rules, location) => {
-      for (const rule of rules) {
+    const ruleLocation = (item, group = null) => tr(
+      group === null ? 'rule.itemLocation' : 'rule.groupItemLocation',
+      {
+        tab: tr(highlighted ? 'tab.Highlights' : 'tab.Filtering'),
+        item: item + 1,
+        group: group === null ? '' : group + 1
+      }
+    );
+    const check = (rules, getLocation) => {
+      for (const [index, rule] of rules.entries()) {
+        const location = getLocation(index);
         if (!rule || typeof rule.value !== 'string') return tr('rule.needsText', { location });
         if (!rule.regex) continue;
         const flags = rule.flags || '';
-        if (!validTagRegexFlags(flags)) return `${location}: ${tr('rule.regexInfo')}`;
-        try { RegExp(rule.value, flags); } catch (error) { return `${location}: ${error.message}`; }
+        const regexError = validateTagRegex(rule.value, flags);
+        if (regexError) return tr('rule.invalidRegex', { location, error: regexError });
         // Mirrors the runtime's grouping by the exact flags string.
         if (combine) {
-          if (!compiledGroups.has(flags)) compiledGroups.set(flags, []);
-          compiledGroups.get(flags).push(rule.value);
+          if (!compiledGroups.has(flags)) compiledGroups.set(flags, { sources: [], locations: [] });
+          const compiledGroup = compiledGroups.get(flags);
+          compiledGroup.sources.push(rule.value);
+          compiledGroup.locations.push(location);
         }
       }
       return '';
@@ -1820,17 +1852,28 @@
     if (highlighted) {
       for (const [index, entry] of value.entries()) {
         if (entry.type === 'group') {
-          if (!Array.isArray(entry.tags)) return tr('rule.groupNeedsTags', { number: index + 1 });
-          error = check(entry.tags, tr('rule.groupLocation', { number: index + 1 }));
+          if (!Array.isArray(entry.tags)) {
+            return tr('rule.groupNeedsTags', {
+              tab: tr('tab.Highlights'),
+              number: index + 1
+            });
+          }
+          error = check(entry.tags, item => ruleLocation(item, index));
         } else {
-          error = check([entry], tr('rule.location', { number: index + 1 }));
+          error = check([entry], () => ruleLocation(index));
         }
         if (error) return error;
       }
-    } else if ((error = check(value, tr('rule.blockedLocation')))) return error;
+    } else if ((error = check(value, item => ruleLocation(item)))) return error;
     if (combine) {
-      for (const [flags, sources] of compiledGroups) {
-        try { RegExp(sources.join('|'), flags); } catch (err) { return tr('rule.combinedRegex', { flags: flags || tr('rule.noFlags'), error: err.message }); }
+      for (const [flags, group] of compiledGroups) {
+        try { RegExp(group.sources.join('|'), flags); } catch (err) {
+          return tr('rule.combinedRegex', {
+            location: group.locations.join(', '),
+            flags: flags || tr('rule.noFlags'),
+            error: err.message
+          });
+        }
       }
     }
     return '';
@@ -2113,13 +2156,6 @@
               }
             }
           : tagRuleSchema();
-        const combineKey = `${key}_COMBINE_REGEXES`;
-        field.validate = value => {
-          const combine = document.querySelector('.gc-p')
-            ? document.querySelector(`.gc-p input[id="${combineKey}"]`)?.checked
-            : ENV[combineKey];
-          return validateTagRules(value, highlighted, Boolean(combine));
-        };
         field.description = tr('rule.regexInfo');
       } else if (key === 'DATE_CONVERSION_OPTIONS') {
         Object.assign(field, dateOptionsField);
@@ -2248,13 +2284,7 @@
       if (typeof value === 'string') return true;
       if (!Array.isArray(value) || value.length !== 2 ||
         typeof value[0] !== 'string' || typeof value[1] !== 'string') return false;
-      if (!validTagRegexFlags(value[1])) return false;
-      try {
-        RegExp(value[0], value[1]);
-        return true;
-      } catch {
-        return false;
-      }
+      return validTagRegexFlags(value[1]);
     };
     const validSectionSelector = value => typeof value === 'string'
       ? Boolean(value.trim())
@@ -3252,6 +3282,20 @@
         closeOnSave: false, // Keep the Reload page button available after Save.
         onBeforeClose: () => window.confirm(tr('message.discardChanges')),
         onBeforeSave: values => {
+          for (const [key, highlighted] of [
+            ['PIXIV_BLOCKED_TAGS', false],
+            ['PIXIV_HIGHLIGHTED_TAGS', true]
+          ]) {
+            const error = validateTagRules(
+              values[key],
+              highlighted,
+              Boolean(values[`${key}_COMBINE_REGEXES`])
+            );
+            if (error) {
+              alert(error);
+              return false;
+            }
+          }
           // Defensive validation for additional conversions done during persistence.
           for (const key of ['FLOATING_TOOLTIPS_OPTIONS', 'UTAGS_BLOCKED_TAGS', 'SECTIONS_TOGGLE_BOOKMARKED', 'PIXIV_BLOCKED_USERS']) {
             try { editorToSetting(key, values[key], ENV[key]); } catch (error) { alert(tr('message.validation', { key, error: error.message })); return false; }
@@ -5118,7 +5162,11 @@
       return false;
     }
 
-    const blocked = PIXIV_BLOCKED_TAGS_STRING.has(tag) || PIXIV_BLOCKED_TAGS_REGEXP.some(t => t.test(tag));
+    const blocked = matchesConfiguredTag(
+      tag,
+      PIXIV_BLOCKED_TAGS_STRING,
+      PIXIV_BLOCKED_TAGS_REGEXP
+    );
 
     if (blocked) {
       element.style.setProperty('display', 'none', 'important');
