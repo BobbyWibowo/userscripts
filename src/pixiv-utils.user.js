@@ -4571,42 +4571,30 @@
 
   // Ordered by priority; IMG SRCs are only considered where explicitly requested.
   const ITEM_SOURCES = [
-    { selector: 'img[src*="_p0"]', regex: /\/(\d+)(-[a-z0-9]+)?_p0/, img: true },
-    { selector: 'a[href*="artworks/"]', regex: /artworks\/(\d+)/ },
-    { selector: 'a[href*="illust_id="]', regex: /illust_id=(\d+)/ },
-    { selector: 'a[href*="novel/show.php?id="]', regex: /novel\/show\.php\?id=(\d+)/, novel: true },
-    { selector: 'a[href*="novel/series/"]', regex: /novel\/series\/(\d+)/, novel: true },
-    { selector: 'a[href*="collections/"]', regex: /collections\/(\d+)/, collections: true }
+    { selector: 'img[src*="_p0"]', regex: /\/(\d+)(-[a-z0-9]+)?_p0/, type: 'illust', img: true },
+    { selector: 'a[href*="artworks/"]', regex: /artworks\/(\d+)/, type: 'illust' },
+    { selector: 'a[href*="illust_id="]', regex: /illust_id=(\d+)/, type: 'illust' },
+    { selector: 'a[href*="novel/show.php?id="]', regex: /novel\/show\.php\?id=(\d+)/, type: 'novel' },
+    { selector: 'a[href*="novel/series/"]', regex: /novel\/series\/(\d+)/, type: 'novel' },
+    { selector: 'a[href*="collections/"]', regex: /collections\/(\d+)/, type: 'collections' }
   ];
 
-  const findItemData = (element, tryImg = false) => {
-    const result = {
-      id: null,
-      novel: false,
-      collections: false
-    };
+  const findItemSource = (element, { type = null, tryImg = false } = {}) => {
+    for (const source of ITEM_SOURCES) {
+      if ((source.img && !tryImg) || (type && source.type !== type)) continue;
+      const node = element.querySelector(source.selector);
+      if (!node) continue;
 
-    for (const method of ITEM_SOURCES) {
-      if (method.img && !tryImg) continue;
-
-      const found = element.querySelector(method.selector);
-      if (found) {
-        const value = method.img ? found.src : found.href;
-        if (method.img) result.img = found;
-        else result.link = found;
-
-        const match = value.match(method.regex);
-        if (match) {
-          result.id = match[1];
-          result.novel = Boolean(method.novel);
-          result.collections = Boolean(method.collections);
-        }
-
-        break;
-      }
+      const value = source.img ? node.src : node.href;
+      const match = value.match(source.regex);
+      return {
+        id: match?.[1] ?? null,
+        type: source.type,
+        link: source.img ? null : node,
+        img: source.img ? node : null
+      };
     }
-
-    return result;
+    return null;
   };
 
   // Toggle Bookmarked Modes.
@@ -4659,13 +4647,6 @@
     if (target.userName === null && typeof name === 'string' && name) target.userName = name;
   };
 
-  const readReactArtistSources = (props, target) => {
-    for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
-      readArtistMetadata(props?.[key], target);
-      if (target.userId !== null && target.userName !== null) break;
-    }
-  };
-
   const extractArtistMetadata = element => {
     const artist = { userId: null, userName: null };
     if (element.__vue__) {
@@ -4675,9 +4656,74 @@
       // Preserves addImageArtist's original React __reactProps extraction path.
       const propsKey = Object.keys(element).find(k => k.startsWith('__reactProps'));
       const props = propsKey && element[propsKey]?.children?.props;
-      if (props) readReactArtistSources(props, artist);
+      if (props) {
+        for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
+          readArtistMetadata(props[key], artist);
+          if (artist.userId !== null && artist.userName !== null) break;
+        }
+      }
     }
     return artist;
+  };
+
+  const reactPixivDataSource = props => {
+    const children = props.children;
+    const sources = [];
+    const nestedChildren = children?.props?.children;
+
+    if (props.tags) sources.push(props);
+    if (props.content?.tags) sources.push(props.content);
+    if (props.content?.thumbnails?.length) sources.push(props.content.thumbnails[0]);
+    for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
+      if (props[key]) sources.push(props[key]);
+    }
+
+    if (Array.isArray(nestedChildren)) {
+      for (const child of nestedChildren) {
+        if (child?.props?.thumbnail) sources.push(child.props.thumbnail);
+      }
+    }
+
+    if (Array.isArray(children)) {
+      for (const child of children) {
+        const childProps = child?.props;
+        const nestedProps = childProps?.children?.props;
+        if (childProps?.collection) sources.push(childProps.collection);
+        else if (nestedProps?.workId && nestedProps?.workType) sources.push(nestedProps);
+      }
+    } else if (children) {
+      if (children.props?.thumbnail) sources.push(children.props.thumbnail);
+      const content = children.props?.content;
+      if (content?.thumbnails?.length) sources.push(content.thumbnails[0]);
+      else if (content) sources.push(content);
+    }
+
+    return sources.find(source => source && typeof source === 'object') || null;
+  };
+
+  const readVuePixivData = (source, data, detailsLoaded) => {
+    readArtistMetadata(source, data);
+
+    const isNovel = source.novelId || source.work_type === 'novel' ||
+      source.readingTime || source.wordCount;
+    const id = isNovel ? (source.novelId ?? source.id) : source.id;
+    data.id = id == null ? null : String(id);
+    if (isNovel) data.type = 'novel';
+    if (source.title != null) data.title = source.title;
+    if (!detailsLoaded) return;
+
+    const ai = source.ai_type ?? source.aiType;
+    data.ai = ai == null ? null : ai === 2;
+    data.tags = source.tags ?? null;
+    if (Number.isFinite(source.upload_timestamp)) {
+      data.createDate = formatArtworkDate(source.upload_timestamp * 1000);
+    }
+  };
+
+  const normalizePixivWorkType = type => {
+    if (type === 'novel') return 'novel';
+    if (type === 'collection' || type === 'collections') return 'collections';
+    return 'illust';
   };
 
   const extractImagePixivData = async element => {
@@ -4685,6 +4731,7 @@
       id: null,
       title: null,
       ai: null,
+      type: 'illust',
       tags: null,
       createDate: null,
       userId: null,
@@ -4693,27 +4740,20 @@
 
     if (element.__vue__) {
       for (const key of ['item', 'illustDetails']) {
-        const _data = element.__vue__._props?.[key];
-        if (!_data) continue;
+        const source = element.__vue__._props?.[key];
+        if (!source) continue;
 
-        if (key === 'item' && _data.notLoaded) {
-          // If the artist is already blocked and fast mode is enabled, no
-          // additional AI or tag data is needed to decide the block.
-          if (CONFIG.PIXIV_BLOCKED_TAGS_FAST && data.userId !== null &&
-            PIXIV_BLOCKED_USERS_SET.has(data.userId) &&
-            !(CONFIG.PIXIV_HIGHLIGHTED_BYPASS_BLOCK && PIXIV_HIGHLIGHTED_TAGS_VALIDATED)) break;
-          const awaited = await waitFor(() => !_data.notLoaded, element);
+        const itemNotLoaded = key === 'item' && source.notLoaded;
+        readVuePixivData(source, data, !itemNotLoaded);
+
+        const cacheKey = data.id == null ? null : `${data.type}:${data.id}`;
+        const cached = cacheKey ? PIXIV_DATA_CACHE.get(cacheKey) : undefined;
+        if (cached) return cached;
+
+        if (itemNotLoaded) {
+          const awaited = await waitFor(() => !source.notLoaded, element);
           if (!awaited) break;
-        }
-
-        readArtistMetadata(_data, data);
-        data.id = _data.id;
-        data.title = _data.title;
-        data.ai = _data.ai_type == null ? null : _data.ai_type === 2;
-        data.tags = _data.tags;
-
-        if (Number.isFinite(_data.upload_timestamp)) {
-          data.createDate = formatArtworkDate(_data.upload_timestamp * 1000);
+          readVuePixivData(source, data, true);
         }
       }
     } else {
@@ -4728,52 +4768,23 @@
           step++;
 
           const props = obj.memoizedProps;
-          let source = null;
+          const source = reactPixivDataSource(props);
 
-          // Try known direct props.
-          if (props.tags) {
-            source = props;
-          } else if (props.content?.tags) {
-            source = props.content;
-          } else if (props.content?.thumbnails?.length) {
-            source = props.content.thumbnails[0];
-          } else {
-            for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
-              if (props[key]) {
-                source = props[key];
-                break;
-              }
+          if (source) {
+            const id = source.id ?? source.illust_id ?? source.workId;
+            const type = normalizePixivWorkType(source.type ?? source.workType ?? source.kind);
+            const cached = id == null ? null : PIXIV_DATA_CACHE.get(`${type}:${id}`);
+            if (cached) {
+              Object.assign(data, cached);
+              return true;
             }
-          }
 
-          // Try children that may not be reflected in its deeper .child props.
-          if (source === null && props.children?.props?.children && Array.isArray(props.children?.props?.children)) {
-            for (const child of props.children.props.children) {
-              if (child?.props?.thumbnail) {
-                source = child.props?.thumbnail;
-                break;
-              }
-            }
-          }
-
-          // Try alternative children that may not be reflected in its deeper .child props.
-          if (source === null && props.children && !Array.isArray(props.children)) {
-            if (props.children.props?.thumbnail) {
-              source = props.children.props.thumbnail;
-            } else if (props.children.props?.content) {
-              // Rankings page may not supply an AI flag.
-              source = props.children.props.content;
-              if (source.thumbnails?.length) source = source.thumbnails[0];
-            }
-          }
-
-          if (source !== null) {
             readArtistMetadata(source, data);
-            const id = source.id ?? source.illust_id;
-            data.id = id == null ? null : String(id);
-            data.title = source.title;
+            if (id != null) data.id = String(id);
+            if (source.title != null) data.title = source.title;
             data.ai = source.aiType == null ? null : source.aiType === 2;
-            data.tags = source.tags;
+            data.type = type;
+            data.tags = source.tags ?? null;
 
             const date = Number.isFinite(source.illust_upload_timestamp)
               ? (source.illust_upload_timestamp * 1000)
@@ -4784,17 +4795,13 @@
           // Source metadata identifies the artwork's artist more reliably than
           // ancestor props, which can refer to a different user.
           if (data.userId === null || data.userName === null) readArtistMetadata(props, data);
-          if (data.tags === null && step < MAX_STEPS) traverseChild(obj.child);
+          return data.tags === null && step < MAX_STEPS && traverseChild(obj.child);
         };
 
-        traverseChild(element[reactFiberKey]);
+        if (traverseChild(element[reactFiberKey])) return data;
       }
     }
 
-    // Incomplete metadata stays retryable. If user-ID blocking is configured,
-    // do not cache a record that lacks its author ID, even if tags/AI are known.
-    data.complete = Array.isArray(data.tags) && data.ai !== null &&
-      (!PIXIV_BLOCKED_USERS_SET.size || data.userId !== null);
     if (!Array.isArray(data.tags)) data.tags = [];
 
     data.tags = data.tags
@@ -4804,36 +4811,54 @@
     return data;
   };
 
-  const PIXIV_DATA_CACHE = new SimpleCache(96);
-  // Coalesce simultaneous reads for the SAME source element. Different cards
-  // can expose different amounts of metadata, so do not merge their in-flight
-  // reads solely on artwork ID (incomplete results must stay independently retryable).
+  // Coalesce simultaneous reads from the same source element. Pixiv can recycle
+  // cards, so only complete results are retained in the bounded ID cache.
+  // Extraction checks this cache as soon as it identifies an artwork ID/type.
+  const PIXIV_DATA_CACHE = new SimpleCache(120);
   const pendingPixivData = new WeakMap();
 
-  const getImagePixivData = async (id, element, isNovel = false) => {
-    const cacheKey = `${isNovel ? 'novel' : 'illust'}:${id}`;
-    const cache = PIXIV_DATA_CACHE.get(cacheKey);
-    if (cache !== undefined) return cache;
+  const getImagePixivData = async element => {
+    let task = pendingPixivData.get(element);
+    if (task) return task;
 
-    let pending = pendingPixivData.get(element);
-    if (!pending) {
-      pending = new Map();
-      pendingPixivData.set(element, pending);
-    }
-    if (pending.has(cacheKey)) return pending.get(cacheKey);
-
-    const task = (async () => {
-      const pixivData = await extractImagePixivData(element);
-      if (pixivData?.complete) PIXIV_DATA_CACHE.set(cacheKey, pixivData);
-      return pixivData || {};
+    task = (async () => {
+      const data = await extractImagePixivData(element);
+      data.complete = Array.isArray(data.tags) && data.ai !== null &&
+        (!PIXIV_BLOCKED_USERS_SET.size || data.userId !== null);
+      const cacheKey = data.id == null ? null : `${data.type}:${data.id}`;
+      if (cacheKey && data.complete) PIXIV_DATA_CACHE.set(cacheKey, data);
+      return data;
     })();
-    pending.set(cacheKey, task);
+    pendingPixivData.set(element, task);
     try {
       return await task;
     } finally {
-      if (pending.get(cacheKey) === task) pending.delete(cacheKey);
-      if (!pending.size) pendingPixivData.delete(element);
+      if (pendingPixivData.get(element) === task) pendingPixivData.delete(element);
     }
+  };
+
+  const getImageData = async (element, fallbackElement = element, tryImg = false) => {
+    const pixivData = await getImagePixivData(element);
+    const needsFallback = pixivData.id == null || pixivData.id === '';
+    const fallback = needsFallback ? findItemSource(fallbackElement, { tryImg }) : null;
+    const id = needsFallback ? fallback?.id ?? null : pixivData.id;
+    const type = normalizePixivWorkType(needsFallback ? fallback?.type : pixivData.type);
+
+    pixivData.id = id;
+    pixivData.type = type;
+    let link = fallback?.link ?? null;
+    if (!link) link = findItemSource(fallbackElement, { type })?.link ?? null;
+
+    return {
+      pixivData,
+      data: {
+        id,
+        type,
+        novel: type === 'novel',
+        collections: type === 'collections',
+        link
+      }
+    };
   };
 
   // Structured tooltip details belong to an artwork element, not a global string.
@@ -4843,21 +4868,6 @@
   let syncActiveFloatingTooltip = () => {};
 
   const createTooltipFooter = (heading, body) => ({ heading, body });
-
-  const normalizeTooltipFooter = footer => {
-    if (!footer) return [];
-    if (Array.isArray(footer)) return footer.filter(section => section?.body);
-    // Keep the existing plain-text footer contract for other callers/extensions.
-    return [{ heading: '', body: String(footer).trim() }];
-  };
-
-  const createModerationFooter = ({ highlightOpts, blockOpts }, { blocked = false, skipReason = [] } = {}) => {
-    const footer = [];
-    if (highlightOpts) footer.push(createTooltipFooter(tr('tooltip.highlightedBy'), highlightOpts.hint));
-    if (blockOpts) footer.push(createTooltipFooter(tr(blocked ? 'tooltip.blockedBy' : 'tooltip.blockableBy'), blockOpts.hint));
-    if (skipReason.length) footer.push(createTooltipFooter(tr('tooltip.skippedDueTo'), skipReason.join('\n')));
-    return footer;
-  };
 
   const getImageModeration = pixivData => ({
     highlightOpts: PIXIV_HIGHLIGHTED_TAGS_VALIDATED ? isImageHighlightedByData(pixivData) : false,
@@ -4879,19 +4889,40 @@
   };
 
   const setModerationTooltip = (target, evaluation, blocked = false) => {
+    const { highlightOpts, blockOpts } = evaluation.moderation;
+    const footer = [];
+    if (highlightOpts) footer.push({ heading: tr('tooltip.highlightedBy'), body: highlightOpts.hint });
+    if (blockOpts) {
+      footer.push({
+        heading: tr(blocked ? 'tooltip.blockedBy' : 'tooltip.blockableBy'),
+        body: blockOpts.hint
+      });
+    }
+    const skipReason = blocked ? [] : evaluation.skipReason || [];
+    if (skipReason.length) {
+      footer.push({
+        heading: tr('tooltip.skippedDueTo'),
+        body: skipReason.join('\n')
+      });
+    }
+
     setImageTitle(target, {
       pixivData: evaluation.pixivData,
       moderation: blocked ? { ...evaluation.moderation, actuallyBlocked: true } : evaluation.moderation,
-      footer: createModerationFooter(evaluation.moderation,
-        blocked ? { blocked: true } : { skipReason: evaluation.skipReason })
+      footer
     });
   };
 
   const createImageTooltipDetails = ({ pixivData = {}, footer, moderation = {} }) => {
-    const sections = normalizeTooltipFooter(footer);
+    const sections = !footer
+      ? []
+      : Array.isArray(footer)
+        ? footer.filter(section => section?.body)
+        : [{ heading: '', body: String(footer).trim() }];
     const tags = Array.isArray(pixivData.tags) ? pixivData.tags : [];
+    const identity = [pixivData.id, pixivData.type].filter(Boolean).join(' · ');
     const details = {
-      title: pixivData.title || '',
+      title: pixivData.title || identity,
       ai: Boolean(pixivData.ai),
       tags,
       date: pixivData.createDate || '',
@@ -5219,15 +5250,8 @@
   };
 
   const doImage = async (element, options = {}) => {
-    // Skip if invalid.
-    if (!element.querySelector('a[href]')) {
-      return false;
-    }
-
-    const data = findItemData(element);
-    if (data.id === null) {
-      return false;
-    }
+    const { pixivData, data } = await getImageData(element);
+    if (!element.isConnected || data.id === null || !data.link) return false;
 
     if (options.isHome) {
       if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && data.novel) {
@@ -5304,8 +5328,6 @@
       element.style.removeProperty('--pixiv_utils_highlight_color');
     }
 
-    const pixivData = await getImagePixivData(data.id, element, data.novel);
-
     const evaluation = evaluateArtworkModeration(pixivData, { isOwnProfile, bookmarked });
     const { moderation, skipReason } = evaluation;
     const { highlightOpts, blockOpts } = moderation;
@@ -5340,14 +5362,11 @@
 
     const doNotWaitControls = element.matches(SELECTORS_IMAGE_NO_CONTROLS);
 
-    let imageControls = null;
-    if (data.novel || doNotWaitControls) {
-      imageControls = element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
-    } else {
-      // If it's not a novel, assume image controls may be delayed due to still being generated.
-      imageControls = await waitFor(() => {
-        return element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
-      }, element);
+    let imageControls = element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
+    if (!imageControls && !data.novel && !doNotWaitControls) {
+      imageControls = await waitFor(() =>
+        element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS), element);
+      if (!element.isConnected) return false;
     }
 
     if (!imageControls && !doNotWaitControls) {
@@ -5393,10 +5412,9 @@
   };
 
   const doMultiView = async (element, options = {}) => {
-    const data = findItemData(element);
-    if (data.id === null) {
-      return false;
-    }
+    const pixivDataSource = element.querySelector('div[data-ga4-label="thumbnail_link"]') || element;
+    const { pixivData, data } = await getImageData(pixivDataSource, element);
+    if (!element.isConnected || data.id === null) return false;
 
     if (options.isHome) {
       if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && data.novel) {
@@ -5412,23 +5430,17 @@
       }
     }
 
-    const pixivDataSource = element.querySelector('div[data-ga4-label="thumbnail_link"]');
-    if (pixivDataSource) {
-      const pixivData = await getImagePixivData(data.id, pixivDataSource, data.novel);
-      if (pixivData) {
-        const evaluation = evaluateArtworkModeration(pixivData, {
-          bookmarked: isImageBookmarked(element)
-        });
-        if (evaluation.moderation.blockOpts) {
-          const blocked = doBlockMultiView(element, {
-            options: evaluation.moderation.blockOpts,
-            skipReason: evaluation.skipReason.join(', ')
-          });
-          if (blocked) return true;
-        }
-        setModerationTooltip(element, evaluation);
-      }
+    const evaluation = evaluateArtworkModeration(pixivData, {
+      bookmarked: isImageBookmarked(element)
+    });
+    if (evaluation.moderation.blockOpts) {
+      const blocked = doBlockMultiView(element, {
+        options: evaluation.moderation.blockOpts,
+        skipReason: evaluation.skipReason.join(', ')
+      });
+      if (blocked) return true;
     }
+    setModerationTooltip(element, evaluation);
 
     // Exit early if collections, because they do not have independent bookmark edit page.
     if (data.collections) {
@@ -5462,45 +5474,42 @@
       return false;
     }
 
-    const data = findItemData(image, true);
-    if (data.id === null) {
-      return false;
-    }
+    const { pixivData, data } = await getImageData(image, image, true);
+    if (!element.isConnected || data.id === null) return false;
 
-    let blocked = false;
+    if (PIXIV_BLOCKED_TAGS_VALIDATED) {
+      // Always reset expanded view's blocked status first.
+      delete image.dataset.pixiv_utils_expanded_view_blocked;
+    }
 
     const titleTarget = image.querySelector('figure, .swipe-detector');
+    const evaluation = evaluateArtworkModeration(pixivData, {
+      bookmarked: isImageBookmarked(element)
+    });
 
-    const pixivData = await getImagePixivData(data.id, image, data.novel);
-    if (pixivData) {
-      const evaluation = evaluateArtworkModeration(pixivData, {
-        bookmarked: isImageBookmarked(element)
+    let blocked = false;
+    if (evaluation.moderation.blockOpts) {
+      blocked = doBlockExpandedView(image, {
+        titleTarget,
+        options: evaluation.moderation.blockOpts,
+        evaluation,
+        skipReason: evaluation.skipReason.join(', ')
       });
-      if (PIXIV_BLOCKED_TAGS_VALIDATED) {
-        // Always reset expanded view's blocked status first.
-        delete image.dataset.pixiv_utils_expanded_view_blocked;
-      }
-      if (evaluation.moderation.blockOpts) {
-        blocked = doBlockExpandedView(image, {
-          titleTarget,
-          options: evaluation.moderation.blockOpts,
-          evaluation,
-          skipReason: evaluation.skipReason.join(', ')
-        });
-      }
-      if (!blocked) setModerationTooltip(titleTarget, evaluation);
     }
+
+    if (!blocked) setModerationTooltip(titleTarget, evaluation);
 
     // Init MutationObserver for dynamic expanded view.
     if (image.__vue__) {
       const target = image.querySelector('.swipe-detector');
       if (!image.dataset.pixiv_utils_last_id) {
         initElementObserver(target, mutations => {
-          const _data = findItemData(target, true);
-          if (_data.id !== image.dataset.pixiv_utils_last_id) {
-            options.forced = true;
-            doExpandedViewControls(element, options);
-          }
+          getImageData(image, image, true).then(({ data }) => {
+            if (data.id !== image.dataset.pixiv_utils_last_id) {
+              options.forced = true;
+              doExpandedViewControls(element, options);
+            }
+          });
         }, {
           subtree: true,
           childList: true,
@@ -5741,10 +5750,8 @@
     const utag = element.dataset.utags_tag;
 
     if (image) {
-      const data = findItemData(image);
-      if (data.id === null) {
-        return false;
-      }
+      const { pixivData, data } = await getImageData(image);
+      if (!image.isConnected || data.id === null || !data.link) return false;
 
       // Only block images if not in own profile, and not bookmarked.
       const skipReason = getImageBlockSkipReason({
@@ -5752,7 +5759,6 @@
         bookmarked: isImageBookmarked(image)
       });
 
-      const pixivData = await getImagePixivData(data.id, image, data.novel);
       const moderation = getImageModeration(pixivData);
 
       if (skipReason.length) {
