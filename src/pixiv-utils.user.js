@@ -163,8 +163,8 @@
       div[data-ga4-label="thumbnail"],
       ul > li:has(
         a[href*="artworks/"] :is(img[src], figure),
-        a[href*="novel/"], /* novels */
-        a[href*="collections/"] img[src] /* collections */
+        a[href*="novel/"],
+        a[href*="collections/"] img[src]
       ),
       ul > div:not(.list-none):has(a[href*="artworks/"] img[src]):not(:has(
         .gtm-illust-recommend-thumbnail-link,
@@ -188,8 +188,10 @@
       div[open] div:has(a[href*="users/"]) + div > div:has(a[href*="artworks/"] img[src]),
 
       /* rankings page */
-      .ranking-items > .ranking-item,
-      div[style*="main-ranking"] ol > li,
+      ol > li:has(
+        a[href*="artworks/"] img[src],
+        a[href*="novel/"]
+      ),
 
       /* recommended users after following */
       body > div > div[style*="translateY"] ul li.inline-block > div > div
@@ -217,7 +219,6 @@
       /* following page */
       .gtm-followlatestpage-thumbnail-link,
       /* rankings page */
-      h2:has(> .title),
       a[href*="artworks/"]:has(> div[title]),
       /* mobile list view */
       .illust-info > a[class*="c-text"]
@@ -226,8 +227,6 @@
     SELECTORS_IMAGE_ARTIST_AVATAR: /*css*/`
       /* desktop */
       div > a[href*="users/"]:has(> div > img),
-      /* rankings page */
-      ._user-icon,
       /* home's recommended works grid */
       [data-ga4-label="user_icon_link"],
       .user .icon
@@ -262,14 +261,13 @@
       .bookmark,
       .hSoPoc,
       /* mobile's rankings page */
-      [class*="style_bookmark__"]
+      div[class*="style_bookmark__"]
     `,
 
     SELECTORS_IMAGE_BOOKMARKED: /*css*/`
-      /* rankings page */
-      ._one-click-bookmark.on,
       /* mobile */
-      .works-bookmark-button svg path[fill="#FF4060"]
+      .works-bookmark-button svg path[fill="#FF4060"],
+      div[class*="style_works-bookmark-button__"] svg path[fill="#FF4060"]
     `,
 
     SELECTORS_EXPANDED_VIEW_IMAGE: /*css*/`
@@ -488,13 +486,13 @@
       // Mobile rankings page
       {
         selectorParent: /*css*/`
-          .ranking-page
+          div[class*="style_ranking-page__"]
         `,
         selectorHeader: /*css*/`
-          .header-buttons
+          & > div[class*="style_header-buttons__"]
         `,
         selectorImagesContainer: /*css*/`
-          .works-grid-list
+          & > div[class*="style_header-buttons__"] ~ div:not([class]):not([style])
         `
       }
     ],
@@ -4827,11 +4825,15 @@
     imagesContainer.dataset.pixiv_utils_toggle_bookmarked_mode = mode;
   };
 
+  const MUST_COMPUTE_BOOKMARK_BUTTONS = normalizeSelectorList(/*css*/`
+    button:not([aria-haspopup="true"]) > svg:has(path),
+    a[href*="bookmark_add.php"] > svg:has(path)
+  `);
+
   const isImageBookmarked = element => {
     const hasBookmarkedClass = Boolean(element.querySelector(CONFIG.SELECTORS_IMAGE_BOOKMARKED));
     if (!hasBookmarkedClass) {
-      const bookmarkButton = element.querySelector('button:not([aria-haspopup="true"]) > svg:has(path), ' +
-        'a[href*="bookmark_add.php"] > svg:has(path)');
+      const bookmarkButton = element.querySelector(MUST_COMPUTE_BOOKMARK_BUTTONS);
       if (bookmarkButton) {
         return window.getComputedStyle(bookmarkButton).getPropertyValue('color') === 'rgb(255, 64, 96)';
       }
