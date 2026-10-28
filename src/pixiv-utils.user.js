@@ -192,7 +192,8 @@
       div[style*="main-ranking"] ol > li,
 
       /* recommended users after following */
-      body > div > div[style*="translateY"] ul li.inline-block > div > div > div:has(a[href*="artworks/"] img[src]),
+      body > div > div[style*="translateY"] ul li.inline-block > div > div
+        > div:has(a[href*="artworks/"] img[src]),
 
       /* mobile */
       .works-item-illust:has(.thumb:not([src^="data"])),
@@ -238,20 +239,24 @@
       /* novels page's recommended works section */
       .gtm-novel-toppage-recommended-work-series,
       /* novel grid's right-side texts */
-      .pixiv_utils_blocked_image_container + div > :is(a, div):not(:has(a[href*="users/"])),
-      div:has(> div > .pixiv_utils_blocked_image_container) ~ :is(
-        div:not(:has(a[href*="users/"])),
-        div > div > div:not(:has(a[href*="users/"]))
-      ),
+      .pixiv_utils_blocked_image_container
+        + div > :is(a, div):not(:has(a[href*="users/"])),
+      div:has(> div > .pixiv_utils_blocked_image_container)
+        ~ div:not(:has(a[href*="users/"])),
+      div:has(> div > .pixiv_utils_blocked_image_container)
+        ~ div > div > div:not(:has(a[href*="users/"])),
+      div:has(> div > div > .pixiv_utils_blocked_image_container)
+        + div > div > div:not(:has(a[href*="users/"])),
       /* mobile's novel grid's right-side texts */
       .detail > :is(.mb-4, .title, .display-tags, .line-clamp, .meta)
     `,
 
     SELECTORS_IMAGE_CONTROLS: /*css*/`
-      div:has(> [data-ga4-label="bookmark_button"], > .gtm-illust-recommend-bookmark),
-      :is([data-gtm-value], [data-ga4-label="thumbnail_link"]) ~ div:has(> button[type="button"] > svg),
-      /* rankings page */
-      ._layout-thumbnail,
+      div:has(
+        > [data-ga4-label="bookmark_button"],
+        > .gtm-illust-recommend-bookmark,
+        > button[type="button"] > svg
+      ),
       /* mobile */
       .imgoverlay,
       .bookmark,
@@ -4161,12 +4166,6 @@
   const _FORMATTED_SELECTORS_MULTI_VIEW_CONTROLS =
     splitSelectorList(formatChildSelector(CONFIG.SELECTORS_MULTI_VIEW, CONFIG.SELECTORS_MULTI_VIEW_CONTROLS));
 
-  const _SELECTORS_IMAGE_CONTROLS = splitSelectorList(CONFIG.SELECTORS_IMAGE_CONTROLS);
-
-  const _FILTERED_SELECTORS_IMAGE_CONTROLS = _SELECTORS_IMAGE_CONTROLS
-    .filter(s => !['._layout-thumbnail', '.novel-right-contents'].includes(s))
-    .join(', ');
-
   const SELECTORS_IMAGE_HIGHLIGHTED =
     ':not(.page-count, [size="16"], [size="24"]):has(> img:not([src^="data"]))::after';
 
@@ -4186,20 +4185,8 @@
     display: none;
   }
 
-  :is(${CONFIG.SELECTORS_IMAGE}):has(a[href*="novel/"]) .pixiv_utils_edit_bookmark {
-    margin-top: -26px;
-  }
-
-  /* some novel items */
-  :not(#higher_specificity) {
-    .absolute.right-0,
-    .novel-series-thumbnail,
-    .works-item-novel,
-    .works-item-novel-editor-recommend {
-      .pixiv_utils_edit_bookmark {
-        margin-top: 6px;
-      }
-    }
+  .pixiv_utils_edit_bookmark_container + div:has([data-ga4-label="dot_menu"]) {
+    margin-left: 8px;
   }
 
   .pixiv_utils_edit_bookmark {
@@ -4234,7 +4221,7 @@
     margin-right: 0 !important;
   }
 
-  :is(._layout-thumbnail, .novel-right-contents, .imgoverlay) .pixiv_utils_edit_bookmark {
+  :is(.novel-right-contents, .imgoverlay) .pixiv_utils_edit_bookmark {
     position: absolute !important;
     right: calc(50% - 71px);
     bottom: 4px;
@@ -4248,6 +4235,22 @@
   .imgoverlay .pixiv_utils_edit_bookmark {
     right: 40px;
     bottom: 15px;
+  }
+
+  :is(${CONFIG.SELECTORS_IMAGE}):has(a[href*="novel/"]) .pixiv_utils_edit_bookmark {
+    margin-top: -26px;
+  }
+
+  /* some novel items */
+  :is(
+    .absolute.right-0,
+    .novel-series-thumbnail,
+    .works-item-novel,
+    .works-item-novel-editor-recommend
+  ) {
+    .pixiv_utils_edit_bookmark {
+      margin-top: 6px !important;
+    }
   }
 
   :not(#higher_specificity) :is(li, div):has(> .pixiv_utils_image_artist_container) {
@@ -4319,9 +4322,17 @@
     visibility: hidden !important;
   }
 
-  ${_FILTERED_SELECTORS_IMAGE_CONTROLS} {
+  ${CONFIG.SELECTORS_IMAGE_CONTROLS} {
     display: flex;
     justify-content: flex-end;
+
+    &.place-items-center {
+      display: grid;
+    }
+
+    &.items-center .pixiv_utils_edit_bookmark {
+      margin-top: 0;
+    }
   }
 
   [data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
@@ -4433,23 +4444,16 @@
     background: rgb(0, 0, 0);
   }
 
-  [data-pixiv_utils_blocked] :is(.series-title, .tag-container, .show-more-creator-works-button),
-  [data-pixiv_utils_blocked] .pqkmS, /* desktop: show more creator works button */
-  [data-pixiv_utils_blocked] ._illust-series-title-text {
-    display: none !important;
-  }
-
-  [data-pixiv_utils_blocked] :is(${CONFIG.SELECTORS_IMAGE_TITLE}):not(.pixiv_utils_blocked_image_container) {
-    display: none !important;
-  }
-
-  [data-pixiv_utils_blocked] :is(${CONFIG.SELECTORS_IMAGE_ARTIST_AVATAR}),
-  [data-pixiv_utils_blocked] :is(${CONFIG.SELECTORS_IMAGE_AUXILIARY_ELEMENTS}) {
-    display: none !important;
-  }
-
-  [data-pixiv_utils_blocked] :is(${_SELECTORS_IMAGE_CONTROLS.join(', ')}) {
-    display: none !important;
+  [data-pixiv_utils_blocked] {
+    .series-title, .tag-container, .show-more-creator-works-button,
+    .pqkmS, /* desktop: show more creator works button */
+    ._illust-series-title-text,
+    :is(${CONFIG.SELECTORS_IMAGE_TITLE}):not(.pixiv_utils_blocked_image_container),
+    :is(${CONFIG.SELECTORS_IMAGE_ARTIST_AVATAR}),
+    :is(${CONFIG.SELECTORS_IMAGE_AUXILIARY_ELEMENTS}),
+    :is(${CONFIG.SELECTORS_IMAGE_CONTROLS}) {
+      display: none !important;
+    }
   }
 
   [data-pixiv_utils_blocked] .pixiv_utils_image_artist_container {
