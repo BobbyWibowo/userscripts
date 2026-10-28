@@ -444,13 +444,13 @@
       // Rankings page
       {
         selectorParent: /*css*/`
-          #wrapper ._unit
+          div[style*="--street-main-ranking-height"] div:has(> nav, > h1, > ol)
         `,
         selectorHeader: /*css*/`
-          .ranking-menu
+          & > div:has(+ ol)
         `,
         selectorImagesContainer: /*css*/`
-          .ranking-items-container
+          & > ol
         `
       },
       // Mobile artist page's illustrations/bookmarks tab, following page, tags page
@@ -4219,24 +4219,8 @@
     margin-right: 0 !important;
   }
 
-  :is(.novel-right-contents, .imgoverlay) .pixiv_utils_edit_bookmark {
-    position: absolute !important;
-    right: calc(50% - 71px);
-    bottom: 4px;
-    z-index: 2;
-  }
-
-  .novel-right-contents .pixiv_utils_edit_bookmark {
-    right: 50px;
-  }
-
-  .imgoverlay .pixiv_utils_edit_bookmark {
-    right: 40px;
-    bottom: 15px;
-  }
-
-  :is(${CONFIG.SELECTORS_IMAGE}):has(a[href*="novel/"]) .pixiv_utils_edit_bookmark {
-    margin-top: -26px;
+  [data-pixiv_utils_edit_bookmark_novel] .pixiv_utils_edit_bookmark {
+    margin-top: -25px;
   }
 
   /* some novel items */
@@ -4247,7 +4231,7 @@
     .works-item-novel-editor-recommend
   ) {
     .pixiv_utils_edit_bookmark {
-      margin-top: 6px !important;
+      margin-top: 7px !important;
     }
   }
 
@@ -4279,12 +4263,19 @@
     width: 100%;
   }
 
-  div:not([class*="style_tagFilter"]):has(+ .pixiv_utils_toggle_bookmarked_container) {
+  div:not(
+    [class*="style_tagFilter"],
+    .charcoal-dropdown-selector-root
+  ):has(+ .pixiv_utils_toggle_bookmarked_container) {
     flex-grow: 1;
   }
 
   div:not([class*="style_tagFilter"]):has(+ .pixiv_utils_toggle_bookmarked_container):not(:first-child) {
     justify-content: flex-end;
+  }
+
+  div:has(> .pixiv_utils_toggle_bookmarked_container) {
+    align-items: center;
   }
 
   .pixiv_utils_toggle_bookmarked_container {
@@ -4744,6 +4735,7 @@
   const editBookmarkButton = (id, isNovel = false) => {
     const buttonContainer = document.createElement('div');
     buttonContainer.className = 'pixiv_utils_edit_bookmark_container';
+    if (isNovel) buttonContainer.dataset.pixiv_utils_edit_bookmark_novel = 'true';
 
     const button = document.createElement('a');
     button.className = 'pixiv_utils_edit_bookmark';
