@@ -147,144 +147,240 @@
    * Specifying custom values will extend instead of replacing them.
    */
   const PRESETS = {
-    // Keys that starts with "SELECTORS_", and in array, will automatically be converted to single-line strings.
-    SELECTORS_HOME: '[data-ga4-label="page_root"]',
+    SELECTORS_HOME: /*css*/`
+      [data-ga4-label="page_root"]
+    `,
 
-    SELECTORS_OWN_PROFILE: [
-      'a[href*="settings/profile"]', // desktop
-      '.ui-button[href*="setting_profile.php"]' // mobile
-    ],
+    SELECTORS_OWN_PROFILE: /*css*/`
+      /* desktop */
+      a[href*="settings/profile"],
+      /* mobile */
+      .ui-button[href*="setting_profile.php"]
+    `,
 
-    SELECTORS_IMAGE: [
-      'ul > li:has(a[href*="artworks/"] img[src], a[href*="artworks/"] figure)', // desktop
-      'ul > li:has(a[href*="collections/"] img[src])', // desktop (collections)
-      'figcaption ul > div > div:has(a[href*="artworks/"] img[src])', // recommended works after bookmarking
-      'ul > div:not(.list-none):has(a[href*="artworks/"] img[src]):not(:has(.gtm-illust-recommend-thumbnail-link, .gtm-illust-toppage-recommend-user-profile))',
-      'div:has(> div > div > div > a.gtm-illust-toppage-recommend-user-work[href*="artworks/"] img[src])', // recommended users on home's illustrations tab
-      'ul > li:has(a[href*="novel/"])', // desktop (novel)
-      'nav:not([style]) > div:has(a[href*="artworks/"] img[src])',
-      'nav:not([style]) > div:has(a[href*="novel/"])',
-      'div[open] a[href*="users/"] ~ div > div:has(a[href*="artworks/"] img[src])', // user profile popup
-      'div[open] div:has(a[href*="users/"]) + div > div:has(a[href*="artworks/"] img[src])', // user profile popup (alt)
-      '.ranking-items > .ranking-item', // rankings page
-      'div[style*="main-ranking"] ol > li', // rankings page (new)
-      'div[data-ga4-label="works_content"] div[data-ga4-label="thumbnail"]', // tags page (new)
-      'body > div > div[style*="translateY"] ul li.inline-block > div > div > div:has(a[href*="artworks/"] img[src])', // recommended users after following
-      '.works-item-illust:has(.thumb:not([src^="data"]))', // mobile
-      '.works-item:not(.works-item-illust):has(.thumb:not([src^="data"]))', // mobile (novel)
-      '.works-item-novel-editor-recommend:has(.cover:not([style^="data"]))', // mobile's novels page's editor's picks
-      '.stacclist > li.illust', // mobile's feed page
-      '[class*="works-item-illust__"]:has([class*="style_thumb"]:not([src^="data"]))' // mobile (discovery feed)
-    ],
+    SELECTORS_IMAGE: /*css*/`
+      /* desktop */
+      div[data-ga4-label="thumbnail"],
+      ul > li:has(
+        a[href*="artworks/"] :is(img[src], figure),
+        a[href*="novel/"], /* novels */
+        a[href*="collections/"] img[src] /* collections */
+      ),
+      ul > div:not(.list-none):has(a[href*="artworks/"] img[src]):not(:has(
+        .gtm-illust-recommend-thumbnail-link,
+        .gtm-illust-toppage-recommend-user-profile
+      )),
 
-    SELECTORS_IMAGE_TITLE: [
-      'div > div:not([width]):not([height]) > a[href*="artworks/"]', // desktop
-      '[data-ga4-label="title_link"]', // home's recommended works grid
-      '.gtm-illust-recommend-title', // discovery page's grid
-      '.gtm-followlatestpage-thumbnail-link', // following page
-      'h2:has(> .title)', // rankings page
-      'a[href*="artworks/"]:has(> div[title])', // rankings page (new)
-      '.illust-info > a[class*="c-text"]' // mobile list view
-    ],
+      /* recommended works after bookmarking */
+      figcaption ul > div > div:has(a[href*="artworks/"] img[src]),
 
-    SELECTORS_IMAGE_ARTIST_AVATAR: [
-      'div > a[href*="users/"]:has(> div > img)', // desktop
-      '._user-icon', // rankings page
-      '[data-ga4-label="user_icon_link"]' // home's recommended works grid
-    ],
+      /* recommended users on home's illustrations tab */
+      div:has(> div > div > div > a.gtm-illust-toppage-recommend-user-work[href*="artworks/"] img[src]),
 
-    SELECTORS_IMAGE_AUXILIARY_ELEMENTS: [
-      'div:has(> a[href*="/bookmark_detail"])', // illustrations page's popular projects section
-      '.gtm-novel-toppage-recommended-work-series', // novels page's recommended works section
-      '.pixiv_utils_blocked_image_container + div:has(.text-text2)', // novel grid's right-side texts
-      'div:has(> div > .pixiv_utils_blocked_image_container) ~ div:has(> div > div > div[title] > a[href*="novel/"]) > div > div:not(:has(a[href*="users/"]))', // novel grid's right-side texts (alt)
-      'div:has(> div > .pixiv_utils_blocked_image_container) ~ div:not(:has(a[href*="users/"]))' // novel grid's right-side texts (alt)
-    ],
+      /* expanded view's artist sidebar */
+      nav:not([style]) > div:has(
+        a[href*="artworks/"] img[src],
+        a[href*="novel/"]
+      ),
 
-    SELECTORS_IMAGE_CONTROLS: [
-      'div:has(> [data-ga4-label="bookmark_button"], > .gtm-illust-recommend-bookmark)',
-      ':is([data-gtm-value], [data-ga4-label="thumbnail_link"]) ~ div:has(> button[type="button"] > svg)',
-      '._layout-thumbnail', // rankings page
-      '.imgoverlay', // mobile's feed page
-      '.bookmark', // mobile
-      '.hSoPoc', // mobile
-      '[class*="style_bookmark__"]' // mobile (rankings page)
-    ],
+      /* user profile popup */
+      div[open] a[href*="users/"] ~ div > div:has(a[href*="artworks/"] img[src]),
+      div[open] div:has(a[href*="users/"]) + div > div:has(a[href*="artworks/"] img[src]),
 
-    SELECTORS_IMAGE_BOOKMARKED: [
-      '._one-click-bookmark.on', // rankings page
-      '.works-bookmark-button svg path[fill="#FF4060"]' // mobile
-    ],
+      /* rankings page */
+      .ranking-items > .ranking-item,
+      div[style*="main-ranking"] ol > li,
 
-    SELECTORS_EXPANDED_VIEW_IMAGE: [
-      'main > section:has(figure) > div:first-of-type', // desktop
-      '.illust-details-view' // mobile
-    ],
+      /* recommended users after following */
+      body > div > div[style*="translateY"] ul li.inline-block > div > div > div:has(a[href*="artworks/"] img[src]),
 
-    SELECTORS_EXPANDED_VIEW_CONTROLS: [
-      'main div[style*="translateY"] section', // desktop
-      '.work-interactions' // mobile
-    ],
+      /* mobile */
+      .works-item-illust:has(.thumb:not([src^="data"])),
+      /* novel */
+      .works-item:not(.works-item-illust):has(.thumb:not([src^="data"])),
+      /* novels page's editor's picks */
+      .works-item-novel-editor-recommend:has(.cover:not([style^="data"])),
+      /* feed page */
+      .stacclist > li.illust,
+      /* discovery feed */
+      [class*="works-item-illust__"]:has([class*="style_thumb"]:not([src^="data"]))
+    `,
 
-    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: 'main > section:has(figure) > :nth-child(2 of div) nav[style] > div > div:has(a[href])',
+    SELECTORS_IMAGE_TITLE: /*css*/`
+      /* desktop */
+      div > div:not([width]):not([height]) > a[href*="artworks/"],
+      /* home's recommended works grid */
+      [data-ga4-label="title_link"],
+      /* discovery page's grid */
+      .gtm-illust-recommend-title,
+      /* following page */
+      .gtm-followlatestpage-thumbnail-link,
+      /* rankings page */
+      h2:has(> .title),
+      a[href*="artworks/"]:has(> div[title]),
+      /* mobile list view */
+      .illust-info > a[class*="c-text"]
+    `,
 
-    SELECTORS_MULTI_VIEW: '[data-ga4-label="work_content"]:has(a[href])',
+    SELECTORS_IMAGE_ARTIST_AVATAR: /*css*/`
+      /* desktop */
+      div > a[href*="users/"]:has(> div > img),
+      /* rankings page */
+      ._user-icon,
+      /* home's recommended works grid */
+      [data-ga4-label="user_icon_link"],
+      .user .icon
+    `,
 
-    SELECTORS_MULTI_VIEW_CONTROLS: 'div:has(> [data-ga4-label="bookmark_button"])',
+    SELECTORS_IMAGE_AUXILIARY_ELEMENTS: /*css*/`
+      /* illustrations page's popular projects section */
+      div:has(> a[href*="/bookmark_detail"]),
+      /* novels page's recommended works section */
+      .gtm-novel-toppage-recommended-work-series,
+      /* novel grid's right-side texts */
+      .pixiv_utils_blocked_image_container + div > :is(a, div):not(:has(a[href*="users/"])),
+      div:has(> div > .pixiv_utils_blocked_image_container) ~ :is(
+        div:not(:has(a[href*="users/"])),
+        div > div > div:not(:has(a[href*="users/"]))
+      ),
+      /* mobile's novel grid's right-side texts */
+      .detail > :is(.mb-4, .title, .display-tags, .line-clamp, .meta)
+    `,
 
-    SELECTORS_FOLLOW_BUTTON_CONTAINER: [
-      'div:has(> div:first-child > h1):has(> div:nth-child(2) > [data-click-label="follow"])', // artist page's header
-      'div[open] a[href*="users/"] + div', // artist hover popup
-      'main > section:has(figure) > :nth-child(2 of div)', // expanded view's artist bottom bar
-      'main:has(section figure) + aside > section:first-of-type', // expanded view's artist sidebar
-      '.user-details', // mobile's artist page
-      '.user-details-card' // mobile's expanded view
-    ],
+    SELECTORS_IMAGE_CONTROLS: /*css*/`
+      div:has(> [data-ga4-label="bookmark_button"], > .gtm-illust-recommend-bookmark),
+      :is([data-gtm-value], [data-ga4-label="thumbnail_link"]) ~ div:has(> button[type="button"] > svg),
+      /* rankings page */
+      ._layout-thumbnail,
+      /* mobile */
+      .imgoverlay,
+      .bookmark,
+      .hSoPoc,
+      /* mobile's rankings page */
+      [class*="style_bookmark__"]
+    `,
 
-    SELECTORS_FOLLOW_BUTTON: [
-      '[data-click-label="follow"]:not([disabled])', // desktop
-      '.ui-button' // mobile
-    ],
+    SELECTORS_IMAGE_BOOKMARKED: /*css*/`
+      /* rankings page */
+      ._one-click-bookmark.on,
+      /* mobile */
+      .works-bookmark-button svg path[fill="#FF4060"]
+    `,
 
-    SELECTORS_RECOMMENDED_USER_CONTAINER: [
-      'section > .grid > :nth-child(2) .flex-col.gap-8:first-child .flex-row.items-center:not(.mr-auto)', // home's recommended users sidebar
-      'nav:has(a[href*="tags/"]) ~ h2:has(span) + div.grid > li.list-none', // tags page's users tab
-      'body > div > div[style*="translateY"] ul li.inline-block', // recommended users after following
-      'ul > div:has(.gtm-illust-toppage-recommend-user-profile)' // recommended users on home's illustrations tab
-    ],
+    SELECTORS_EXPANDED_VIEW_IMAGE: /*css*/`
+      /* desktop */
+      main > section:has(figure) > div:first-of-type,
+      /* mobile */
+      .illust-details-view
+    `,
 
-    SELECTORS_TAG_BUTTON: [
-      ':is(ul, div) > div:has(> a[href*="tags/"] div[title])',
-      'div > div:has(> a[href*="users/"] div[title^="#"])', // artist page
-      '[data-ga4-label="tags_carousel"] div[style*="gap:"] > div.snap-center' // home page's trending tags
-    ],
+    SELECTORS_EXPANDED_VIEW_CONTROLS: /*css*/`
+      /* desktop */
+      main div[style*="translateY"] section,
+      /* mobile */
+      .work-interactions
+    `,
 
-    SELECTORS_DATE: [
-      'main > section:has(figure) figcaption div > time:first-of-type',
-      'body > div[id^="react-aria"][role="tooltip"] > div:first-of-type', // "updated on" tooltip
-      '.times', // mobile
-      '.reupload-info .tooltip-text' // mobile "updated on" popup
-    ],
+    SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE: /*css*/`
+      main > section:has(figure) > :nth-child(2 of div) nav[style] > div > div:has(a[href])
+    `,
+
+    SELECTORS_MULTI_VIEW: /*css*/`
+      [data-ga4-label="work_content"]:has(a[href])
+    `,
+
+    SELECTORS_MULTI_VIEW_CONTROLS: /*css*/`
+      div:has(> [data-ga4-label="bookmark_button"])
+    `,
+
+    SELECTORS_FOLLOW_BUTTON_CONTAINER: /*css*/`
+      /* artist page's header */
+      div:has(> div:first-child > h1):has(> div:nth-child(2) > [data-click-label="follow"]),
+      /* artist hover popup */
+      div[open] a[href*="users/"] + div,
+      /* expanded view's artist bottom bar */
+      main > section:has(figure) > :nth-child(2 of div),
+      /* expanded view's artist sidebar */
+      main:has(section figure) + aside > section:first-of-type,
+      /* mobile's artist page */
+      .user-details,
+      /* mobile's expanded view */
+      .user-details-card
+    `,
+
+    SELECTORS_FOLLOW_BUTTON: /*css*/`
+      /* desktop */
+      [data-click-label="follow"]:not([disabled]),
+      /* mobile */
+      .ui-button
+    `,
+
+    SELECTORS_RECOMMENDED_USER_CONTAINER: /*css*/`
+      /* home's recommended users sidebar */
+      section > .grid > :nth-child(2) .flex-col.gap-8:first-child .flex-row.items-center:not(.mr-auto),
+      /* tags page's users tab */
+      nav:has(a[href*="tags/"]) ~ h2:has(span) + div.grid > li.list-none,
+      /* recommended users after following */
+      body > div > div[style*="translateY"] ul li.inline-block,
+      /* recommended users on home's illustrations tab */
+      ul > div:has(.gtm-illust-toppage-recommend-user-profile)
+    `,
+
+    SELECTORS_TAG_BUTTON: /*css*/`
+      :is(ul, div) > div:has(> a[href*="tags/"] div[title]),
+      /* artist page */
+      div > div:has(> a[href*="users/"] div[title^="#"]),
+      /* home page's trending tags */
+      [data-ga4-label="tags_carousel"] div[style*="gap:"] > div.snap-center
+    `,
+
+    SELECTORS_DATE: /*css*/`
+      main > section:has(figure) figcaption div > time:first-of-type,
+      /* "updated on" tooltip */
+      body > div[id^="react-aria"][role="tooltip"] > div:first-of-type,
+      /* mobile */
+      .times,
+      /* mobile's "updated on" popup */
+      .reupload-info .tooltip-text
+    `,
 
     // Keys that starts with "selector", and in array, will automatically be converted to single-line strings.
     SECTIONS_TOGGLE_BOOKMARKED: [
       // "Newest by followed" page
       {
-        selectorParent: 'section:has(> div:nth-child(2) > div:first-child > div:first-child > span)',
-        selectorHeader: '& > div:nth-child(2) > div:first-child:has(> div:first-child > span):has(> div:nth-child(2) span)',
-        selectorImagesContainer: '& > div:nth-child(2) > div:first-child:has(> div:first-child > span):has(> div:nth-child(2) span) + div'
+        selectorParent: /*css*/`
+          section:has(> div:nth-child(2) > div:first-child > div:first-child > span)
+        `,
+        selectorHeader: /*css*/`
+          & > div:nth-child(2) > div:first-child:has(> div:first-child > span):has(> div:nth-child(2) span)
+        `,
+        selectorImagesContainer: /*css*/`
+          & > div:nth-child(2) > div:first-child:has(> div:first-child > span):has(> div:nth-child(2) span) + div
+        `
       },
       // "Newest by all" page
       {
-        selectorParent: 'section:has(> div:nth-child(2) > nav:first-child > a[href*="/new"])',
-        selectorHeader: '& > div:nth-child(2):has(> nav:first-child > a[href*="/new"])',
-        selectorImagesContainer: '& > div:nth-child(2):has(> nav:first-child > a[href*="/new"]) + div'
+        selectorParent: /*css*/`
+          section:has(> div:nth-child(2) > nav:first-child > a[href*="/new"])
+        `,
+        selectorHeader: /*css*/`
+          & > div:nth-child(2):has(> nav:first-child > a[href*="/new"])
+        `,
+        selectorImagesContainer: /*css*/`
+          & > div:nth-child(2):has(> nav:first-child > a[href*="/new"]) + div
+        `
       },
       // Artist page
       {
-        selectorParent: ':is(div, section):has(> div:first-child > div:first-child > div:first-child > h2[font-size][color="text2"])',
-        selectorHeader: '& > div:has(> div:first-child > div:first-child > h2[font-size][color="text2"]):has(> div:first-child > div:first-child span)',
-        selectorImagesContainer: '& > div:has(> div:first-child > div:first-child > h2[font-size][color="text2"]):has(> div:first-child > div:first-child span) ~ div:has(a[href*="artworks/"]:not([href*="users/"]), a[href*="novel/"]:not([href*="users/"]))',
+        selectorParent: /*css*/`
+          :is(div, section):has(> div:first-child > div:first-child > div:first-child > h2[font-size][color="text2"])
+        `,
+        selectorHeader: /*css*/`
+          & > div:has(> div:first-child > div:first-child > h2[font-size][color="text2"]):has(> div:first-child > div:first-child span)
+        `,
+        selectorImagesContainer: /*css*/`
+          & > div:has(> div:first-child > div:first-child > h2[font-size][color="text2"]):has(> div:first-child > div:first-child span) ~ div:has(a[href*="artworks/"]:not([href*="users/"]), a[href*="novel/"]:not([href*="users/"]))
+        `,
         sanityCheck: () => {
           // Skip if in own profile.
           return document.querySelector('a[href*="settings/profile"]');
@@ -292,9 +388,15 @@
       },
       // Artist page's requests tab
       {
-        selectorParent: 'section:has(> div:first-child > div:first-child > div:first-child > div:first-child > h2:not([font-size], [color]))',
-        selectorHeader: '& > div:has(> div:first-child > div:first-child > div:first-child > h2:not([font-size], [color]))',
-        selectorImagesContainer: '& > div:has(> div:first-child > div:first-child > div:first-child > h2:not([font-size], [color])) + ul',
+        selectorParent: /*css*/`
+          section:has(> div:first-child > div:first-child > div:first-child > div:first-child > h2:not([font-size], [color]))
+        `,
+        selectorHeader: /*css*/`
+          & > div:has(> div:first-child > div:first-child > div:first-child > h2:not([font-size], [color]))
+        `,
+        selectorImagesContainer: /*css*/`
+          & > div:has(> div:first-child > div:first-child > div:first-child > h2:not([font-size], [color])) + ul
+        `,
         sanityCheck: () => {
           // Skip if in own profile.
           return document.querySelector('a[href*="settings/profile"]');
@@ -302,37 +404,65 @@
       },
       // Tags page
       {
-        selectorParent: 'section:has(> div:first-child > div:first-child > div:first-child > h3[font-size][color="text2"])',
-        selectorHeader: '& > div:first-child > div:has(> div:first-child > h3[font-size][color="text2"]):has(> div:first-child span)',
-        selectorImagesContainer: '& > div:nth-child(2):has(a[href*="artworks/"]:not([href*="users/"]), a[href*="novel/"]:not([href*="users/"]))'
+        selectorParent: /*css*/`
+          section:has(> div:first-child > div:first-child > div:first-child > h3[font-size][color="text2"])
+        `,
+        selectorHeader: /*css*/`
+          & > div:first-child > div:has(> div:first-child > h3[font-size][color="text2"]):has(> div:first-child span)
+        `,
+        selectorImagesContainer: /*css*/`
+          & > div:nth-child(2):has(a[href*="artworks/"]:not([href*="users/"]), a[href*="novel/"]:not([href*="users/"]))
+        `
       },
       // Tags page (new)
       {
-        selectorParent: 'div[data-ga4-label="works_content"]',
-        selectorHeader: '& > div:first-child > div:first-child',
-        selectorImagesContainer: '& > div:first-child ~ div'
+        selectorParent: /*css*/`
+          div[data-ga4-label="works_content"]
+        `,
+        selectorHeader: /*css*/`
+          & > div:first-child > div:first-child
+        `,
+        selectorImagesContainer: /*css*/`
+          & > div:first-child ~ div
+        `
       },
       // Discovery page
       {
-        selectorParent: 'div:has(> .gtm-illust-recommend-zone)',
-        selectorHeader: '& > div:first-child > div.grid > div.flex',
-        selectorImagesContainer: '& > .gtm-illust-recommend-zone'
+        selectorParent: /*css*/`
+          div:has(> .gtm-illust-recommend-zone)
+        `,
+        selectorHeader: /*css*/`
+          & > div:first-child > div.grid > div.flex
+        `,
+        selectorImagesContainer: /*css*/`
+          & > .gtm-illust-recommend-zone
+        `
       },
       // Rankings page
       {
-        selectorParent: '#wrapper ._unit',
-        selectorHeader: '.ranking-menu',
-        selectorImagesContainer: '.ranking-items-container'
+        selectorParent: /*css*/`
+          #wrapper ._unit
+        `,
+        selectorHeader: /*css*/`
+          .ranking-menu
+        `,
+        selectorImagesContainer: /*css*/`
+          .ranking-items-container
+        `
       },
       // Mobile artist page's illustrations/bookmarks tab, following page, tags page
       {
-        selectorParent: [
-          '.v-nav-tabs + div:not(.header-buttons)',
-          '.nav-tab + div',
-          '.search-nav-config + div'
-        ],
-        selectorHeader: '.pager-view-nav',
-        selectorImagesContainer: '.works-grid-list',
+        selectorParent: /*css*/`
+          .v-nav-tabs + div:not(.header-buttons),
+          .nav-tab + div,
+          .search-nav-config + div
+        `,
+        selectorHeader: /*css*/`
+          .pager-view-nav
+        `,
+        selectorImagesContainer: /*css*/`
+          .works-grid-list
+        `,
         sanityCheck: () => {
           // Skip if in own profile (intended for bookmarks page).
           return document.querySelector('.ui-button[href*="/settings/profile"]');
@@ -340,15 +470,27 @@
       },
       // Mobile artist page's home tab
       {
-        selectorParent: '.work-set > div',
-        selectorHeader: '.title-line > div:last-child',
-        selectorImagesContainer: '.works-grid-list'
+        selectorParent: /*css*/`
+          .work-set > div
+        `,
+        selectorHeader: /*css*/`
+          .title-line > div:last-child
+        `,
+        selectorImagesContainer: /*css*/`
+          .works-grid-list
+        `
       },
       // Mobile rankings page
       {
-        selectorParent: '.ranking-page',
-        selectorHeader: '.header-buttons',
-        selectorImagesContainer: '.works-grid-list'
+        selectorParent: /*css*/`
+          .ranking-page
+        `,
+        selectorHeader: /*css*/`
+          .header-buttons
+        `,
+        selectorImagesContainer: /*css*/`
+          .works-grid-list
+        `
       }
     ],
 
@@ -1626,22 +1768,114 @@
     }
   };
 
+  // Split top-level commas and discard CSS comments without touching quoted values.
+  // Collapse runs of whitespace (including newlines) into single spaces outside of
+  // quoted strings, so multi-line template literals normalize to single-line selectors.
+  const splitSelectorList = selector => {
+    const parts = [];
+    let part = '';
+    let depth = 0;
+    let quote = null;
+    let escaped = false;
+    const appendSpace = () => {
+      if (part.length === 0 || part.endsWith(' ')) return;
+      part += ' ';
+    };
+    for (let i = 0; i < selector.length; i++) {
+      const char = selector[i];
+      if (escaped) {
+        part += char;
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        part += char;
+        escaped = true;
+        continue;
+      }
+      if (quote) {
+        part += char;
+        if (char === quote) quote = null;
+        continue;
+      }
+      if (char === '"' || char === "'") {
+        part += char;
+        quote = char;
+        continue;
+      }
+      if (char === '/' && selector[i + 1] === '*') {
+        const commentEnd = selector.indexOf('*/', i + 2);
+        if (commentEnd === -1) {
+          appendSpace();
+          part += selector.slice(i);
+          break;
+        }
+        appendSpace();
+        i = commentEnd + 1;
+        continue;
+      }
+      if (/\s/.test(char)) {
+        appendSpace();
+        continue;
+      }
+      if (char === '(' || char === '[') {
+        depth++;
+      } else if (char === ')' || char === ']') {
+        depth--;
+      } else if (char === ',' && depth === 0) {
+        const trimmed = part.trim();
+        if (trimmed) parts.push(trimmed);
+        part = '';
+        continue;
+      }
+      part += char;
+    }
+    const trimmed = part.trim();
+    if (trimmed) parts.push(trimmed);
+    return parts.filter(Boolean);
+  };
+
+  const normalizeSelectorList = value => {
+    const selector = Array.isArray(value) ? value.join(', ') : value || '';
+    return splitSelectorList(selector).join(', ');
+  };
+
   const CONFIG = {};
 
   // Extend hard-coded preset values with user-defined custom values, if applicable.
   for (const key of Object.keys(ENV)) {
     if (key.startsWith('SELECTORS_')) {
-      if (Array.isArray(PRESETS[key])) {
-        CONFIG[key] = PRESETS[key].join(', ');
-      } else {
-        CONFIG[key] = PRESETS[key] || '';
-      }
-      if (ENV[key]) {
-        CONFIG[key] += `, ${Array.isArray(ENV[key]) ? ENV[key].join(', ') : ENV[key]}`;
-      }
+      CONFIG[key] = [normalizeSelectorList(PRESETS[key]), normalizeSelectorList(ENV[key])]
+        .filter(Boolean)
+        .join(', ');
       if (!isSelectorValid(CONFIG[key])) {
         console.error(`${key} contains invalid selector =`, CONFIG[key]);
         return;
+      }
+    } else if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
+      // Selectors may be written as multi-line template literals, just like SELECTORS_.
+      // Normalize every selector field into a single-line selector string, while
+      // preserving any extra properties (e.g. sanityCheck).
+      const normalizeSection = section => {
+        if (section === null || typeof section !== 'object' || Array.isArray(section)) return section;
+        const result = { ...section };
+        for (const selectorKey of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
+          if (Object.prototype.hasOwnProperty.call(result, selectorKey)) {
+            result[selectorKey] = normalizeSelectorList(result[selectorKey]);
+          }
+        }
+        return result;
+      };
+      const presetSections = Array.isArray(PRESETS[key]) ? PRESETS[key].map(normalizeSection) : PRESETS[key];
+      if (Array.isArray(ENV[key])) {
+        CONFIG[key] = [...(Array.isArray(presetSections) ? presetSections : []), ...ENV[key].map(normalizeSection)];
+      } else if (ENV[key] !== null && typeof ENV[key] === 'object' && !Array.isArray(ENV[key])) {
+        CONFIG[key] = normalizeSection(ENV[key]);
+      } else {
+        CONFIG[key] = presetSections;
+        if (ENV[key] !== null && ENV[key] !== undefined) {
+          CONFIG[key] = ENV[key];
+        }
       }
     } else if (Array.isArray(PRESETS[key])) {
       CONFIG[key] = PRESETS[key];
@@ -2333,7 +2567,7 @@
         field.validate = value => {
           for (const entry of value) {
             const values = [entry.selectorParent, entry.selectorHeader, entry.selectorImagesContainer];
-            if (values.some(v => !v?.trim())) return tr('sections.info');
+            if (values.some(v => !normalizeSelectorList(v))) return tr('sections.info');
           }
           return '';
         };
@@ -3918,35 +4152,10 @@
 
   /** MAIN STYLES **/
 
-  // Split only top-level commas; selectors may contain commas inside :is(),
-  // :has(), attribute values or quoted strings.
-  const splitSelectorList = selector => {
-    const parts = [];
-    let start = 0;
-    let depth = 0;
-    let quote = null;
-    let escaped = false;
-    for (let i = 0; i < selector.length; i++) {
-      const char = selector[i];
-      if (escaped) { escaped = false; continue; }
-      if (char === '\\') { escaped = true; continue; }
-      if (quote) { if (char === quote) quote = null; continue; }
-      if (char === '"' || char === "'") { quote = char; continue; }
-      if (char === '(' || char === '[') { depth++; continue; }
-      if (char === ')' || char === ']') { depth--; continue; }
-      if (char === ',' && depth === 0) {
-        parts.push(selector.slice(start, i).trim());
-        start = i + 1;
-      }
-    }
-    parts.push(selector.slice(start).trim());
-    return parts.filter(Boolean);
-  };
-
   const formatChildSelector = (parentSelector, childSelector) =>
     splitSelectorList(childSelector).map(selector => {
       const child = selector.startsWith('&') ? selector.slice(1).trimStart() : selector;
-      return `:is(${parentSelector})${child ? ` ${child}` : ''}`;
+      return `:is(${normalizeSelectorList(parentSelector)})${child ? ` ${child}` : ''}`;
     }).join(', ');
 
   const _FORMATTED_SELECTORS_MULTI_VIEW_CONTROLS =
@@ -6397,11 +6606,8 @@
       for (const sectionConfig of CONFIG.SECTIONS_TOGGLE_BOOKMARKED) {
         let configValid = true;
         for (const key of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
-          if (Array.isArray(sectionConfig[key])) {
-            sectionConfig[key] = sectionConfig[key].join(', ');
-          } else {
-            sectionConfig[key] = sectionConfig[key] || '';
-          }
+          // Parse multi-line template literals/comments into a single-line selector.
+          sectionConfig[key] = normalizeSelectorList(sectionConfig[key]);
           if (!sectionConfig[key] || !isSelectorValid(sectionConfig[key])) {
             console.error(`SECTIONS_TOGGLE_BOOKMARKED contains invalid ${key} =`, sectionConfig[key]);
             configValid = false;
