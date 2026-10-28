@@ -5023,7 +5023,7 @@
   // Coalesce simultaneous reads from the same source element. Pixiv can recycle
   // cards, so only complete results are retained in the bounded ID cache.
   // Extraction checks this cache as soon as it identifies an artwork ID/type.
-  const PIXIV_DATA_CACHE = new SimpleCache(120);
+  const PIXIV_DATA_CACHE = new SimpleCache(300);
   const pendingPixivData = new WeakMap();
 
   const getImagePixivData = async element => {
@@ -5078,10 +5078,21 @@
 
   const createTooltipFooter = (heading, body) => ({ heading, body });
 
-  const getImageModeration = pixivData => ({
-    highlightOpts: PIXIV_HIGHLIGHTED_TAGS_VALIDATED ? isImageHighlightedByData(pixivData) : false,
-    blockOpts: PIXIV_BLOCKED_TAGS_VALIDATED ? isImageBlockedByData(pixivData) : false
-  });
+  // Cache moderation results on the pixiv data object itself, so they are retained
+  // alongside the cached pixiv data (and reused across elements for the same artwork).
+  // Per-element bypass conditions (own profile, bookmarked, highlighted) are NOT part
+  // of this cached result; they are evaluated separately in evaluateArtworkModeration.
+  const getImageModeration = pixivData => {
+    if (pixivData && pixivData.moderation) {
+      return pixivData.moderation;
+    }
+    const moderation = {
+      highlightOpts: PIXIV_HIGHLIGHTED_TAGS_VALIDATED ? isImageHighlightedByData(pixivData) : false,
+      blockOpts: PIXIV_BLOCKED_TAGS_VALIDATED ? isImageBlockedByData(pixivData) : false
+    };
+    if (pixivData) pixivData.moderation = moderation;
+    return moderation;
+  };
 
   // Share filtering decisions between standard cards, multi-view and expanded
   // view; presentation and actual blocking remain view-specific.
