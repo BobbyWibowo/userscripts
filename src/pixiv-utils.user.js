@@ -5961,9 +5961,7 @@
       if (image) {
         mobile = true;
         const awaited = await waitFor(() => image.querySelector('.thumb:not([src^="data"])'), image);
-        if (!awaited) {
-          return false;
-        }
+        if (!image.isConnected || !awaited) return false;
       }
     }
 
