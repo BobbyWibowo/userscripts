@@ -1889,20 +1889,11 @@
     ? value
     : typeof value === 'string' ? value.split(',').map(v => v.trim()).filter(Boolean) : [])
     .map(value => ({ value }));
-  const utagsFromEditor = value => value.map(rule => rule.value);
-
   // Keep Pixiv user IDs as strings, including any leading zeroes. Never use
   // a numeric input, since converting large IDs to Number can lose precision.
   const isPixivUserId = value => typeof value === 'string' && /^[0-9]+$/.test(value);
-  const blockedUsersToEditor = value => Array.isArray(value)
-    ? value.map(userId => ({ userId }))
-    : [];
   const validateBlockedUsersEditor = value => Array.isArray(value) &&
     value.every(entry => isPlainObject(entry) && isPixivUserId(entry.userId));
-  const blockedUsersFromEditor = value => {
-    if (!validateBlockedUsersEditor(value)) throw new TypeError(tr('users.invalid'));
-    return value.map(entry => entry.userId);
-  };
 
   const localizedTextField = key => ({
     render: () => {
@@ -2170,7 +2161,9 @@
     if (key === 'MODE') return value === 'DEBUG';
     if (key === 'SECTIONS_TOGGLE_BOOKMARKED') return sectionsToEditor(value);
     if (key === 'UTAGS_BLOCKED_TAGS') return utagsToEditor(value);
-    if (key === 'PIXIV_BLOCKED_USERS') return blockedUsersToEditor(value);
+    if (key === 'PIXIV_BLOCKED_USERS') {
+      return Array.isArray(value) ? value.map(userId => ({ userId })) : [];
+    }
     if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
       return tagsToEditor(value, key === 'PIXIV_HIGHLIGHTED_TAGS');
     }
@@ -2183,8 +2176,11 @@
     if (key === 'SETTINGS_LANGUAGE') return value === 'zh-CN' ? 'zh' : value;
     if (key === 'MODE') return value ? 'DEBUG' : 'PROD';
     if (key === 'SECTIONS_TOGGLE_BOOKMARKED') return sectionsFromEditor(value, previous);
-    if (key === 'UTAGS_BLOCKED_TAGS') return utagsFromEditor(value);
-    if (key === 'PIXIV_BLOCKED_USERS') return blockedUsersFromEditor(value);
+    if (key === 'UTAGS_BLOCKED_TAGS') return value.map(rule => rule.value);
+    if (key === 'PIXIV_BLOCKED_USERS') {
+      if (!validateBlockedUsersEditor(value)) throw new TypeError(tr('users.invalid'));
+      return value.map(entry => entry.userId);
+    }
     if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
       return tagsFromEditor(value, key === 'PIXIV_HIGHLIGHTED_TAGS');
     }
@@ -2425,10 +2421,6 @@
         typeof value[0] !== 'string' || typeof value[1] !== 'string') return false;
       return validTagRegexFlags(value[1]);
     };
-    const validSectionSelector = value => typeof value === 'string'
-      ? Boolean(value.trim())
-      : Array.isArray(value) && value.length > 0 &&
-      value.every(selector => typeof selector === 'string' && Boolean(selector.trim()));
     const validateTagArray = (key, value, highlighted) => {
       if (value === null) return;
       // Keep compatibility with legacy comma-separated custom-tag settings.
@@ -2481,8 +2473,12 @@
         }
       } else if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
         if (value !== null && (!Array.isArray(value) || !value.every(section =>
-          isPlainObject(section) && sectionSelectorKeys.every(name =>
-            validSectionSelector(section[name]))))) {
+          isPlainObject(section) && sectionSelectorKeys.every(name => {
+            const selector = section[name];
+            if (typeof selector === 'string') return Boolean(selector.trim());
+            return Array.isArray(selector) && selector.length > 0 &&
+              selector.every(item => typeof item === 'string' && Boolean(item.trim()));
+          })))) {
           throw new TypeError(`${key}: expected sections containing all three selectors.`);
         }
       } else if (key.startsWith('SELECTORS_')) {
@@ -2639,6 +2635,7 @@
     const groups = scope.matches?.('.gc-g:has(> .gc-list[id$="_tags"])')
       ? [scope]
       : scope.querySelectorAll('.gc-p .gc-g:has(> .gc-list[id$="_tags"]), .gc-g:has(> .gc-list[id$="_tags"])');
+    let highlightFallback;
     for (const container of groups) {
       const list = container.querySelector(':scope > .gc-list');
       const hasTags = Boolean(list?.querySelector(':scope > .gc-list-items > .gc-li'));
@@ -2663,12 +2660,13 @@
 
       const input = container.closest('.gc-li-b')?.querySelector('input[id$="_color"]');
       if (input) {
-        input.placeholder = getSettingsHighlightColor();
+        if (highlightFallback === undefined) highlightFallback = getSettingsHighlightColor();
+        input.placeholder = highlightFallback;
         if (!input.dataset.pixivUtilsColorListener) {
           input.addEventListener('input', () => updateColorInputBorder(input, getSettingsHighlightColor()));
           input.dataset.pixivUtilsColorListener = 'true';
         }
-        updateColorInputBorder(input, getSettingsHighlightColor());
+        updateColorInputBorder(input, highlightFallback);
       }
     }
   };
@@ -2676,9 +2674,8 @@
   // Shared notices and section dividers are rendered once per panel/reinit. The
   // underlying setting fields retain their original IDs and value adapters.
   const syncSettingsDecorations = () => {
-    const fieldGroup = key => document.getElementById(key)?.closest('.gc-g');
     const insertBefore = (key, className, content = '') => {
-      const group = fieldGroup(key);
+      const group = document.getElementById(key)?.closest('.gc-g');
       if (!group || group.parentElement.querySelector(`:scope > .${className}[data-before="${key}"]`)) return;
       const node = document.createElement('div');
       node.className = className;
@@ -3664,6 +3661,7 @@
       });
     }, true);
   };
+
   const refreshSettingsEnhancements = (panel, localize = true) => {
     floatSettingsTabs(panel);
     syncColoredGroupToggles();
@@ -3842,12 +3840,13 @@
     CONFIG.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES);
   const PIXIV_BLOCKED_TAGS_STRING = blockedTagRules.string;
   const PIXIV_BLOCKED_TAGS_REGEXP = blockedTagRules.regexp;
-
   logDebug('PIXIV_BLOCKED_TAGS_STRING = ', PIXIV_BLOCKED_TAGS_STRING);
   logDebug('PIXIV_BLOCKED_TAGS_REGEXP = ', PIXIV_BLOCKED_TAGS_REGEXP);
+
   // Keep artist IDs as strings for exact matching, with no Number conversion.
   const PIXIV_BLOCKED_USERS_SET = new Set(CONFIG.PIXIV_BLOCKED_USERS);
   logDebug('PIXIV_BLOCKED_USERS_SET =', PIXIV_BLOCKED_USERS_SET);
+
   const PIXIV_BLOCKED_TAGS_VALIDATED = PIXIV_BLOCKED_TAGS_STRING.size ||
     PIXIV_BLOCKED_TAGS_REGEXP.length ||
     PIXIV_BLOCKED_USERS_SET.size ||
@@ -3950,7 +3949,7 @@
       return `:is(${parentSelector})${child ? ` ${child}` : ''}`;
     }).join(', ');
 
-  const _formatSelectorsMultiViewControls = () =>
+  const _FORMATTED_SELECTORS_MULTI_VIEW_CONTROLS =
     splitSelectorList(formatChildSelector(CONFIG.SELECTORS_MULTI_VIEW, CONFIG.SELECTORS_MULTI_VIEW_CONTROLS));
 
   const _SELECTORS_IMAGE_CONTROLS = splitSelectorList(CONFIG.SELECTORS_IMAGE_CONTROLS);
@@ -4014,7 +4013,7 @@
   }
 
   :is(${CONFIG.SELECTORS_EXPANDED_VIEW_CONTROLS}) .pixiv_utils_edit_bookmark,
-  :is(${_formatSelectorsMultiViewControls().join(', ')}) .pixiv_utils_edit_bookmark {
+  :is(${_FORMATTED_SELECTORS_MULTI_VIEW_CONTROLS.join(', ')}) .pixiv_utils_edit_bookmark {
     font-size: 12px;
     height: 24px;
     line-height: 24px;
@@ -6467,7 +6466,7 @@
         if (pendingWaitFors.size) {
           logDebug('waitFor', pendingWaitFors.values().next().value.element);
         }
-      }, 2500);
+      }, WAIT_FOR_POLL);
     }
   });
 
