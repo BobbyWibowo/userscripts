@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.7.18
+// @version            1.7.19
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -1845,8 +1845,55 @@
 
   const CONFIG = {};
 
-  // Extend hard-coded preset values with user-defined custom values, if applicable.
+  // Reuse pre-built selectors from GM storage when they satisfy the integrity check.
+  const _PREBUILT_KEY = '_PREBUILT';
+  const _selectorKeys = Object.keys(ENV).filter(key =>
+    key.startsWith('SELECTORS_') || key === 'SECTIONS_TOGGLE_BOOKMARKED');
+  const _prebuilt = GM_getValue(_PREBUILT_KEY, null);
+  const _prebuiltValid = Boolean(_prebuilt) && typeof _prebuilt === 'object' && !Array.isArray(_prebuilt) &&
+    _prebuilt.version === GM_info.script.version &&
+    _prebuilt.selectors && typeof _prebuilt.selectors === 'object' && !Array.isArray(_prebuilt.selectors) &&
+    _selectorKeys.every(key => Object.prototype.hasOwnProperty.call(_prebuilt.selectors, key));
+  const _prebuiltSelectors = _prebuiltValid ? _prebuilt.selectors : null;
+
   for (const key of Object.keys(ENV)) {
+    const isSelectorKey = key.startsWith('SELECTORS_') || key === 'SECTIONS_TOGGLE_BOOKMARKED';
+    if (isSelectorKey && _prebuiltSelectors) {
+      if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
+        const storedSections = _prebuiltSelectors[key];
+        CONFIG[key] = Array.isArray(storedSections)
+          ? storedSections.map(storedSection => {
+            const result = { ...storedSection };
+            if (Array.isArray(PRESETS[key])) {
+              const normalizedPresets = PRESETS[key].map(presetSection => {
+                if (!presetSection || typeof presetSection !== 'object' || Array.isArray(presetSection)) return presetSection;
+                const normalized = { ...presetSection };
+                for (const selectorKey of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
+                  if (Object.prototype.hasOwnProperty.call(normalized, selectorKey)) {
+                    normalized[selectorKey] = normalizeSelectorList(normalized[selectorKey]);
+                  }
+                }
+                return normalized;
+              });
+              const match = normalizedPresets.find(presetSection =>
+                presetSection && typeof presetSection === 'object' && !Array.isArray(presetSection) &&
+                presetSection.selectorParent === result.selectorParent &&
+                presetSection.selectorHeader === result.selectorHeader &&
+                presetSection.selectorImagesContainer === result.selectorImagesContainer);
+              if (match && typeof match.sanityCheck === 'function') {
+                result.sanityCheck = match.sanityCheck;
+              }
+            }
+            return result;
+          })
+          : storedSections;
+      } else {
+        CONFIG[key] = _prebuiltSelectors[key];
+      }
+      continue;
+    }
+
+    // Extend hard-coded preset values with user-defined custom values, if applicable.
     if (key.startsWith('SELECTORS_')) {
       CONFIG[key] = [normalizeSelectorList(PRESETS[key]), normalizeSelectorList(ENV[key])]
         .filter(Boolean)
@@ -1892,6 +1939,35 @@
         CONFIG[key] = ENV[key];
       }
     }
+  }
+
+  // Store freshly built selectors for future runs when no valid pre-built cache was found.
+  if (_prebuiltSelectors) {
+    log('Reusing cached pre-built CSS selectors.');
+  } else {
+    const _builtSelectors = {};
+    for (const key of _selectorKeys) {
+      if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
+        const sections = CONFIG[key];
+        _builtSelectors[key] = Array.isArray(sections)
+          ? sections.map(section => {
+            const result = {};
+            if (section && typeof section === 'object' && !Array.isArray(section)) {
+              for (const selectorKey of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
+                if (Object.prototype.hasOwnProperty.call(section, selectorKey)) {
+                  result[selectorKey] = section[selectorKey];
+                }
+              }
+            }
+            return Object.keys(result).length ? result : section;
+          })
+          : sections;
+      } else {
+        _builtSelectors[key] = CONFIG[key];
+      }
+    }
+    GM_setValue(_PREBUILT_KEY, { version: GM_info.script.version, selectors: _builtSelectors });
+    log('CSS selectors have been pre-built and cached for future runs.');
   }
 
   // Empty highlight-color overrides use the built-in default at runtime.
@@ -2766,6 +2842,7 @@
           panel.set(key, settingToEditor(key, settingOrDefault(key, value)));
         }
       }
+      GM_setValue(_PREBUILT_KEY, null);
       if (panel?.isOpen) {
         // Update the stored-value baseline, so Save doesn't undo imported values.
         await panel._load();
@@ -3185,6 +3262,12 @@
         this._storedOriginals[key] = stored;
         this._initialEditorValues[key] = currentJson;
       }
+
+      // Always invalidate pre-built selectors on save, so they are rebuilt on
+      // the next page load even when no SELECTORS_* setting was changed.
+      GM_setValue(_PREBUILT_KEY, null);
+      log('Invalidated cached pre-built CSS selectors.');
+
       this._mark();
       this._clean = this._json();
     }
@@ -3192,7 +3275,12 @@
     async reset () {
       if (!await showConfirm(tr('message.resetConfirm'))) return;
       this._resetting = true;
-      try { await super.reset(); } finally { this._resetting = false; }
+      try {
+        await super.reset();
+      } finally {
+        this._resetting = false;
+        GM_setValue(_PREBUILT_KEY, null);
+      }
     }
 
     // The library's footer import/export icon opens our Backup tab instead.
