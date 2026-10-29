@@ -1,5 +1,5 @@
 import neostandard from 'neostandard'
-import stylisticJs from '@stylistic/eslint-plugin-js'
+import stylistic from '@stylistic/eslint-plugin'
 import userscripts from 'eslint-plugin-userscripts'
 
 const overrides = {}
@@ -17,7 +17,7 @@ export default [
   }),
   {
     plugins: {
-      '@stylistic/js': stylisticJs
+      '@stylistic': stylistic
     },
     rules: {
       ...overrides

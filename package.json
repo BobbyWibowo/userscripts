@@ -17,7 +17,7 @@
     "serve": "yarn run http-server -c-1"
   },
   "devDependencies": {
-    "@stylistic/eslint-plugin-js": "^4.2.0",
+    "@stylistic/eslint-plugin": "^4.2.0",
     "eslint": "^9.24.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-n": "^17.17.0",
