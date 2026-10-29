@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.7.19
+// @version            1.7.20
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -2837,6 +2837,7 @@
       validateBackupSettings(imported);
       if (!await showConfirm(tr('backup.importConfirm', { count: Object.keys(imported).length }))) return false;
       for (const [key, value] of Object.entries(imported)) {
+        if (key === _PREBUILT_KEY || key.startsWith('PREF_')) continue;
         GM_setValue(key, value);
         if (panel?.isOpen && Object.hasOwn(ENV_DEFAULTS, key)) {
           panel.set(key, settingToEditor(key, settingOrDefault(key, value)));
@@ -2884,7 +2885,7 @@
       };
       addButton(tr('backup.export'), () => {
         textarea.value = settingsJson(Object.fromEntries(
-          GM_listValues().map(key => [key, GM_getValue(key)])));
+          GM_listValues().filter(key => key !== _PREBUILT_KEY && !key.startsWith('PREF_')).map(key => [key, GM_getValue(key)])));
       });
       addButton(tr('backup.copy'), async () => {
         if (!textarea.value.trim()) return showAlert(tr('backup.emptyCopy'));
