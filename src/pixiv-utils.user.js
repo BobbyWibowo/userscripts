@@ -149,7 +149,7 @@
    */
   const PRESETS = {
     SELECTORS_HOME: /*css*/`
-      [data-ga4-label="page_root"]
+      [data-ga4-label="page_root"]:not([data-ga4-entity-id])
     `,
 
     SELECTORS_OWN_PROFILE: /*css*/`
@@ -256,6 +256,7 @@
       div:has(
         > [data-ga4-label="bookmark_button"],
         > .gtm-illust-recommend-bookmark,
+        > .gtm-main-bookmark,
         > button[type="button"] > svg
       ),
       /* mobile */
@@ -291,7 +292,7 @@
     `,
 
     SELECTORS_MULTI_VIEW: /*css*/`
-      [data-ga4-label="work_content"]:has(a[href])
+      [data-ga4-label="scroll_loader"] [data-ga4-label="work_content"]:has(a[href])
     `,
 
     SELECTORS_MULTI_VIEW_CONTROLS: /*css*/`
@@ -6664,6 +6665,11 @@
     return true;
   };
 
+  const EXPANDED_VIEW_TITLE_TARGET = normalizeSelectorList(/*css*/`
+    figure:not([style*="width"], [style*="width"]),
+    .swipe-detector
+  `);
+
   const doExpandedViewControls = async (element, options = {}) => {
     const image = element.closest(CONFIG.SELECTORS_EXPANDED_VIEW_IMAGE);
     if (!image) {
@@ -6678,7 +6684,7 @@
       delete image.dataset.pixiv_utils_expanded_view_blocked;
     }
 
-    const titleTarget = image.querySelector('figure, .swipe-detector');
+    const titleTarget = image.querySelector(EXPANDED_VIEW_TITLE_TARGET) || image;
     const evaluation = evaluateArtworkModeration(pixivData, {
       bookmarked: isImageBookmarked(element)
     });
@@ -6700,7 +6706,7 @@
       const target = image.querySelector('.swipe-detector');
       if (!image.dataset.pixiv_utils_last_id) {
         initElementObserver(target, mutations => {
-          getImageData(image, image, true).then(({ data }) => {
+          getImageData(image).then(({ data }) => {
             if (data.id !== image.dataset.pixiv_utils_last_id) {
               options.forced = true;
               doExpandedViewControls(element, options);
