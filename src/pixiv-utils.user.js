@@ -5761,7 +5761,6 @@
 
   // Ordered by priority; IMG SRCs are only considered where explicitly requested.
   const ITEM_SOURCES = [
-    { selector: 'img[src*="_p0"]', regex: /\/(\d+)(-[a-z0-9]+)?_p0/, type: 'illust', img: true },
     { selector: 'a[href*="artworks/"]', regex: /artworks\/(\d+)/, type: 'illust' },
     { selector: 'a[href*="illust_id="]', regex: /illust_id=(\d+)/, type: 'illust' },
     { selector: 'a[href*="novel/show.php?id="]', regex: /novel\/show\.php\?id=(\d+)/, type: 'novel' },
@@ -5769,19 +5768,17 @@
     { selector: 'a[href*="collections/"]', regex: /collections\/(\d+)/, type: 'collections' }
   ];
 
-  const findItemSource = (element, { type = null, tryImg = false } = {}) => {
+  const findItemSource = (element, type) => {
     for (const source of ITEM_SOURCES) {
-      if ((source.img && !tryImg) || (type && source.type !== type)) continue;
+      if (type && source.type !== type) continue;
       const node = element.querySelector(source.selector);
       if (!node) continue;
 
-      const value = source.img ? node.src : node.href;
-      const match = value.match(source.regex);
+      const match = node.href.match(source.regex);
       return {
         id: match?.[1] ?? null,
         type: source.type,
-        link: source.img ? null : node,
-        img: source.img ? node : null
+        link: node
       };
     }
     return null;
@@ -6031,17 +6028,17 @@
     }
   };
 
-  const getImageData = async (element, fallbackElement = element, tryImg = false) => {
+  const getImageData = async (element, fallbackElement = element) => {
     const pixivData = await getImagePixivData(element);
     const needsFallback = pixivData.id == null || pixivData.id === '';
-    const fallback = needsFallback ? findItemSource(fallbackElement, { tryImg }) : null;
+    const fallback = needsFallback ? findItemSource(fallbackElement) : null;
     const id = needsFallback ? fallback?.id ?? null : pixivData.id;
     const type = normalizePixivWorkType(needsFallback ? fallback?.type : pixivData.type);
 
     pixivData.id = id;
     pixivData.type = type;
     let link = fallback?.link ?? null;
-    if (!link) link = findItemSource(fallbackElement, { type })?.link ?? null;
+    if (!link) link = findItemSource(fallbackElement, type)?.link ?? null;
 
     return {
       pixivData,
@@ -6685,7 +6682,7 @@
       return false;
     }
 
-    const { pixivData, data } = await getImageData(image, image, true);
+    const { pixivData, data } = await getImageData(image);
     if (!element.isConnected || data.id === null) return false;
 
     if (PIXIV_BLOCKED_TAGS_VALIDATED) {
