@@ -45,6 +45,7 @@
     promptId: 'tweetsXer_prompt',
     starting: false,
     progressListener: null,
+    stopRequested: false,
 
     // Timer worker state (see sleep())
     timerWorker: null,
@@ -60,6 +61,7 @@
     boot () {
       if (typeof GM_registerMenuCommand === 'function') {
         GM_registerMenuCommand('Start TweetXer', () => this.init());
+        GM_registerMenuCommand('Stop TweetXer', () => this.stop());
         this.showPrompt('TweetXer is installed but idle. To use it, open your userscript manager\'s menu and choose "Start TweetXer". Not using it? You can disable the script.');
       } else {
         this.showPrompt('TweetXer needs a userscript manager that supports menu commands (for example Tampermonkey or Violentmonkey), so it can\'t be started here.');
@@ -106,7 +108,7 @@
 
         // Only continue on your own profile
         await waitForElemToExist('header').catch(() => null);
-        const ownProfile = await waitForElemToExist('[data-testid="editProfileButton"]', 5000).catch(() => null);
+        const ownProfile = await waitForElemToExist('[data-testid="editProfileButton"]', 1500).catch(() => null);
         if (!ownProfile) {
           this.showPrompt('TweetXer can only start on your own profile page. Open your profile, then choose "Start TweetXer" in your userscript manager again.');
           return;
@@ -117,6 +119,7 @@
         this.ct0 = this.getCookie('ct0');
         this.username = window.location.pathname.split('/')[1];
         this.updateTransactionId();
+        this.stopRequested = false;
         this.createUploadForm();
         await this.getTweetCount();
       } finally {
@@ -195,10 +198,10 @@
     },
 
     waitUntilVisible () {
-      if (!document.hidden) return Promise.resolve();
+      if (!document.hidden || this.stopRequested) return Promise.resolve();
       return new Promise((resolve) => {
         const onChange = () => {
-          if (!document.hidden) {
+          if (!document.hidden || this.stopRequested) {
             document.removeEventListener('visibilitychange', onChange);
             resolve();
           }
@@ -281,12 +284,53 @@
       }).join('');
     },
 
+    // Common headers shared by every X API request.
+    baseHeaders (contentType = 'application/json') {
+      return {
+        authorization: this.authorization,
+        'content-type': contentType,
+        'x-client-transaction-id': this.transaction_id,
+        'x-csrf-token': this.ct0,
+        'x-twitter-active-user': 'yes',
+        'x-twitter-auth-type': 'OAuth2Session'
+      };
+    },
+
+    // Whether the response indicates the rate limit has been exhausted.
+    isRateLimited (response) {
+      const remaining = response.headers.get('x-rate-limit-remaining');
+      return remaining !== null && Number(remaining) < 1;
+    },
+
+    // Block until the rate-limit reset time has passed (or the user stops the script).
+    async waitRateLimit (reset) {
+      this.ratelimitreset = reset ? Number(reset) : this.ratelimitreset;
+      let sleeptime = this.ratelimitreset - Math.floor(Date.now() / 1000);
+      while (sleeptime > 0 && !this.stopRequested) {
+        sleeptime = this.ratelimitreset - Math.floor(Date.now() / 1000);
+        this.updateInfo(`Ratelimited. Waiting ${sleeptime} seconds. ${this.dCount} deleted.`);
+        await this.sleep(1000);
+      }
+    },
+
+    // Shared deletion loop used by deleteTweets/deleteFavs/deleteDMs.
+    async deleteLoop (url, makeBody) {
+      while (this.tIds.length > 0 && !this.stopRequested) {
+        this.tId = this.tIds.pop();
+        await this.sendRequest(url, makeBody ? makeBody(this.tId) : undefined);
+      }
+      this.tId = '';
+      this.updateProgressBar();
+    },
+
     updateTitle (text) {
-      document.getElementById('tweetsXer_title').textContent = text;
+      const el = document.getElementById('tweetsXer_title');
+      if (el) el.textContent = text;
     },
 
     updateInfo (text) {
-      document.getElementById('info').textContent = text;
+      const el = document.getElementById('info');
+      if (el) el.textContent = text;
     },
 
     // The progress bar lives in its own fixed container (appended to <body>), while an empty
@@ -343,7 +387,8 @@
     },
 
     updateProgressBar () {
-      document.getElementById('progressbar').value = this.dCount;
+      const pb = document.getElementById('progressbar');
+      if (pb) pb.value = this.dCount;
       this.updateInfo(`${this.dCount} deleted. ${this.tId}`);
       this.positionProgressBar(); // the banner may have changed height since the last scroll
     },
@@ -483,7 +528,6 @@
                         It's time to let go. This will unfollow everyone you follow.<br>
                         <button id="unfollowEveryone" type="button">Unfollow everyone</button>
                     </p>
-                    <p><a id="removeTweetXer" href="#">Remove TweetXer</a></p>
                     <p><small>${TweetsXer.version}</small></p>
                 </div>
             </div>
@@ -502,13 +546,12 @@
       document.getElementById('exportBookmarks').addEventListener('click', this.exportBookmarks, false);
       document.getElementById('slowDelete').addEventListener('click', this.slowDelete, false);
       document.getElementById('unfollowEveryone').addEventListener('click', this.unfollow, false);
-      document.getElementById('removeTweetXer').addEventListener('click', this.removeTweetXer, false);
     },
 
     async exportBookmarks () {
       TweetsXer.updateTitle('TweetXer: Exporting bookmarks');
       let variables = '';
-      while (TweetsXer.bookmarksNext.length > 0 || TweetsXer.bookmarks.length === 0) {
+      while ((TweetsXer.bookmarksNext.length > 0 || TweetsXer.bookmarks.length === 0) && !TweetsXer.stopRequested) {
         if (TweetsXer.bookmarksNext.length > 0) {
           variables = `{"count":20,"cursor":"${TweetsXer.bookmarksNext}","includePromotedContent":false}`;
         } else variables = '{"count":20,"includePromotedContent":false}';
@@ -516,14 +559,7 @@
           variables,
           features: '{"graphql_timeline_v2_bookmark_timeline":true,"rweb_tipjar_consumption_enabled":true,"responsive_web_graphql_exclude_directive_enabled":true,"verified_phone_label_enabled":false,"creator_subscriptions_tweet_preview_api_enabled":true,"responsive_web_graphql_timeline_navigation_enabled":true,"responsive_web_graphql_skip_user_profile_image_extensions_enabled":false,"communities_web_enable_tweet_community_results_fetch":true,"c9s_tweet_anatomy_moderator_badge_enabled":true,"articles_preview_enabled":true,"responsive_web_edit_tweet_api_enabled":true,"graphql_is_translatable_rweb_tweet_is_translatable_enabled":true,"view_counts_everywhere_api_enabled":true,"longform_notetweets_consumption_enabled":true,"responsive_web_twitter_article_tweet_consumption_enabled":true,"tweet_awards_web_tipping_enabled":false,"creator_subscriptions_quote_tweet_preview_enabled":false,"freedom_of_speech_not_reach_fetch_enabled":true,"standardized_nudges_misinfo":true,"tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled":true,"rweb_video_timestamps_enabled":true,"longform_notetweets_rich_text_read_enabled":true,"longform_notetweets_inline_media_enabled":true,"responsive_web_enhance_cards_enabled":false}'
         }), {
-          headers: {
-            authorization: TweetsXer.authorization,
-            'content-type': 'application/json',
-            'x-client-transaction-id': TweetsXer.transaction_id,
-            'x-csrf-token': TweetsXer.ct0,
-            'x-twitter-active-user': 'yes',
-            'x-twitter-auth-type': 'OAuth2Session',
-          },
+          headers: TweetsXer.baseHeaders(),
           referrer: `${TweetsXer.baseUrl}/i/bookmarks`,
           referrerPolicy: 'strict-origin-when-cross-origin',
           method: 'GET',
@@ -551,16 +587,9 @@
           console.log(response);
         }
 
-        const bookmarksRemaining = response.headers.get('x-rate-limit-remaining');
-        if (bookmarksRemaining !== null && Number(bookmarksRemaining) < 1) {
+        if (TweetsXer.isRateLimited(response)) {
           console.log('rate limit hit');
-          TweetsXer.ratelimitreset = response.headers.get('x-rate-limit-reset');
-          let sleeptime = TweetsXer.ratelimitreset - Math.floor(Date.now() / 1000);
-          while (sleeptime > 0) {
-            sleeptime = TweetsXer.ratelimitreset - Math.floor(Date.now() / 1000);
-            TweetsXer.updateInfo(`Ratelimited. Waiting ${sleeptime} seconds. ${TweetsXer.dCount} deleted.`);
-            await TweetsXer.sleep(1000);
-          }
+          await TweetsXer.waitRateLimit(response.headers.get('x-rate-limit-reset'));
         }
       }
       const download = new Blob([JSON.stringify(TweetsXer.bookmarks)], {
@@ -584,14 +613,7 @@
     ) {
       try {
         const response = await fetch(url, {
-          headers: {
-            authorization: TweetsXer.authorization,
-            'content-type': 'application/json',
-            'x-client-transaction-id': TweetsXer.transaction_id,
-            'x-csrf-token': TweetsXer.ct0,
-            'x-twitter-active-user': 'yes',
-            'x-twitter-auth-type': 'OAuth2Session'
-          },
+          headers: this.baseHeaders(),
           referrer: `${TweetsXer.baseUrl}/${TweetsXer.username}/with_replies`,
           referrerPolicy: 'strict-origin-when-cross-origin',
           body,
@@ -606,16 +628,10 @@
           TweetsXer.updateProgressBar();
 
           const remaining = response.headers.get('x-rate-limit-remaining');
-          if (remaining != null && Number(remaining) < 1) {
+          if (this.isRateLimited(response)) {
             console.log('rate limit hit');
             console.log(remaining);
-            TweetsXer.ratelimitreset = response.headers.get('x-rate-limit-reset');
-            let sleeptime = TweetsXer.ratelimitreset - Math.floor(Date.now() / 1000);
-            while (sleeptime > 0) {
-              sleeptime = TweetsXer.ratelimitreset - Math.floor(Date.now() / 1000);
-              TweetsXer.updateInfo(`Ratelimited. Waiting ${sleeptime} seconds. ${TweetsXer.dCount} deleted.`);
-              await TweetsXer.sleep(1000);
-            }
+            await this.waitRateLimit(response.headers.get('x-rate-limit-reset'));
             return 'deleted and waiting';
           }
           return 'deleted';
@@ -633,7 +649,7 @@
           TweetsXer.tIds.push(TweetsXer.tId);
           console.log('Request timeout.');
           let sleeptime = 15;
-          while (sleeptime > 0) {
+          while (sleeptime > 0 && !TweetsXer.stopRequested) {
             sleeptime--;
             TweetsXer.updateInfo(`Ratelimited. Waiting ${sleeptime} seconds. ${TweetsXer.dCount} deleted.`);
             await TweetsXer.sleep(1000);
@@ -646,12 +662,7 @@
     },
 
     async deleteTweets () {
-      while (this.tIds.length > 0) {
-        this.tId = this.tIds.pop();
-        await this.sendRequest(this.baseUrl + this.deleteURL);
-      }
-      this.tId = '';
-      this.updateProgressBar();
+      await this.deleteLoop(this.baseUrl + this.deleteURL);
     },
 
     async deleteFavs () {
@@ -660,43 +671,23 @@
       // x-rate-limit-remaining
       // x-rate-limit-reset
 
-      while (this.tIds.length > 0) {
-        this.tId = this.tIds.pop();
-        await this.sendRequest(this.baseUrl + this.unfavURL);
-      }
-      this.tId = '';
+      await this.deleteLoop(this.baseUrl + this.unfavURL);
       this.updateTitle('TweetXer');
-      this.updateProgressBar();
     },
 
     async deleteDMs () {
-      while (this.tIds.length > 0) {
-        this.tId = this.tIds.pop();
-        await this.sendRequest(
-          this.baseUrl + this.deleteMessageURL,
-          JSON.stringify({
-            variables: { messageId: this.tId },
-            requestId: ''
-          })
-        );
-      }
-      this.tId = '';
-      this.updateProgressBar();
+      await this.deleteLoop(
+        this.baseUrl + this.deleteMessageURL,
+        (id) => JSON.stringify({ variables: { messageId: id }, requestId: '' })
+      );
     },
 
     async deleteConvos () {
-      while (this.tIds.length > 0) {
+      while (this.tIds.length > 0 && !this.stopRequested) {
         this.tId = this.tIds.pop();
         const url = this.baseUrl + this.deleteConvoURL.replace('USER_ID-CONVERSATION_ID', this.tId);
         const response = await fetch(url, {
-          headers: {
-            authorization: TweetsXer.authorization,
-            'content-type': 'application/x-www-form-urlencoded',
-            'x-client-transaction-id': TweetsXer.transaction_id,
-            'x-csrf-token': TweetsXer.ct0,
-            'x-twitter-active-user': 'yes',
-            'x-twitter-auth-type': 'OAuth2Session'
-          },
+          headers: this.baseHeaders('application/x-www-form-urlencoded'),
           referrer: `${TweetsXer.baseUrl}/messages`,
           body: 'dm_secret_conversations_enabled=false&krs_registration_enabled=true&cards_platform=Web-12&include_cards=1&include_ext_alt_text=true&include_ext_limited_action_results=true&include_quote_count=true&include_reply_count=1&tweet_mode=extended&include_ext_views=true&dm_users=false&include_groups=true&include_inbox_timelines=true&include_ext_media_color=true&supports_reactions=true&supports_edit=true&include_conversation_info=true',
           method: 'POST',
@@ -709,23 +700,16 @@
           TweetsXer.dCount++;
           TweetsXer.updateProgressBar();
 
-          if (response.headers.get('x-rate-limit-remaining') != null && response.headers.get('x-rate-limit-remaining') < 1) {
+          if (this.isRateLimited(response)) {
             console.log('rate limit hit');
-            console.log(response.headers.get('x-rate-limit-remaining'));
-            TweetsXer.ratelimitreset = response.headers.get('x-rate-limit-reset');
-            let sleeptime = TweetsXer.ratelimitreset - Math.floor(Date.now() / 1000);
-            while (sleeptime > 0) {
-              sleeptime = TweetsXer.ratelimitreset - Math.floor(Date.now() / 1000);
-              TweetsXer.updateInfo(`Ratelimited. Waiting ${sleeptime} seconds. ${TweetsXer.dCount} deleted.`);
-              await TweetsXer.sleep(1000);
-            }
+            await this.waitRateLimit(response.headers.get('x-rate-limit-reset'));
           }
           await TweetsXer.sleep(Math.floor(Math.random() * 200)); // send requests slightly slower and with random intervals
         } else if (response.status === 429 || response.status === 420) {
           TweetsXer.tIds.push(TweetsXer.tId);
           console.log(`Received status code ${response.status}. Waiting before trying again.`);
           let sleeptime = 60 * 5; // is that enough?
-          while (sleeptime > 0) {
+          while (sleeptime > 0 && !TweetsXer.stopRequested) {
             sleeptime--;
             TweetsXer.updateInfo(`Ratelimited. Waiting ${sleeptime} seconds. ${TweetsXer.dCount} deleted.`);
             await TweetsXer.sleep(1000);
@@ -816,7 +800,7 @@
       const more = TweetsXer.more;
 
       let emptyChecks = 0;
-      while (emptyChecks < 5) {
+      while (emptyChecks < 5 && !TweetsXer.stopRequested) {
         if (document.querySelectorAll(more).length === 0) {
           if (document.hidden) {
             // Browsers pause scroll/visibility-driven loading in hidden tabs, so X can't load
@@ -924,7 +908,7 @@
       await TweetsXer.sleep(1200);
 
       const accounts = '[data-testid="UserCell"]';
-      while (document.querySelectorAll('[data-testid="UserCell"] [data-testid$="-unfollow"]').length > 0) {
+      while (document.querySelectorAll('[data-testid="UserCell"] [data-testid$="-unfollow"]').length > 0 && !TweetsXer.stopRequested) {
         try {
           nextUnfollow = document.querySelectorAll(accounts)[0];
           nextUnfollow.scrollIntoView({
@@ -949,10 +933,15 @@
 
       console.log('No accounts left. Please reload to confirm.');
     },
-    removeTweetXer () {
-      TweetsXer.removeProgressBar();
-      const banner = document.getElementById(TweetsXer.dId);
+    stop () {
+      this.stopRequested = true;
+      this.removeProgressBar();
+      const banner = document.getElementById(this.dId);
       if (banner) banner.remove();
+      this.showPrompt('TweetXer stopped.');
+    },
+    removeTweetXer () {
+      this.stop();
     }
   };
 
