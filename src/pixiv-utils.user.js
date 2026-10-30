@@ -168,7 +168,8 @@
       ),
       ul > div:not(.list-none):has(a[href*="artworks/"] img[src]):not(:has(
         .gtm-illust-recommend-thumbnail-link,
-        .gtm-illust-toppage-recommend-user-profile
+        .gtm-illust-toppage-recommend-user-profile,
+        .gtm-dashboard-home-latest-works-edit-button
       )),
 
       /* recommended works after bookmarking */
