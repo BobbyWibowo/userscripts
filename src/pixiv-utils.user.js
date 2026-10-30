@@ -520,6 +520,8 @@
     ENV[key] = getSetting(key);
   }
 
+  const _debugMode = ENV.MODE !== 'PROD';
+
   // Settings UI and button text translations.
   // zh-CN aliases zh; missing/empty strings fall back to en individually.
   const I18N = {
@@ -638,6 +640,7 @@
       'validation.string': 'Expected a string.',
       'validation.positiveInteger': 'Enter a positive whole number.',
       'action.settings': 'Settings',
+      'action.clearCaches': 'Clear caches',
       'action.reload': 'Reload page',
       'action.save': 'Save',
       'action.saved': 'Saved ✓',
@@ -663,6 +666,7 @@
       'label.ENABLE_EDIT_BOOKMARK': 'Show Edit Bookmark button',
       'label.ENABLE_FANCY_EDIT_BOOKMARK': 'Enable fancy Edit Bookmark panel',
       'toast.bookmarkUpdated': 'Bookmark updated ✓',
+      'toast.cachesCleared': 'Caches cleared ✓',
       'editBookmark.loading': 'Loading tags...',
       'editBookmark.noTags': 'No tags found.',
       'editBookmark.loadFailed': 'Failed to load tags.',
@@ -1715,6 +1719,10 @@
   let settingsUiLocale = resolveSettingsLocale(ENV.SETTINGS_LANGUAGE);
   const tr = (key, replacements = {}, locale = settingsUiLocale) => {
     const template = I18N[locale]?.[key] || I18N.en[key] || key;
+    if (_debugMode) {
+      if (!I18N.en[key]) console.warn('[Pixiv Utils]: Missing i18n key:', key);
+      else if (locale !== 'en' && !I18N[locale]?.[key]) console.warn('[Pixiv Utils]: Missing locale translation:', locale, key);
+    }
     return template.replace(/\{(\w+)\}/g, (match, name) =>
       Object.hasOwn(replacements, name) ? String(replacements[name]) : match);
   };
@@ -1912,9 +1920,10 @@
   const _PREBUILT_KEY = '_PREBUILT';
   const _selectorKeys = Object.keys(ENV).filter(key =>
     key.startsWith('SELECTORS_') || key === 'SECTIONS_TOGGLE_BOOKMARKED');
+
   // Debug mode always bypasses and invalidates the pre-built selector cache.
-  const _debugMode = ENV.MODE !== 'PROD';
   if (_debugMode) GM_setValue(_PREBUILT_KEY, null);
+
   const _prebuilt = GM_getValue(_PREBUILT_KEY, null);
   const _prebuiltValid = !_debugMode && Boolean(_prebuilt) && typeof _prebuilt === 'object' && !Array.isArray(_prebuilt) &&
     _prebuilt.version === GM_info.script.version &&
@@ -5203,6 +5212,17 @@
   const bookmarkTagPromises = { illust: null, novel: null };
   const bookmarkStateCache = new SimpleCache(10);
 
+  GM_registerMenuCommand(`🧹 ${tr('action.clearCaches')}`, () => {
+    GM_setValue(_PREBUILT_KEY, null);
+    for (const key of Object.keys(bookmarkTagCaches)) {
+      bookmarkTagCaches[key] = null;
+      bookmarkTagPromises[key] = null;
+    }
+    bookmarkStateCache.clear();
+    try { if (typeof PIXIV_DATA_CACHE !== 'undefined') PIXIV_DATA_CACHE.clear(); } catch (_) {}
+    showToast(tr('toast.cachesCleared') || 'Caches cleared ✓', { primary: true });
+  });
+
   const fetchBookmarkTagsFor = async (isNovel, force = false) => {
     const api = getBookmarkApi(isNovel);
     const key = api.cacheKey;
@@ -7580,6 +7600,19 @@
     // Init IntersectionObserver for images.
     initImagesIntersectionObserver();
 
+    // Wrap sentinel callbacks to avoid unhandled async rejections.
+    const originalSentinelOn = sentinel.on.bind(sentinel);
+    sentinel.on = (selector, callback) => originalSentinelOn(selector, element => {
+      try {
+        const result = callback(element);
+        if (result && typeof result.then === 'function') {
+          result.catch(error => console.warn('[Pixiv Utils]: sentinel callback failed:', error));
+        }
+      } catch (error) {
+        console.warn('[Pixiv Utils]: sentinel callback failed:', error);
+      }
+    });
+
     // Expanded View Controls
     sentinel.on(CONFIG.SELECTORS_EXPANDED_VIEW_CONTROLS, element => {
       doExpandedViewControls(element);
@@ -7608,7 +7641,7 @@
           // Parse multi-line template literals/comments into a single-line selector.
           sectionConfig[key] = normalizeSelectorList(sectionConfig[key]);
           if (!sectionConfig[key] || !isSelectorValid(sectionConfig[key])) {
-            console.error(`SECTIONS_TOGGLE_BOOKMARKED contains invalid ${key} =`, sectionConfig[key]);
+            console.error(`[Pixiv Utils]: SECTIONS_TOGGLE_BOOKMARKED contains invalid runtime ${key}:`, sectionConfig[key]);
             configValid = false;
             break;
           }
