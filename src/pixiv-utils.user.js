@@ -1912,8 +1912,11 @@
   const _PREBUILT_KEY = '_PREBUILT';
   const _selectorKeys = Object.keys(ENV).filter(key =>
     key.startsWith('SELECTORS_') || key === 'SECTIONS_TOGGLE_BOOKMARKED');
+  // Debug mode always bypasses and invalidates the pre-built selector cache.
+  const _debugMode = ENV.MODE !== 'PROD';
+  if (_debugMode) GM_setValue(_PREBUILT_KEY, null);
   const _prebuilt = GM_getValue(_PREBUILT_KEY, null);
-  const _prebuiltValid = Boolean(_prebuilt) && typeof _prebuilt === 'object' && !Array.isArray(_prebuilt) &&
+  const _prebuiltValid = !_debugMode && Boolean(_prebuilt) && typeof _prebuilt === 'object' && !Array.isArray(_prebuilt) &&
     _prebuilt.version === GM_info.script.version &&
     _prebuilt.selectors && typeof _prebuilt.selectors === 'object' && !Array.isArray(_prebuilt.selectors) &&
     _selectorKeys.every(key => Object.prototype.hasOwnProperty.call(_prebuilt.selectors, key));
@@ -2029,8 +2032,10 @@
         _builtSelectors[key] = CONFIG[key];
       }
     }
-    GM_setValue(_PREBUILT_KEY, { version: GM_info.script.version, selectors: _builtSelectors });
-    log('CSS selectors have been pre-built and cached for future runs.');
+    if (!_debugMode) {
+      GM_setValue(_PREBUILT_KEY, { version: GM_info.script.version, selectors: _builtSelectors });
+      log('CSS selectors have been pre-built and cached for future runs.');
+    }
   }
 
   // Empty highlight-color overrides use the built-in default at runtime.
@@ -2046,12 +2051,10 @@
   }
 
   let logDebug = () => {};
-  if (CONFIG.MODE !== 'PROD') {
+  if (_debugMode) {
     logDebug = tlog;
-    for (const key of Object.keys(CONFIG)) {
-      log(`${key} =`, CONFIG[key]);
-    }
-  }
+    logDebug('CONFIG:', CONFIG);
+  };
 
   /** GLOBAL UTILS **/
 
@@ -4395,19 +4398,15 @@
     PIXIV_HIGHLIGHTED_TAGS_FORMATTED.push(compiled);
   }
 
-  logDebug('PIXIV_HIGHLIGHTED_TAGS_FORMATTED = ', PIXIV_HIGHLIGHTED_TAGS_FORMATTED);
   const PIXIV_HIGHLIGHTED_TAGS_VALIDATED = PIXIV_HIGHLIGHTED_TAGS_FORMATTED.length;
 
   const blockedTagRules = compileTagRules(CONFIG.PIXIV_BLOCKED_TAGS,
     CONFIG.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES);
   const PIXIV_BLOCKED_TAGS_STRING = blockedTagRules.string;
   const PIXIV_BLOCKED_TAGS_REGEXP = blockedTagRules.regexp;
-  logDebug('PIXIV_BLOCKED_TAGS_STRING = ', PIXIV_BLOCKED_TAGS_STRING);
-  logDebug('PIXIV_BLOCKED_TAGS_REGEXP = ', PIXIV_BLOCKED_TAGS_REGEXP);
 
   // Keep artist IDs as strings for exact matching, with no Number conversion.
   const PIXIV_BLOCKED_USERS_SET = new Set(CONFIG.PIXIV_BLOCKED_USERS);
-  logDebug('PIXIV_BLOCKED_USERS_SET =', PIXIV_BLOCKED_USERS_SET);
 
   const PIXIV_BLOCKED_TAGS_VALIDATED = PIXIV_BLOCKED_TAGS_STRING.size ||
     PIXIV_BLOCKED_TAGS_REGEXP.length ||
@@ -4416,7 +4415,17 @@
 
   const SELECTORS_UTAGS = CONFIG.UTAGS_BLOCKED_TAGS.map(s =>
     `[data-utags_tag="${CSS.escape(s)}"]`).join(', ');
-  logDebug('SELECTORS_UTAGS =', SELECTORS_UTAGS);
+
+  if (_debugMode) {
+    // Wrap in an object so that browser console collapses them by default.
+    logDebug('RULES:', {
+      PIXIV_HIGHLIGHTED_TAGS_FORMATTED,
+      PIXIV_BLOCKED_TAGS_STRING,
+      PIXIV_BLOCKED_TAGS_REGEXP,
+      PIXIV_BLOCKED_USERS_SET,
+      SELECTORS_UTAGS
+    });
+  }
 
   let currentUrl = new URL(window.location.href);
   const notify = url => {
@@ -7666,7 +7675,7 @@
 
     log('Started.');
 
-    if (CONFIG.MODE !== 'PROD') {
+    if (_debugMode) {
       setInterval(() => {
         if (pendingWaitFors.size) {
           logDebug('waitFor', pendingWaitFors.values().next().value.element);
