@@ -6734,8 +6734,8 @@
     if (match && match[1]) {
       id = match[1];
     } else if (currentUrl.pathname.startsWith('/novel/show.php')) {
-      const _id = currentUrl.searchParams.get('id');
-      if (!/^\d+$/.test(_id)) id = null;
+      id = currentUrl.searchParams.get('id');
+      if (!/^\d+$/.test(id)) id = null;
       isNovel = true;
     }
 
