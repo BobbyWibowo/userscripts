@@ -4183,11 +4183,13 @@
     `[data-utags_tag="${CSS.escape(s)}"]`).join(', ');
   logDebug('SELECTORS_UTAGS =', SELECTORS_UTAGS);
 
-  let currentUrl = new URL(window.location.href, window.location.origin).href;
+  let currentUrl = new URL(window.location.href);
   const notify = url => {
-    const newUrl = new URL(url || window.location.href, window.location.origin).href;
-    if (currentUrl !== newUrl) {
-      const event = new CustomEvent('detectnavigate');
+    const newUrl = new URL(url || window.location.href, window.location.origin);
+    if (currentUrl.href !== newUrl.href) {
+      const event = new CustomEvent('detectnavigate', {
+        detail: { currentUrl, newUrl }
+      });
       window.dispatchEvent(event);
       currentUrl = newUrl;
     }
@@ -5659,7 +5661,7 @@
     }
 
     // Exit early if in own profile, and not in bookmarks tab.
-    if (options.isOwnProfile && currentUrl.indexOf('/bookmarks') === -1) {
+    if (options.isOwnProfile && currentUrl.pathname.includes('/bookmarks/') === false) {
       return false;
     }
 
@@ -5693,7 +5695,7 @@
       // Add artist tag if necessary.
       const needsArtist = !hasVisibleArtistTag &&
         !element.closest('.user-details-card ~ div .works-horizontal-list') &&
-        (currentUrl.indexOf('users/') === -1 || currentUrl.indexOf('/bookmarks') !== -1);
+        (currentUrl.pathname.includes('/users/') === false || currentUrl.pathname.includes('/bookmarks/'));
       if (needsArtist) addImageArtist(element, pixivData);
       else {
         element.querySelector('.pixiv_utils_image_artist_container')?.remove();
@@ -5842,15 +5844,13 @@
     let id = null;
     let isNovel = false;
 
-    let match = currentUrl.match(/artworks\/(\d+)/);
+    const match = currentUrl.pathname.match(/artworks\/(\d+)/);
     if (match && match[1]) {
       id = match[1];
-    } else {
-      match = currentUrl.match(/novel\/show\.php\?id=(\d+)/);
-      if (match && match[1]) {
-        id = match[1];
-        isNovel = true;
-      }
+    } else if (currentUrl.pathname.startsWith('/novel/show.php')) {
+      const _id = currentUrl.searchParams.get('id');
+      if (!/^\d+$/.test(_id)) id = null;
+      isNovel = true;
     }
 
     if (id !== null) {
@@ -6197,10 +6197,11 @@
   let isHome = false;
   let isOwnProfile = false;
 
-  const determinePageType = () => {
-    isHome = Boolean(document.querySelector(CONFIG.SELECTORS_HOME));
-    isOwnProfile = Boolean(document.querySelector(CONFIG.SELECTORS_OWN_PROFILE));
-    logDebug(`isHome: ${isHome}, isOwnProfile: ${isOwnProfile}`);
+  const isOwnProfileByUrl = (url = currentUrl) => {
+    if (!cachedOwnUserId) return false;
+    const segments = url.pathname.split('/');
+    const userIndex = segments.indexOf('users');
+    return userIndex !== -1 && segments[userIndex + 1] === String(cachedOwnUserId);
   };
 
   window.addEventListener('detectnavigate', event => {
@@ -6210,8 +6211,9 @@
 
     cleanupDetachedElementObservers();
 
-    // Reset page type.
-    isHome = isOwnProfile = false;
+    // Quickly determine page type using current URL.
+    isHome = event.detail.newUrl.pathname === '/' || event.detail.newUrl.pathname === '/en/';
+    isOwnProfile = !isHome && isOwnProfileByUrl(event.detail.newUrl);
 
     // Re-init IntersectionObserver for images.
     initImagesIntersectionObserver();
@@ -6663,20 +6665,14 @@
     if (CONFIG.ENABLE_FLOATING_TOOLTIPS) initFloatingTooltips();
 
     // Immediately attempt to determine page type.
-    determinePageType();
+    isHome = Boolean(document.querySelector(CONFIG.SELECTORS_HOME));
+    isOwnProfile = isOwnProfileByUrl() || Boolean(document.querySelector(CONFIG.SELECTORS_OWN_PROFILE));
+
+    sentinel.on(CONFIG.SELECTORS_HOME, () => { isHome = true; });
+    sentinel.on(CONFIG.SELECTORS_OWN_PROFILE, () => { isOwnProfile = true; });
 
     // Init IntersectionObserver for images.
     initImagesIntersectionObserver();
-
-    sentinel.on(CONFIG.SELECTORS_HOME, () => {
-      isHome = true;
-      logDebug(`isHome: ${isHome}`);
-    });
-
-    sentinel.on(CONFIG.SELECTORS_OWN_PROFILE, () => {
-      isOwnProfile = true;
-      logDebug(`isOwnProfile: ${isOwnProfile}`);
-    });
 
     // Expanded View Controls
     sentinel.on(CONFIG.SELECTORS_EXPANDED_VIEW_CONTROLS, element => {
@@ -6854,22 +6850,22 @@
         }
 
         let element;
-        if (currentUrl.indexOf('/users/') >= 0) {
+        if (currentUrl.pathname.includes('/users/')) {
           // On artist profile pages.
           if (event.key === 'ArrowLeft') {
             element = document.querySelector('a[aria-label="Previous"][href]:not([hidden]), a[href]:not([hidden]):has(> pixiv-icon[name$="Prev"]');
           } else if (event.key === 'ArrowRight') {
             element = document.querySelector('a[aria-label="Next"][href]:not([hidden]), a[href]:not([hidden]):has(> pixiv-icon[name$="Next"]');
           }
-        } else if (currentUrl.indexOf('/tags/') >= 0 ||
-          currentUrl.indexOf('bookmark_new_illust.php') >= 0) {
+        } else if (currentUrl.pathname.includes('/tags/') ||
+          currentUrl.pathname.startsWith('/bookmark_new_illust.php')) {
           // On tags and "Newest by followed" pages.
           if (event.key === 'ArrowLeft') {
             element = document.querySelector('nav > a[aria-disabled="false"][href*="?p="]:first-child');
           } else if (event.key === 'ArrowRight') {
             element = document.querySelector('nav > a[aria-disabled="false"][href*="?p="]:last-child');
           }
-        } else if (currentUrl.indexOf('/ranking.php') >= 0) {
+        } else if (currentUrl.pathname.startsWith('/ranking.php')) {
           // On rankings pages.
           if (event.key === 'ArrowLeft') {
             element = document.querySelector('div > a:has(> div.icon-v1-prev)');
