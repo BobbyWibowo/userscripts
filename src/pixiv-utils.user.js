@@ -5301,10 +5301,24 @@
       });
       if (!pageRes.ok) throw new Error(tr('editBookmark.loadFailed'));
       const html = await pageRes.text();
-      const m = html.match(/name=["']tag["'][^>]*value=["']([^"']*)/i) || html.match(/value=["']([^"']*)["'][^>]*name=["']tag["']/i);
-      if (m && m[1]) originalTags = m[1].trim().split(/\s+/).filter(Boolean);
-      isPrivate = /name=["']restrict["'][^>]*value=["']1["'][^>]*checked/i.test(html) ||
-        /value=["']1["'][^>]*name=["']restrict["'][^>]*checked/i.test(html);
+      const tagPatterns = [
+        /name\s*=\s*["']?tag["']?[^>]*value\s*=\s*["']([^"']*)/i,
+        /value\s*=\s*["']([^"']*)["'][^>]*name\s*=\s*["']?tag["']?/i
+      ];
+      let tagValue = null;
+      for (const pattern of tagPatterns) {
+        const match = html.match(pattern);
+        if (match && match[1]) { tagValue = match[1]; break; }
+      }
+      if (tagValue !== null) originalTags = tagValue.trim().split(/\s+/).filter(Boolean);
+
+      const restrictPatterns = [
+        /name\s*=\s*["']?restrict["']?[^>]*value\s*=\s*["']?1["']?[^>]*checked/i,
+        /value\s*=\s*["']?1["']?[^>]*name\s*=\s*["']?restrict["']?[^>]*checked/i,
+        /name\s*=\s*["']?restrict["']?[^>]*checked[^>]*value\s*=\s*["']?1["']?/i,
+        /checked[^>]*name\s*=\s*["']?restrict["']?[^>]*value\s*=\s*["']?1["']?/i
+      ];
+      isPrivate = restrictPatterns.some(pattern => pattern.test(html));
     }
     const state = { isBookmarkable, bookmarkId, isBookmarked, originalTags, isPrivate };
     bookmarkStateCache.set(cacheKey, state);
