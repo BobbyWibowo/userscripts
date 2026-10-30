@@ -4217,8 +4217,9 @@
   }
 
   class SimpleCache {
-    constructor (maxSize) {
-      this.maxSize = maxSize;
+    constructor (maxSize = 100) {
+      const size = Number(maxSize);
+      this.maxSize = Number.isFinite(size) && size > 0 ? Math.floor(size) : 1;
       this.map = new Map();
     }
 
@@ -4229,19 +4230,35 @@
 
       const value = this.map.get(key);
       this.map.delete(key);
-      this.map.set(key, value); // refresh for LRU
+      this.map.set(key, value); // refresh LRU
       return value;
+    }
+
+    has (key) {
+      return this.map.has(key);
     }
 
     set (key, value) {
       if (this.map.has(key)) {
         this.map.delete(key);
-      } else if (this.map.size >= this.maxSize) {
+      } else if (this.map.size >= this.maxSize && this.map.size > 0) {
         const firstKey = this.map.keys().next().value;
         this.map.delete(firstKey); // evict LRU
       }
 
       this.map.set(key, value);
+    }
+
+    delete (key) {
+      return this.map.delete(key);
+    }
+
+    clear () {
+      this.map.clear();
+    }
+
+    get size () {
+      return this.map.size;
     }
   }
 
@@ -5606,7 +5623,8 @@
           if (element.dataset.tx !== element.dataset.pixiv_utils_last_tx ||
             element.classList.contains('grid') !== lastGrid) {
             options.forced = true;
-            processNewElement(doImage, element, options);
+            // Do not defer with processNewElement() in case it is currently hidden.
+            doImage(element, options);
           }
         }, {
           attributes: true,
@@ -5859,6 +5877,7 @@
       // Re-process expanded view's artist bottom bar.
       const images = document.querySelectorAll(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE);
       for (const image of images) {
+        // These can be deferred with processNewElement() because these won't hidden even when blocked.
         processNewElement(doImage, image, { forced: true, skipArtistTag: true });
       }
 
