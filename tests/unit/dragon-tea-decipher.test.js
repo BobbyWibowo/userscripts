@@ -12,6 +12,10 @@ const SELECTOR_ARTICLE = '.chapter-type-text .reading-content .text-left, ' +
 
 const SCRIPT_CIPHERTEXT = 'Gsv jfrxp yildm ulc';
 
+// Gutenberg block delimiter emitted by WordPress between the fixture's paragraphs.
+// The node's data is the verbatim payload, spaces included.
+const FIXTURE_COMMENT = ' wp:paragraph ';
+
 const DECIPHERED = {
   paragraph: 'The quick brown fox jumps over the lazy dog.',
   secondParagraph: 'Chapter 12: Notes! TEST',
@@ -144,6 +148,32 @@ describe('dragon-tea-decipher user script', () => {
 
     expect(firstArticle().dataset.cipherUndone).toBe('true');
     expect(secondArticle().dataset.cipherUndone).toBe('true');
+  });
+
+  it('leaves comment nodes untouched', async () => {
+    const listeners = await runUserscript(sentinel);
+
+    decipherAll(listeners);
+
+    const comments = Array.from(firstArticle().childNodes)
+      .filter(node => node.nodeType === 8);
+
+    expect(comments.map(comment => comment.data)).toEqual([FIXTURE_COMMENT]);
+  });
+
+  it('reports no enAtbash() call when the article has no text nodes', async () => {
+    const listeners = await runUserscript(sentinel, (key, defaultValue) => (key === 'MODE' ? 'DEBUG' : defaultValue));
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const container = document.createElement('div');
+
+    container.innerHTML = '<div class="chapter-type-text"><div class="reading-content">' +
+      `<div class="text-left"><script>${SCRIPT_CIPHERTEXT}</script></div></div></div>`;
+    document.body.appendChild(container);
+
+    listeners[0].callback(container.querySelector('.text-left'));
+
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Deciphered article.'));
+    expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('Called enAtbash() on'));
   });
 
   it('reads MODE from userscript storage and stays silent in PROD', async () => {

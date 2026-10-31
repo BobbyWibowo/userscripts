@@ -4,6 +4,10 @@ const FIXTURE_PATH = '/tests/fixtures/dragon-tea-decipher.html';
 const SCRIPT_PATH = 'src/dragon-tea-decipher.user.js';
 const SCRIPT_CIPHERTEXT = 'Gsv jfrxp yildm ulc';
 
+// Gutenberg block delimiter emitted by WordPress between the fixture's paragraphs.
+// The node's data is the verbatim payload, spaces included.
+const FIXTURE_COMMENT = ' wp:paragraph ';
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     // Minimal stand-ins for the @require'd sentinel-js and the granted GM API.
@@ -40,6 +44,17 @@ test('deciphers article text while preserving scripts and styles', async ({ page
 
   expect(await page.locator('.text-left script').textContent()).toContain(SCRIPT_CIPHERTEXT);
   expect(await page.evaluate(() => window.__fixtureScriptRan)).toBe(SCRIPT_CIPHERTEXT);
+});
+
+test('leaves comment nodes untouched', async ({ page }) => {
+  await page.addScriptTag({ path: SCRIPT_PATH });
+
+  const comments = await page.locator('.chapter-type-text .reading-content .text-left')
+    .evaluate(element => Array.from(element.childNodes)
+      .filter(node => node.nodeType === 8)
+      .map(node => node.data));
+
+  expect(comments).toEqual([FIXTURE_COMMENT]);
 });
 
 test('keeps the nested style rules effective after deciphering', async ({ page }) => {
