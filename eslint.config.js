@@ -1,6 +1,6 @@
 import neostandard from 'neostandard'
-import stylistic from '@stylistic/eslint-plugin'
 import userscripts from 'eslint-plugin-userscripts'
+import globals from 'globals'
 
 const overrides = {}
 
@@ -10,17 +10,32 @@ const userscriptOverrides = {
 }
 
 export default [
+  {
+    ignores: [
+      'temp/**',
+      'coverage/**',
+      'playwright-report/**',
+      'test-results/**'
+    ]
+  },
   ...neostandard({
     env: [
       'browser'
     ]
   }),
   {
-    plugins: {
-      '@stylistic': stylistic
-    },
     rules: {
       ...overrides
+    }
+  },
+  {
+    files: [
+      '*.config.js'
+    ],
+    languageOptions: {
+      globals: {
+        ...globals.node
+      }
     }
   },
   {
@@ -53,6 +68,14 @@ export default [
         tampermonkey: '*',
         violentmonkey: '*'
       }
+    }
+  },
+  {
+    files: [
+      'tests/**/*.js'
+    ],
+    rules: {
+      ...userscriptOverrides
     }
   }
 ]
