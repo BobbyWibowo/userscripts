@@ -33,7 +33,8 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run serve',
-    url: `${BASE_URL}/tests/fixtures/dragon-tea-decipher.html`,
+    // Readiness probe only: any 2xx/3xx response counts.
+    url: `${BASE_URL}/tests/fixtures/`,
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',
     stderr: 'pipe'

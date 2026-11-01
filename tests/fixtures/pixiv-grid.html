@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Pixiv Utils fixture: works grid</title>
+  <style>
+    /*
+      Keep the fixture compact so the grid and the tag strip stay inside the
+      viewport: the userscript defers off-screen work to an IntersectionObserver,
+      which would never fire for content below the fold in a test.
+    */
+    main { font: 12px/1.2 sans-serif; }
+    ul { display: flex; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    img { display: block; width: 48px; height: 48px; }
+    [data-ga4-label="thumbnail"] { min-height: 48px; }
+    .tag-strip { display: flex; gap: 8px; }
+  </style>
+</head>
+<body>
+  <!--
+    Next.js layout metadata, as Pixiv's desktop pages ship it. The userscript
+    reads `pixiv.user.id` and `pixiv.context.postKey` from here to resolve the
+    viewer's own user ID and CSRF token. `serverSerializedPreloadedState` is
+    double-encoded on real pages, so the fixture keeps that shape.
+  -->
+  <script id="__NEXT_DATA__" type="application/json">
+  {
+    "props": {
+      "pageProps": {
+        "serverSerializedPreloadedState": "{\"pixiv.user.id\":\"999001\",\"pixiv.context.postKey\":\"fixture-post-key\"}"
+      }
+    }
+  }
+  </script>
+
+  <main>
+    <!--
+      "Tags page (new)" toggle-bookmarked section: a header followed by the
+      works grid. Matched by `SECTIONS_TOGGLE_BOOKMARKED[4]`, whose header and
+      images-container selectors both hang off `div[data-ga4-label="works_content"]`.
+    -->
+    <div data-ga4-label="works_content">
+      <div>
+        <div><h2>Tag: 幻想</h2></div>
+      </div>
+      <div>
+        <ul>
+          <!-- Bookmarked, detected by the filled bookmark path marker. -->
+          <li>
+            <div id="card-marker" data-ga4-label="thumbnail">
+              <a href="/artworks/16112932"><img src="https://i.pximg.net/c/360x360_70/img-master/img/2024/01/02/15/04/05/16112932_p0_master1200.jpg" alt=""></a>
+              <a href="/users/1111">artist one</a>
+              <div class="works-bookmark-button"><svg viewBox="0 0 24 24"><path fill="#FF4060" d="M12 21l-8-6 8-6 8 6-8 6z"></path></svg></div>
+              <div class="controls"><div data-ga4-label="bookmark_button"><button type="button">Bookmark</button></div></div>
+              <div class="times"><time datetime="2024-01-02T15:04:05+09:00">2024年01月02日 15:04</time></div>
+              <a href="/tags/%E5%B9%BB%E6%83%B3" title="#幻想">#幻想</a>
+            </div>
+          </li>
+          <!-- Not bookmarked: no marker, and the bookmark button has no path. -->
+          <li>
+            <div id="card-plain" data-ga4-label="thumbnail">
+              <a href="/artworks/16112933"><img src="https://i.pximg.net/c/360x360_70/img-master/img/2024/01/03/10/20/30/16112933_p0_master1200.jpg" alt=""></a>
+              <a href="/users/2222">artist two</a>
+              <div class="controls"><div data-ga4-label="bookmark_button"><button type="button">Bookmark</button></div></div>
+              <div class="times"><time datetime="2024-01-03T10:20:30+09:00">2024年01月03日 10:20</time></div>
+            </div>
+          </li>
+          <!--
+            Bookmarked only through the computed color of its bookmark button,
+            which needs a real browser: jsdom reports no computed styles.
+          -->
+          <li>
+            <div id="card-color" data-ga4-label="thumbnail">
+              <a href="/artworks/16112934"><img src="https://i.pximg.net/c/360x360_70/img-master/img/2024/01/04/08/00/00/16112934_p0_master1200.jpg" alt=""></a>
+              <a href="/users/3333">artist three</a>
+              <div class="controls"><div data-ga4-label="bookmark_button"><button type="button" style="color: rgb(255, 64, 96)"><svg viewBox="0 0 24 24"><path d="M12 21l-8-6 8-6 8 6-8 6z"></path></svg></button></div></div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Tag buttons, blocked by tag text. -->
+    <div class="tag-strip">
+      <div id="tag-blocked" class="tag-button"><a href="/tags/%E5%B9%BB%E6%83%B3"><div title="#幻想">#幻想</div></a></div>
+      <div id="tag-allowed" class="tag-button"><a href="/tags/%E7%8C%AB"><div title="#猫">#猫</div></a></div>
+    </div>
+  </main>
+</body>
+</html>
