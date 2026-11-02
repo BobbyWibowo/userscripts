@@ -520,6 +520,104 @@
     ENV[key] = getSetting(key);
   }
 
+  // Persisted settings can be corrupted by direct edits in a userscript
+  // manager. Validate every stored value's shape at startup and replace
+  // offenders with their defaults in memory (storage is left untouched), so
+  // one bad setting cannot abort initialization. Every problem is reported
+  // with the setting's name.
+  const isPlainStoredObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const isStoredTagRule = entry => typeof entry === 'string' ||
+    (Array.isArray(entry) && typeof entry[0] === 'string' && (entry.length === 1 || typeof entry[1] === 'string'));
+  const sanitizeStoredTagRules = value => {
+    const malformed = [];
+    const sanitized = [];
+    value.forEach((entry, index) => {
+      if (isStoredTagRule(entry)) {
+        sanitized.push(entry);
+      } else if (isPlainStoredObject(entry) && Array.isArray(entry.tags) && entry.tags.every(isStoredTagRule)) {
+        sanitized.push({ tags: entry.tags, ...(typeof entry.color === 'string' ? { color: entry.color } : {}) });
+      } else {
+        malformed.push(`item ${index}`);
+      }
+    });
+    return { sanitized, malformed };
+  };
+  const isStoredUserId = value => typeof value === 'string' && /^[0-9]+$/.test(value);
+
+  for (const key of ENV_KEYS) {
+    const value = ENV[key];
+    const fallback = ENV_DEFAULTS[key];
+    const resetToDefault = reason => {
+      console.error(`[Pixiv Utils]: Invalid stored value for ${key} (${reason}); using the default instead. Stored value =`, value);
+      ENV[key] = fallback;
+    };
+
+    if (key.startsWith('SELECTORS_')) {
+      if (value !== null && typeof value !== 'string' &&
+        !(Array.isArray(value) && value.every(entry => typeof entry === 'string'))) {
+        resetToDefault('expected a selector string, an array of strings, or null');
+      }
+    } else if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
+      if (value !== null && !Array.isArray(value)) resetToDefault('expected an array of sections or null');
+    } else if (key === 'PIXIV_BLOCKED_TAGS' || key === 'PIXIV_HIGHLIGHTED_TAGS') {
+      if (typeof value === 'string') {
+        // Legacy comma-separated literal tags.
+        ENV[key] = value.split(',').map(entry => entry.trim()).filter(Boolean);
+      } else if (value !== null) {
+        if (!Array.isArray(value)) {
+          resetToDefault('expected an array of rules or null');
+        } else {
+          const { sanitized, malformed } = sanitizeStoredTagRules(value);
+          if (malformed.length) {
+            console.error(`[Pixiv Utils]: Ignoring malformed rule(s) ${malformed.join(', ')} in ${key}.`);
+            ENV[key] = sanitized.length ? sanitized : null;
+          }
+        }
+      }
+    } else if (key === 'PIXIV_BLOCKED_USERS') {
+      if (value !== null && (!Array.isArray(value) || !value.every(isStoredUserId))) {
+        resetToDefault('expected an array of user ID strings or null');
+      }
+    } else if (key === 'UTAGS_BLOCKED_TAGS') {
+      if (typeof value === 'string') {
+        ENV[key] = value.split(',').map(entry => entry.trim()).filter(Boolean);
+      } else if (value !== null && (!Array.isArray(value) || !value.every(entry => typeof entry === 'string'))) {
+        resetToDefault('expected an array of tags or null');
+      }
+    } else if (key === 'MODE') {
+      if (value !== 'PROD' && value !== 'DEBUG') resetToDefault('expected "PROD" or "DEBUG"');
+    } else if (key === 'SETTINGS_LANGUAGE') {
+      if (!['auto', 'en', 'ja', 'zh', 'zh-CN', 'zh-HK', 'zh-TW', 'zh-Hant'].includes(value)) {
+        resetToDefault('expected a supported language or "auto"');
+      }
+    } else if (key === 'PIXIV_HIGHLIGHTED_COLOR') {
+      if (typeof value !== 'string') resetToDefault('expected a color string');
+    } else if (key === 'DATE_CONVERSION_OPTIONS' || key === 'FLOATING_TOOLTIPS_OPTIONS') {
+      if (value !== null && !isPlainStoredObject(value)) resetToDefault('expected an options object or null');
+    } else if (key === 'DATE_CONVERSION_LOCALES') {
+      if (typeof value !== 'string') resetToDefault('expected a locale string');
+    } else if (key.startsWith('TEXT_')) {
+      if (value !== null && typeof value !== 'string') resetToDefault('expected a string or null');
+    } else if (key === 'WAIT_FOR_POLL' || key.startsWith('FLOATING_TOOLTIPS_')) {
+      if (!Number.isSafeInteger(value) || value < 0) resetToDefault('expected a non-negative integer');
+    } else if (typeof fallback === 'boolean') {
+      if (typeof value !== 'boolean') resetToDefault('expected a boolean');
+    }
+  }
+
+  // UI preferences are read straight from storage at their consumption sites.
+  const preferenceValidators = {
+    PREF_TOGGLE_BOOKMARKED_MODE: value => [0, 1, 2].includes(value),
+    PREF_EDIT_BOOKMARK_SORT_REVERSED: value => typeof value === 'boolean'
+  };
+  for (const [key, isValid] of Object.entries(preferenceValidators)) {
+    if (!existingKeys.has(key)) continue;
+    const value = GM_getValue(key, null);
+    if (value === null || isValid(value)) continue;
+    console.error(`[Pixiv Utils]: Invalid stored value for ${key}; using the default instead. Stored value =`, value);
+    GM_setValue(key, key === 'PREF_TOGGLE_BOOKMARKED_MODE' ? 0 : false);
+  }
+
   const _debugMode = ENV.MODE !== 'PROD';
 
   // Settings UI and button text translations.
@@ -1987,6 +2085,10 @@
     return splitSelectorList(selector).join(', ');
   };
 
+  // Valid CSS that matches nothing. Used to disable a single feature whose
+  // selectors are unusable without affecting any other feature.
+  const NEVER_MATCH_SELECTOR = '[data-pixiv_utils_disabled]';
+
   const CONFIG = {};
 
   // Reuse pre-built selectors from GM storage when they satisfy the integrity check.
@@ -1998,10 +2100,19 @@
   if (_debugMode) GM_setValue(_PREBUILT_KEY, null);
 
   const _prebuilt = GM_getValue(_PREBUILT_KEY, null);
+  // A hand-edited cache can hold syntactically invalid selectors; reject it
+  // so the build path below re-validates and isolates them.
+  const isCachedSelectorValid = value => typeof value === 'string' && isSelectorValid(value);
+  const isCachedSectionValid = section => section && typeof section === 'object' && !Array.isArray(section) &&
+    ['selectorParent', 'selectorHeader', 'selectorImagesContainer'].every(field =>
+      isSelectorValid(normalizeSelectorList(section[field])));
   const _prebuiltValid = !_debugMode && Boolean(_prebuilt) && typeof _prebuilt === 'object' && !Array.isArray(_prebuilt) &&
     _prebuilt.version === GM_info.script.version &&
     _prebuilt.selectors && typeof _prebuilt.selectors === 'object' && !Array.isArray(_prebuilt.selectors) &&
-    _selectorKeys.every(key => Object.prototype.hasOwnProperty.call(_prebuilt.selectors, key));
+    _selectorKeys.every(key => Object.prototype.hasOwnProperty.call(_prebuilt.selectors, key)) &&
+    _selectorKeys.every(key => key === 'SECTIONS_TOGGLE_BOOKMARKED'
+      ? Array.isArray(_prebuilt.selectors[key]) && _prebuilt.selectors[key].every(isCachedSectionValid)
+      : isCachedSelectorValid(_prebuilt.selectors[key]));
   const _prebuiltSelectors = _prebuiltValid ? _prebuilt.selectors : null;
 
   for (const key of Object.keys(ENV)) {
@@ -2043,12 +2154,21 @@
 
     // Extend hard-coded preset values with user-defined custom values, if applicable.
     if (key.startsWith('SELECTORS_')) {
-      CONFIG[key] = [normalizeSelectorList(PRESETS[key]), normalizeSelectorList(ENV[key])]
-        .filter(Boolean)
-        .join(', ');
-      if (!isSelectorValid(CONFIG[key])) {
-        console.error(`${key} contains invalid selector =`, CONFIG[key]);
-        return;
+      const presetSelector = normalizeSelectorList(PRESETS[key]);
+      const customSelector = normalizeSelectorList(ENV[key]);
+      const combinedSelector = [presetSelector, customSelector].filter(Boolean).join(', ');
+      if (isSelectorValid(combinedSelector)) {
+        CONFIG[key] = combinedSelector;
+      } else {
+        // Isolate the failure to this one setting: keep the built-in selectors
+        // when they are valid on their own, otherwise disable only this
+        // feature via a selector that never matches.
+        const usePresets = Boolean(customSelector) && isSelectorValid(presetSelector);
+        const reason = usePresets
+          ? 'the custom selector was ignored and the built-in selectors remain active'
+          : 'the affected feature is disabled';
+        console.error(`[Pixiv Utils]: ${key} contains an invalid selector; ${reason}. Stored value =`, ENV[key]);
+        CONFIG[key] = usePresets ? presetSelector : NEVER_MATCH_SELECTOR;
       }
     } else if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
       // Selectors may be written as multi-line template literals, just like SELECTORS_.
@@ -2066,7 +2186,19 @@
       };
       const presetSections = Array.isArray(PRESETS[key]) ? PRESETS[key].map(normalizeSection) : PRESETS[key];
       if (Array.isArray(ENV[key])) {
-        CONFIG[key] = [...(Array.isArray(presetSections) ? presetSections : []), ...ENV[key].map(normalizeSection)];
+        const customSections = [];
+        ENV[key].forEach((section, index) => {
+          const normalized = normalizeSection(section);
+          const valid = normalized && typeof normalized === 'object' && !Array.isArray(normalized) &&
+            ['selectorParent', 'selectorHeader', 'selectorImagesContainer'].every(field =>
+              isSelectorValid(normalizeSelectorList(normalized[field])));
+          if (valid) {
+            customSections.push(normalized);
+          } else {
+            console.error(`[Pixiv Utils]: ${key} section ${index} contains an invalid selector and was ignored. Stored value =`, section);
+          }
+        });
+        CONFIG[key] = [...(Array.isArray(presetSections) ? presetSections : []), ...customSections];
       } else if (ENV[key] !== null && typeof ENV[key] === 'object' && !Array.isArray(ENV[key])) {
         CONFIG[key] = normalizeSection(ENV[key]);
       } else {
@@ -2074,6 +2206,10 @@
         if (ENV[key] !== null && ENV[key] !== undefined) {
           CONFIG[key] = ENV[key];
         }
+      }
+      if (!Array.isArray(CONFIG[key])) {
+        console.error(`[Pixiv Utils]: ${key} must be an array of sections; using built-in sections. Stored value =`, ENV[key]);
+        CONFIG[key] = Array.isArray(presetSections) ? presetSections : [];
       }
     } else if (Array.isArray(PRESETS[key])) {
       CONFIG[key] = PRESETS[key];
@@ -4489,9 +4625,20 @@
 
   // Both rule types compile literal tags and regexes identically. Keep one
   // compiler while retaining highlighted group order and explicit color priority.
-  const compileTagRules = (tags, combineRegexes) => {
+  // Malformed stored rules are reported by setting name and skipped, so one
+  // corrupt rule cannot abort initialization or disable its sibling rules.
+  const compileTagRules = (tags, combineRegexes, settingName) => {
     const result = { string: new Set(), regexp: [] };
     const byFlags = new Map();
+    const invalid = [];
+    const compile = (pattern, flags) => {
+      try {
+        return new RegExp(pattern, flags);
+      } catch (error) {
+        invalid.push(`/${pattern}/${flags || ''} (${error.message})`);
+        return null;
+      }
+    };
     for (const tag of tags || []) {
       if (typeof tag === 'string') {
         result.string.add(tag);
@@ -4501,23 +4648,37 @@
           if (!byFlags.has(flags)) byFlags.set(flags, []);
           byFlags.get(flags).push(tag[0]);
         } else {
-          result.regexp.push(new RegExp(tag[0], flags));
+          const regex = compile(tag[0], flags);
+          if (regex) result.regexp.push(regex);
         }
       }
     }
     if (combineRegexes) {
       for (const [flags, patterns] of byFlags) {
-        result.regexp.push(new RegExp(patterns.join('|'), flags));
+        try {
+          result.regexp.push(new RegExp(patterns.join('|'), flags));
+        } catch {
+          // One bad pattern must not disable its whole flags group: fall back
+          // to compiling the remaining patterns individually.
+          for (const pattern of patterns) {
+            const regex = compile(pattern, flags);
+            if (regex) result.regexp.push(regex);
+          }
+        }
       }
+    }
+    if (invalid.length) {
+      console.error(`[Pixiv Utils]: Skipping invalid regex rule(s) in ${settingName}:`, invalid);
     }
     return result;
   };
 
   const PIXIV_HIGHLIGHTED_TAGS_FORMATTED = [];
-  for (const config of CONFIG.PIXIV_HIGHLIGHTED_TAGS) {
+  for (const [index, config] of CONFIG.PIXIV_HIGHLIGHTED_TAGS.entries()) {
     const grouped = config && typeof config === 'object' && !Array.isArray(config);
     const compiled = compileTagRules(grouped ? config.tags : [config],
-      CONFIG.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES);
+      CONFIG.PIXIV_HIGHLIGHTED_TAGS_COMBINE_REGEXES,
+      grouped ? `PIXIV_HIGHLIGHTED_TAGS (group ${index + 1})` : 'PIXIV_HIGHLIGHTED_TAGS');
     if (!compiled.string.size && !compiled.regexp.length) continue;
     if (grouped && typeof config.color === 'string') compiled.color = config.color;
     PIXIV_HIGHLIGHTED_TAGS_FORMATTED.push(compiled);
@@ -4526,7 +4687,7 @@
   const PIXIV_HIGHLIGHTED_TAGS_VALIDATED = PIXIV_HIGHLIGHTED_TAGS_FORMATTED.length;
 
   const blockedTagRules = compileTagRules(CONFIG.PIXIV_BLOCKED_TAGS,
-    CONFIG.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES);
+    CONFIG.PIXIV_BLOCKED_TAGS_COMBINE_REGEXES, 'PIXIV_BLOCKED_TAGS');
   const PIXIV_BLOCKED_TAGS_STRING = blockedTagRules.string;
   const PIXIV_BLOCKED_TAGS_REGEXP = blockedTagRules.regexp;
 

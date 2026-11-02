@@ -225,12 +225,16 @@ describe('pixiv-utils boot', () => {
   });
 
   it('warns and still boots when blocked tags contain an unparseable regex', async () => {
-    // `[invalid` is not a valid regular expression; compileTagRules calls
-    // `new RegExp()` which throws. The boot sequence does not catch this,
-    // so the import rejects.
-    await expect(
-      loadPixivUtils({ settings: { PIXIV_BLOCKED_TAGS: [['[invalid', 'i']] } })
-    ).rejects.toThrow();
+    // `[invalid` is not a valid regular expression. Runtime compilation
+    // isolates it: the setting is reported, the bad rule is skipped, and the
+    // rest of the script keeps booting.
+    const pixiv = await loadPixivUtils({ settings: { PIXIV_BLOCKED_TAGS: [['[invalid', 'i']] } });
+
+    expect(logMessages(pixiv)).toContain(STARTED_MESSAGE);
+    expect(pixiv.console.error).toEqual([[
+      expect.stringContaining('PIXIV_BLOCKED_TAGS'),
+      [expect.stringContaining('[invalid')]
+    ]]);
   });
 
   it('registers and fires the UTags listener without throwing', async () => {
