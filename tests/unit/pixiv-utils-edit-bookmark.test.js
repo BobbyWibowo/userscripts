@@ -551,4 +551,53 @@ describe('pixiv-utils edit bookmark', () => {
     expect(refreshButton.disabled).toBe(false);
     expect(pixiv.console.error).toEqual([]);
   });
+
+  it('bypasses the browser cache on every bookmark API request', async () => {
+    if (!('showModal' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    }
+    if (!('close' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.close = function () { this.open = false; };
+    }
+
+    const fetchMock = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('bookmark/tags')) {
+        return { ok: true, json: async () => ({ body: { tags: { public: [{ tag: 'foo', cnt: 2 }] } } }) };
+      }
+      if (urlStr.includes('bookmarkData')) {
+        return { ok: true, json: async () => ({ body: { isBookmarkable: true, bookmarkData: { id: 'bm-1' } } }) };
+      }
+      if (urlStr.includes('bookmark_add.php')) {
+        return { ok: true, text: async () => '<input name="tag" value="foo">' };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const panel = await openPanelForCard(pixiv);
+    expect(panel).not.toBeNull();
+
+    // First open exercises the three cacheable GET routes: the tag list,
+    // bookmarkData, and the bookmark_add.php page.
+    expect(callsMatching(fetchMock, 'bookmark/tags')).toBe(1);
+    expect(callsMatching(fetchMock, 'bookmarkData')).toBe(1);
+    expect(callsMatching(fetchMock, 'bookmark_add.php')).toBe(1);
+
+    // Saving issues POST mutations through the same helper.
+    checkboxOf(panel, 'foo').click();
+    await flush(2);
+
+    panel.querySelector('.pixiv-utils-alert-ok').click();
+    await flush(8);
+
+    expect(callsMatching(fetchMock, 'bookmarks/remove_tags')).toBe(1);
+
+    for (const [url, init] of fetchMock.mock.calls) {
+      expect(init?.cache, String(url)).toBe('no-store');
+    }
+    expect(document.querySelector('.pixiv-utils-toast')).not.toBeNull();
+    expect(pixiv.console.error).toEqual([]);
+  });
 });

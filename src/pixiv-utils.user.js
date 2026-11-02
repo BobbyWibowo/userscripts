@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.8.3
+// @version            1.8.4
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -5354,7 +5354,8 @@
 
   // Fetches a bookmark API endpoint, retrying transient failures. JSON is the
   // default response shape; pass parseResponse for others (bookmark_add.php
-  // returns HTML).
+  // returns HTML). Every request bypasses the browser cache: Pixiv's responses
+  // for these routes can be cached, and stale bookmark state breaks editing.
   const fetchBookmarkApi = async (url, options, errorMessage, parseResponse = async res => {
     const json = await res.json();
     if (json.error) throw new Error(json.message || errorMessage);
@@ -5363,7 +5364,7 @@
     let lastError;
     for (let attempt = 1; attempt <= BOOKMARK_API_RETRIES + 1; attempt += 1) {
       try {
-        const res = await fetch(url, options);
+        const res = await fetch(url, { ...options, cache: 'no-store' });
         if (!res.ok) throw new Error(errorMessage);
         return await parseResponse(res);
       } catch (error) {
