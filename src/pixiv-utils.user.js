@@ -575,10 +575,10 @@
       'bookmark.stateInfo': 'One of these appears after the button text, depending on which artworks are shown.',
       'field.bookmarkFilterTextInfo': 'This stays visible before the changing state label (for example, “❤️ Show all”).',
       'field.fancyPanelInfo': 'Editing bookmarks will not live-update Pixiv\'s native bookmark button.',
-      'editBookmark.loading': 'Loading tags...',
       'editBookmark.noTags': 'No tags found.',
       'editBookmark.loadFailed': 'Failed to load tags.',
       'editBookmark.saveFailed': 'Failed to update bookmark.',
+      'editBookmark.partialSaveFailed': 'The bookmark was only partially updated. Some changes were saved, but others failed: {error}',
       'editBookmark.public': 'Public',
       'editBookmark.private': 'Private',
       'action.refresh': 'Refresh',
@@ -823,10 +823,10 @@
       'bookmark.stateInfo': '表示対象の作品に応じて、これらのいずれかがボタンのテキストの後ろに表示されます。',
       'field.bookmarkFilterTextInfo': '切り替わる状態ラベルの前に常に表示されます（例：「❤️ すべて表示」）。',
       'field.fancyPanelInfo': 'このパネルでブックマークを編集しても、pixiv標準のブックマークボタンにはリアルタイムで反映されません。',
-      'editBookmark.loading': 'タグを読み込み中...',
       'editBookmark.noTags': 'タグが見つかりません。',
       'editBookmark.loadFailed': 'タグの読み込みに失敗しました。',
       'editBookmark.saveFailed': 'ブックマークの更新に失敗しました。',
+      'editBookmark.partialSaveFailed': '',
       'editBookmark.public': '公開',
       'editBookmark.private': '非公開',
       'action.refresh': '再読み込み',
@@ -1071,10 +1071,10 @@
       'bookmark.stateInfo': '根据当前显示的作品范围，下列其中一个状态标签将显示在按钮文本之后。',
       'field.bookmarkFilterTextInfo': '此文本始终显示在状态标签之前（例如“❤️ 显示全部”）。',
       'field.fancyPanelInfo': '在此编辑收藏后，Pixiv 自带的收藏按钮不会实时更新。',
-      'editBookmark.loading': '正在加载标签...',
       'editBookmark.noTags': '未找到标签。',
       'editBookmark.loadFailed': '加载标签失败。',
       'editBookmark.saveFailed': '更新收藏失败。',
+      'editBookmark.partialSaveFailed': '',
       'editBookmark.public': '公开',
       'editBookmark.private': '非公开',
       'action.refresh': '刷新',
@@ -1319,10 +1319,10 @@
       'bookmark.stateInfo': '按鈕文字後方會按目前的顯示模式出現以下其中一項。',
       'field.bookmarkFilterTextInfo': '這段文字會一直顯示於切換中的狀態文字之前（例如「❤️ 顯示全部」）。',
       'field.fancyPanelInfo': '在此編輯收藏後，Pixiv 內置的收藏按鈕不會即時更新。',
-      'editBookmark.loading': '正在載入標籤...',
       'editBookmark.noTags': '找不到標籤。',
       'editBookmark.loadFailed': '載入標籤失敗。',
       'editBookmark.saveFailed': '更新收藏失敗。',
+      'editBookmark.partialSaveFailed': '',
       'editBookmark.public': '公開',
       'editBookmark.private': '非公開',
       'action.refresh': '重新載入',
@@ -1567,10 +1567,10 @@
       'bookmark.stateInfo': '按鈕文字後方會依目前的篩選狀態顯示下列其中一項。',
       'field.bookmarkFilterTextInfo': '這段文字會固定顯示在變動的狀態文字前方（例如「❤️ 顯示全部」）。',
       'field.fancyPanelInfo': '在此編輯收藏後，Pixiv 內建的收藏按鈕不會即時更新。',
-      'editBookmark.loading': '正在載入標籤...',
       'editBookmark.noTags': '找不到標籤。',
       'editBookmark.loadFailed': '載入標籤失敗。',
       'editBookmark.saveFailed': '更新收藏失敗。',
+      'editBookmark.partialSaveFailed': '',
       'editBookmark.public': '公開',
       'editBookmark.private': '非公開',
       'action.refresh': '重新整理',
@@ -3615,6 +3615,7 @@
     font-size: 13px;
   }
   .pixiv-utils-edit-bookmark-panel .pixiv-utils-reload-button {
+    position: relative;
     min-height: 36px;
     padding: 6px 13px;
     border: 1px solid var(--pixiv-utils-ui-border);
@@ -3640,6 +3641,48 @@
   .pixiv-utils-edit-bookmark-status {
     padding: 8px 16px 0;
     color: var(--pixiv-utils-ui-muted, #666);
+  }
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-apply,
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-reload-button {
+    position: relative;
+  }
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-apply.is-loading .pixiv-utils-edit-bookmark-apply-label,
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-reload-button.is-loading .pixiv-utils-reload-button-label {
+    /* Keep the label's box so the button never resizes while loading. */
+    visibility: hidden;
+  }
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-spinner {
+    display: none;
+    position: absolute;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-apply.is-loading .pixiv-utils-edit-bookmark-spinner,
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-reload-button.is-loading .pixiv-utils-edit-bookmark-spinner {
+    display: flex;
+  }
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-spinner::before {
+    content: '';
+    width: 1em;
+    height: 1em;
+    border: 0.15em solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: pixiv-utils-edit-bookmark-spin 0.75s linear infinite;
+  }
+  @keyframes pixiv-utils-edit-bookmark-spin {
+    to { transform: rotate(360deg); }
+  }
+  /* Status area: the spinner sits in flow (not overlaid) while the initial
+     tag list is fetched, taking the place of the former loading text. */
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-status .pixiv-utils-edit-bookmark-spinner {
+    position: static;
+    padding: 4px 0;
+  }
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-status.is-loading .pixiv-utils-edit-bookmark-spinner {
+    display: flex;
   }
   .pixiv-utils-alert::backdrop { background: rgba(0, 0, 0, 0.48); }
   .pixiv-utils-alert-content { display: flex; flex-direction: column; max-height: inherit; }
@@ -5296,6 +5339,53 @@
     showToast(tr('toast.cachesCleared') || 'Caches cleared ✓', { primary: true });
   });
 
+  // Each bookmark API request is retried this many times before failing.
+  const BOOKMARK_API_RETRIES = 3;
+
+  // Drop every cache derived from the server's bookmark state so the next read
+  // refetches it. Called after each committed mutation, including when a later
+  // operation in the same save fails.
+  const invalidateBookmarkCaches = (isNovel, id) => {
+    const api = getBookmarkApi(isNovel);
+    bookmarkTagCaches[api.cacheKey] = null;
+    bookmarkTagPromises[api.cacheKey] = null;
+    bookmarkStateCache.delete(`${api.cacheKey}:${id}`);
+  };
+
+  // Fetches a bookmark API endpoint, retrying transient failures. JSON is the
+  // default response shape; pass parseResponse for others (bookmark_add.php
+  // returns HTML).
+  const fetchBookmarkApi = async (url, options, errorMessage, parseResponse = async res => {
+    const json = await res.json();
+    if (json.error) throw new Error(json.message || errorMessage);
+    return json;
+  }) => {
+    let lastError;
+    for (let attempt = 1; attempt <= BOOKMARK_API_RETRIES + 1; attempt += 1) {
+      try {
+        const res = await fetch(url, options);
+        if (!res.ok) throw new Error(errorMessage);
+        return await parseResponse(res);
+      } catch (error) {
+        lastError = error;
+        if (attempt <= BOOKMARK_API_RETRIES) {
+          logDebug(`Bookmark API request failed (attempt ${attempt}/${BOOKMARK_API_RETRIES + 1}), retrying:`, error);
+        }
+      }
+    }
+    throw lastError;
+  };
+
+  // Thrown when a bookmark save committed some operations but failed before
+  // completing all of them. completedOperations lists what was saved.
+  class PartialBookmarkSaveError extends Error {
+    constructor (message, completedOperations) {
+      super(message);
+      this.name = 'PartialBookmarkSaveError';
+      this.completedOperations = completedOperations;
+    }
+  }
+
   const fetchBookmarkTagsFor = async (isNovel, force = false) => {
     const api = getBookmarkApi(isNovel);
     const key = api.cacheKey;
@@ -5308,13 +5398,10 @@
     const promise = (async () => {
       const userId = cachedOwnUserId;
       const url = api.bookmarkTagsUrl(userId);
-      const res = await fetch(url, {
+      const json = await fetchBookmarkApi(url, {
         credentials: 'same-origin',
         headers: { 'x-csrf-token': cachedCsrfToken, 'x-user-id': userId }
-      });
-      if (!res.ok) throw new Error(tr('editBookmark.loadFailed'));
-      const json = await res.json();
-      if (json.error) throw new Error(json.message || tr('editBookmark.loadFailed'));
+      }, tr('editBookmark.loadFailed'));
       const body = json.body || json;
       const collected = [];
       const collect = (arr) => {
@@ -5353,13 +5440,10 @@
     if (cached) return cached;
     const userId = cachedOwnUserId;
     const dataUrl = api.bookmarkDataUrl(id);
-    const dataRes = await fetch(dataUrl, {
+    const dataJson = await fetchBookmarkApi(dataUrl, {
       credentials: 'same-origin',
       headers: { 'x-csrf-token': cachedCsrfToken, 'x-user-id': userId }
-    });
-    if (!dataRes.ok) throw new Error(tr('editBookmark.loadFailed'));
-    const dataJson = await dataRes.json();
-    if (dataJson.error) throw new Error(dataJson.message || tr('editBookmark.loadFailed'));
+    }, tr('editBookmark.loadFailed'));
     const body = dataJson.body;
     const isBookmarkable = body?.isBookmarkable ?? true;
     const bookmarkId = body?.bookmarkData?.id || null;
@@ -5368,12 +5452,10 @@
     let isPrivate = false;
     if (isBookmarkable !== false && isBookmarked) {
       const pageUrl = api.bookmarkAddPageUrl(id);
-      const pageRes = await fetch(pageUrl, {
+      const html = await fetchBookmarkApi(pageUrl, {
         credentials: 'same-origin',
         headers: { 'x-csrf-token': cachedCsrfToken, 'x-user-id': userId }
-      });
-      if (!pageRes.ok) throw new Error(tr('editBookmark.loadFailed'));
-      const html = await pageRes.text();
+      }, tr('editBookmark.loadFailed'), async res => res.text());
       const tagPatterns = [
         /name\s*=\s*["']?tag["']?[^>]*value\s*=\s*["']([^"']*)/i,
         /value\s*=\s*["']([^"']*)["'][^>]*name\s*=\s*["']?tag["']?/i
@@ -5407,64 +5489,53 @@
     const typeSegment = getBookmarkApi(isNovel).tagSegment;
     const toRemove = removedTags || [];
     const toAdd = addedTags || [];
-    if (!bookmarkId) {
-      // Not bookmarked yet: create a bookmark (tags included).
-      const addRes = await fetch(`https://www.pixiv.net/ajax/${typeSegment}/bookmarks/add`, {
+    // Operations are sequential, not transactional: an earlier mutation stays
+    // committed when a later one fails. Track what was saved so partial
+    // failures can be reported and stale caches are never reused.
+    const completedOperations = [];
+
+    const runOperation = async (operation, url, body) => {
+      await fetchBookmarkApi(url, {
         method: 'POST',
         credentials: 'same-origin',
         headers,
-        body: JSON.stringify({
+        body: JSON.stringify(body)
+      }, tr('editBookmark.saveFailed'));
+      completedOperations.push(operation);
+      // The server already committed this change, so cached reads must not
+      // serve stale state even if a later operation fails.
+      invalidateBookmarkCaches(isNovel, id);
+    };
+
+    try {
+      if (!bookmarkId) {
+        // Not bookmarked yet: create a bookmark (tags included).
+        await runOperation('add', `https://www.pixiv.net/ajax/${typeSegment}/bookmarks/add`, {
           [isNovel ? 'novel_id' : 'illust_id']: String(id),
           restrict: isPrivate ? 1 : 0,
           comment: '',
           tags: toAdd
-        })
-      });
-      if (!addRes.ok) throw new Error(tr('editBookmark.saveFailed'));
-      const addJson = await addRes.json();
-      if (addJson.error) throw new Error(addJson.message || tr('editBookmark.saveFailed'));
-      return true;
+        });
+      } else {
+        if (toRemove.length) {
+          await runOperation('removeTags', `https://www.pixiv.net/ajax/${typeSegment}/bookmarks/remove_tags`, { removeTags: toRemove, bookmarkIds: [bookmarkId] });
+        }
+        if (toAdd.length) {
+          await runOperation('addTags', `https://www.pixiv.net/ajax/${typeSegment}/bookmarks/add_tags`, { tags: toAdd, bookmarkIds: [bookmarkId] });
+        }
+        const currentPrivate = state.isPrivate === true;
+        if (typeof isPrivate === 'boolean' && currentPrivate !== isPrivate) {
+          const restrictValue = isPrivate ? 'private' : 'public';
+          await runOperation('editRestrict', `https://www.pixiv.net/ajax/${typeSegment}/bookmarks/edit_restrict`, { bookmarkIds: [bookmarkId], bookmarkRestrict: restrictValue });
+        }
+      }
+    } catch (error) {
+      if (completedOperations.length > 0) {
+        throw new PartialBookmarkSaveError(tr('editBookmark.partialSaveFailed', { error: error.message }), completedOperations);
+      }
+      throw error;
     }
-    let changed = false;
-    if (toRemove.length) {
-      const res = await fetch(`https://www.pixiv.net/ajax/${typeSegment}/bookmarks/remove_tags`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers,
-        body: JSON.stringify({ removeTags: toRemove, bookmarkIds: [bookmarkId] })
-      });
-      if (!res.ok) throw new Error(tr('editBookmark.saveFailed'));
-      const json = await res.json();
-      if (json.error) throw new Error(json.message || tr('editBookmark.saveFailed'));
-      changed = true;
-    }
-    if (toAdd.length) {
-      const res = await fetch(`https://www.pixiv.net/ajax/${typeSegment}/bookmarks/add_tags`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers,
-        body: JSON.stringify({ tags: toAdd, bookmarkIds: [bookmarkId] })
-      });
-      if (!res.ok) throw new Error(tr('editBookmark.saveFailed'));
-      const json = await res.json();
-      if (json.error) throw new Error(json.message || tr('editBookmark.saveFailed'));
-      changed = true;
-    }
-    const currentPrivate = state.isPrivate === true;
-    if (typeof isPrivate === 'boolean' && currentPrivate !== isPrivate) {
-      const restrictValue = isPrivate ? 'private' : 'public';
-      const res = await fetch(`https://www.pixiv.net/ajax/${typeSegment}/bookmarks/edit_restrict`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers,
-        body: JSON.stringify({ bookmarkIds: [bookmarkId], bookmarkRestrict: restrictValue })
-      });
-      if (!res.ok) throw new Error(tr('editBookmark.saveFailed'));
-      const json = await res.json();
-      if (json.error) throw new Error(json.message || tr('editBookmark.saveFailed'));
-      changed = true;
-    }
-    return changed;
+    return { changed: completedOperations.length > 0, completedOperations };
   };
 
   const openEditBookmarkPanel = async (id, isNovel) => {
@@ -5493,7 +5564,14 @@
     body.className = 'pixiv-utils-alert-message';
     const status = document.createElement('div');
     status.className = 'pixiv-utils-edit-bookmark-status';
-    status.textContent = tr('editBookmark.loading');
+    // Message and spinner are siblings so updating the message text never
+    // removes the spinner element.
+    const statusMessage = document.createElement('span');
+    statusMessage.className = 'pixiv-utils-edit-bookmark-status-message';
+    const statusSpinner = document.createElement('span');
+    statusSpinner.className = 'pixiv-utils-edit-bookmark-spinner';
+    statusSpinner.setAttribute('aria-hidden', 'true');
+    status.append(statusMessage, statusSpinner);
     const counter = document.createElement('div');
     counter.className = 'pixiv-utils-edit-bookmark-counter';
     const tagsContainer = document.createElement('div');
@@ -5544,7 +5622,15 @@
     const refreshButton = document.createElement('button');
     refreshButton.type = 'button';
     refreshButton.className = 'pixiv-utils-reload-button';
-    refreshButton.textContent = tr('action.refresh');
+    // Same overlay-spinner pattern as the apply button: the label keeps its
+    // space while loading so the button never resizes.
+    const refreshButtonLabel = document.createElement('span');
+    refreshButtonLabel.className = 'pixiv-utils-reload-button-label';
+    refreshButtonLabel.textContent = tr('action.refresh');
+    const refreshButtonSpinner = document.createElement('span');
+    refreshButtonSpinner.className = 'pixiv-utils-edit-bookmark-spinner';
+    refreshButtonSpinner.setAttribute('aria-hidden', 'true');
+    refreshButton.append(refreshButtonLabel, refreshButtonSpinner);
     const cancelButton = document.createElement('button');
     cancelButton.type = 'button';
     cancelButton.className = 'pixiv-utils-alert-cancel';
@@ -5572,10 +5658,26 @@
 
     const applyButton = document.createElement('button');
     applyButton.type = 'button';
-    applyButton.className = 'pixiv-utils-alert-ok';
-    applyButton.textContent = tr('action.save');
+    applyButton.className = 'pixiv-utils-alert-ok pixiv-utils-edit-bookmark-apply';
+    // The label keeps occupying its space while saving (visibility instead of
+    // removal) and the spinner overlays the button, so the button never
+    // resizes even though its initial size depends on locale and font.
+    const applyButtonLabel = document.createElement('span');
+    applyButtonLabel.className = 'pixiv-utils-edit-bookmark-apply-label';
+    applyButtonLabel.textContent = tr('action.save');
+    const applyButtonSpinner = document.createElement('span');
+    applyButtonSpinner.className = 'pixiv-utils-edit-bookmark-spinner';
+    applyButtonSpinner.setAttribute('aria-hidden', 'true');
+    applyButton.append(applyButtonLabel, applyButtonSpinner);
     applyButton.disabled = true;
     actions.append(refreshButton, cancelButton, applyButton);
+
+    const setButtonLoading = (button, loading) => {
+      button.classList.toggle('is-loading', loading);
+    };
+    const setStatusLoading = loading => {
+      status.classList.toggle('is-loading', loading);
+    };
     content.append(header, body, actions);
     dialog.append(content);
     (document.body || document.documentElement).append(dialog);
@@ -5631,6 +5733,7 @@
       return label;
     };
     const renderTags = (tags, enabled = true) => {
+      setStatusLoading(false);
       tagsEnabled = enabled;
       const ordered = [...tags].sort((a, b) => {
         const aAssigned = originalBookmarkTags.includes(a.tag);
@@ -5645,7 +5748,7 @@
         return sortReversed ? -base : base;
       });
       tagsContainer.replaceChildren();
-      status.textContent = tags.length ? '' : tr('editBookmark.noTags');
+      statusMessage.textContent = tags.length ? '' : tr('editBookmark.noTags');
       for (const entry of ordered) {
         tagsContainer.append(createTagLabel(entry, enabled));
       }
@@ -5653,14 +5756,13 @@
       updateCounter();
     };
 
-    const pageCacheKey = `${getBookmarkApi(isNovel).cacheKey}:${id}`;
     let tags = [];
     let originalBookmarkTags = [];
     const load = async (force = false) => {
       applyButton.disabled = true;
       refreshButton.disabled = true;
-      if (!force) status.textContent = tr('editBookmark.loading');
       if (!force) {
+        setStatusLoading(true);
         headerRow.style.display = 'none';
         privacyContainer.style.display = 'none';
       }
@@ -5679,7 +5781,7 @@
         // Fetch current assigned tags from bookmark_add.php (cached per session).
         const state = await getBookmarkState(id, isNovel);
         if (state.isBookmarkable === false) {
-          status.textContent = tr('editBookmark.saveFailed');
+          statusMessage.textContent = tr('editBookmark.saveFailed');
           applyButton.disabled = true;
           refreshButton.disabled = false;
           return false;
@@ -5713,7 +5815,8 @@
         applyButton.disabled = false;
         return true;
       } catch (error) {
-        status.textContent = error?.message || tr('editBookmark.loadFailed');
+        setStatusLoading(false);
+        statusMessage.textContent = error?.message || tr('editBookmark.loadFailed');
         applyButton.disabled = true;
         return false;
       } finally {
@@ -5722,39 +5825,40 @@
     };
 
     refreshButton.addEventListener('click', () => {
-      const key = getBookmarkApi(isNovel).cacheKey;
-      bookmarkTagCaches[key] = null;
-      bookmarkTagPromises[key] = null;
-      bookmarkStateCache.delete(pageCacheKey);
-      const dismissLoading = enqueueToast(tr('editBookmark.loading'), { duration: 0 });
-      load(true).then(loaded => {
-        dismissLoading();
-      }).catch(() => {
-        dismissLoading();
+      invalidateBookmarkCaches(isNovel, id);
+      setButtonLoading(refreshButton, true);
+      load(true).finally(() => {
+        setButtonLoading(refreshButton, false);
       });
     });
     cancelButton.addEventListener('click', () => dialog.close());
     applyButton.addEventListener('click', async () => {
       applyButton.disabled = true;
+      setButtonLoading(applyButton, true);
       try {
         const selectedTags = [...selected];
         const selectedPrivate = privateRadio.checked;
         const added = selectedTags.filter(tag => !originalBookmarkTags.includes(tag));
         const removed = originalBookmarkTags.filter(tag => !selectedTags.includes(tag));
-        const changed = await applyBookmarkTags(id, isNovel, added, removed, selectedPrivate);
-        if (changed) {
-          // Invalidate cached tag lists so they are reloaded fresh next time.
-          const cacheKey = getBookmarkApi(isNovel).cacheKey;
-          bookmarkTagCaches[cacheKey] = null;
-          bookmarkTagPromises[cacheKey] = null;
-          bookmarkStateCache.delete(pageCacheKey);
+        const result = await applyBookmarkTags(id, isNovel, added, removed, selectedPrivate);
+        if (result.changed) {
           showToast(tr('toast.bookmarkUpdated'), { primary: true });
         }
         dialog.close();
       } catch (error) {
-        showAlert(error?.message || tr('editBookmark.saveFailed'));
+        if (error instanceof PartialBookmarkSaveError) {
+          // Earlier operations were already committed, so refresh the panel
+          // from the server instead of showing stale selections, and keep it
+          // open. Only a fully successful save closes the dialog.
+          logDebug('Bookmark save partially failed. Completed operations:', error.completedOperations);
+          await load(true);
+          showAlert(error.message);
+        } else {
+          showAlert(error?.message || tr('editBookmark.saveFailed'));
+        }
       } finally {
         applyButton.disabled = false;
+        setButtonLoading(applyButton, false);
       }
     });
     dialog.addEventListener('click', (event) => {
@@ -5804,7 +5908,7 @@
       if (selected.size < 10) selected.add(newTag);
       const label = createTagLabel(tagData, true);
       tagsContainer.insertBefore(label, createTagBox);
-      if (tags.length) status.textContent = '';
+      if (tags.length) statusMessage.textContent = '';
       createTagBox.style.display = 'none';
       createTagButton.style.display = '';
       createTagInput.value = '';
