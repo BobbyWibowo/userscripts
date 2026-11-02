@@ -4445,6 +4445,11 @@
 
   let settingsPanel = null;
   let settingsOpening = false;
+  // Session-only memory of the settings panel view: the tab that was active
+  // when it was last closed and each tab's scroll offset. Module-level so a
+  // fresh panel instance restores the previous view instead of resetting it.
+  const settingsTabScrollPositions = new Map();
+  let settingsActiveTabIndex = null;
   const floatSettingsTabs = panel => {
     const form = panel._dlg?.querySelector(':scope > form');
     const body = form?.querySelector(':scope > .gc-b');
@@ -4459,10 +4464,9 @@
 
     // All tabs share one scroll container. Remember its scrollTop by stable tab
     // index so switching to a shorter tab cannot lose the previous tab's offset.
-    // Keep the map on the panel so it survives a language-triggered reinit().
     if (tabs._pixivScrollRestoreBound) return;
     tabs._pixivScrollRestoreBound = true;
-    const positions = panel._pixivTabScrollPositions ||= new Map();
+    const positions = settingsTabScrollPositions;
     const buttons = () => [...tabs.querySelectorAll(':scope > button')];
     const activeIndex = list => {
       const index = list.findIndex(button =>
@@ -4471,9 +4475,16 @@
     };
     let currentIndex = activeIndex(buttons());
     if (currentIndex < 0) currentIndex = 0;
+    if (settingsActiveTabIndex === null) settingsActiveTabIndex = currentIndex;
+
+    // Capture continuously so closing the panel mid-scroll keeps the offset.
+    body.addEventListener('scroll', () => {
+      positions.set(currentIndex, body.scrollTop);
+    });
 
     // Capture before gmConfig's own click handler changes the active tab.
     // Restore on the next frame, after the destination tab's layout is applied.
+    let restoring = false;
     tabs.addEventListener('click', event => {
       const target = event.target instanceof Element ? event.target.closest('button') : null;
       if (!target || target.parentElement !== tabs) return;
@@ -4483,14 +4494,33 @@
       if (targetIndex < 0) return;
 
       const outgoingIndex = activeIndex(list);
-      positions.set(outgoingIndex >= 0 ? outgoingIndex : currentIndex, body.scrollTop);
+      // A synthetic restore click lands on a freshly rendered panel whose
+      // outgoing tab is still at offset 0; keep the remembered offset intact.
+      if (!restoring) positions.set(outgoingIndex >= 0 ? outgoingIndex : currentIndex, body.scrollTop);
       currentIndex = targetIndex;
+      settingsActiveTabIndex = targetIndex;
 
       requestAnimationFrame(() => {
         if (!panel.isOpen || !body.isConnected || !tabs.isConnected) return;
         body.scrollTop = positions.get(targetIndex) ?? 0;
       });
     }, true);
+
+    // Restore the view from the last time the panel was open: activate the
+    // remembered tab (gmConfig re-renders on click), then put the scroll
+    // container back at its offset on the next frame.
+    const remembered = settingsActiveTabIndex;
+    const tabList = buttons();
+    if (remembered !== null && remembered < tabList.length) {
+      if (remembered !== currentIndex) {
+        restoring = true;
+        try { tabList[remembered].click(); } finally { restoring = false; }
+      }
+      requestAnimationFrame(() => {
+        if (!panel.isOpen || !body.isConnected || !tabs.isConnected) return;
+        body.scrollTop = positions.get(remembered) ?? 0;
+      });
+    }
   };
 
   const refreshSettingsEnhancements = (panel, localize = true) => {
