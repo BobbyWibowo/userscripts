@@ -516,7 +516,7 @@
   const existingKeys = new Set(GM_listValues());
   for (const key of ENV_KEYS) {
     if (!existingKeys.has(key)) GM_setValue(key, ENV_DEFAULTS[key]);
-    // Retain the old nullish fallback for non-null defaults without rewriting storage.
+    // Fall back to the default for nullish stored values without rewriting storage.
     ENV[key] = getSetting(key);
   }
 
@@ -3812,7 +3812,7 @@
     to { transform: rotate(360deg); }
   }
   /* Status area: the spinner sits in flow (not overlaid) while the initial
-     tag list is fetched, taking the place of the former loading text. */
+     tag list is fetched. */
   .pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-status .pixiv-utils-edit-bookmark-spinner {
     position: static;
     padding: 4px 0;
@@ -5303,7 +5303,7 @@
         if (result) finishWaitFor(pending, result);
       };
 
-      // Check immediately, just as before; enqueue only unresolved requests.
+      // Check immediately; enqueue only unresolved requests.
       pending.check();
       if (pending.done) return;
       pendingWaitFors.add(pending);
@@ -6217,7 +6217,7 @@
       readArtistMetadata(element.__vue__._props?.item, artist);
       readArtistMetadata(element.__vue__._props?.illustDetails, artist);
     } else {
-      // Preserves addImageArtist's original React __reactProps extraction path.
+      // React view: the card's own React props carry artist fields under rawThumbnail/thumbnail/work.
       const propsKey = Object.keys(element).find(k => k.startsWith('__reactProps'));
       const props = propsKey && element[propsKey]?.children?.props;
       if (props) {
@@ -6610,8 +6610,7 @@
     }
   };
 
-  // Central matching predicate shared by blocking and highlighting. Rule compilation
-  // (including combined regexes and flag handling) remains unchanged.
+  // Central matching predicate shared by blocking and highlighting.
   const matchesConfiguredTag = (tag, strings, regexps) =>
     strings.has(tag) || regexps.some(pattern => pattern.test(tag));
 
@@ -7130,7 +7129,7 @@
       // Re-process expanded view's artist bottom bar.
       const images = document.querySelectorAll(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE);
       for (const image of images) {
-        // These can be deferred with processNewElement() because these won't hidden even when blocked.
+        // These can be deferred with processNewElement() because they are not hidden even when blocked.
         processNewElement(doImage, image, { forced: true, skipArtistTag: true });
       }
 
@@ -7933,7 +7932,7 @@
   /** SENTINEL */
 
   waitPageLoaded().then(() => {
-    // A single reusable tooltip replaces Tippy's delegated per-element instances.
+    // A single reusable tooltip serves all elements through event delegation.
     if (CONFIG.ENABLE_FLOATING_TOOLTIPS) initFloatingTooltips();
 
     // Immediately attempt to cache user ID and/or CSRF token.
