@@ -3762,9 +3762,14 @@
     font-size: 11px;
     font-weight: 500;
   }
-  .pixiv-utils-edit-bookmark-panel .pixiv-utils-reload-button:hover {
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-reload-button:hover:not(:disabled) {
     border-color: var(--pixiv-utils-ui-accent);
     background: var(--pixiv-utils-ui-raised);
+  }
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-reload-button:disabled,
+  .pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-apply:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
   }
   .pixiv-utils-edit-bookmark-create {
     display: none;
@@ -3858,7 +3863,7 @@
     font: inherit;
     cursor: pointer;
   }
-  .pixiv-utils-alert button:hover { border-color: var(--pixiv-utils-ui-accent); }
+  .pixiv-utils-alert button:hover:not(:disabled) { border-color: var(--pixiv-utils-ui-accent); }
   .pixiv-utils-alert button:focus-visible { outline: 2px solid var(--pixiv-utils-ui-accent); outline-offset: 2px; }
   .pixiv-utils-alert button.pixiv-utils-alert-close {
     display: grid;
@@ -3892,7 +3897,7 @@
     background: var(--pixiv-utils-ui-accent) !important;
     color: HighlightText !important;
   }
-  .pixiv-utils-alert-ok:hover { filter: brightness(1.08); }
+  .pixiv-utils-alert-ok:hover:not(:disabled) { filter: brightness(1.08); }
   .pixiv-utils-alert-cancel { min-width: 76px; margin-right: 8px; padding: 7px 16px; }
   @media (max-width: 480px) {
     .pixiv-utils-alert { width: calc(100vw - 24px); max-width: calc(100vw - 24px); max-height: calc(100dvh - 32px); }
@@ -5941,7 +5946,12 @@
         headerRow.style.display = '';
         privacyContainer.style.display = '';
         // Fetch current assigned tags from bookmark_add.php (cached per session).
-        const state = await getBookmarkState(id, isNovel);
+        // The status spinner cleared once the tags rendered, so the reload
+        // button spinner marks this second fetch phase.
+        setButtonLoading(refreshButton, true);
+        const state = await getBookmarkState(id, isNovel).finally(() => {
+          setButtonLoading(refreshButton, false);
+        });
         if (state.isBookmarkable === false) {
           statusMessage.textContent = tr('editBookmark.saveFailed');
           applyButton.disabled = true;

@@ -552,6 +552,105 @@ describe('pixiv-utils edit bookmark', () => {
     expect(pixiv.console.error).toEqual([]);
   });
 
+  it('disables and styles the refresh and save buttons while fetching bookmark data', async () => {
+    if (!('showModal' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    }
+    if (!('close' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.close = function () { this.open = false; };
+    }
+
+    // Hold the tag list request in flight so the disabled state is observable.
+    let resolveTags;
+    const fetchMock = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('bookmark/tags')) {
+        return new Promise(resolve => { resolveTags = resolve; });
+      }
+      if (urlStr.includes('bookmarkData')) {
+        return { ok: true, json: async () => ({ body: { isBookmarkable: true, bookmarkData: { id: 'bm-1' } } }) };
+      }
+      if (urlStr.includes('bookmark_add.php')) {
+        return { ok: true, text: async () => '<input name="tag" value="foo">' };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const panel = await openPanelForCard(pixiv);
+    expect(panel).not.toBeNull();
+
+    const refreshButton = panel.querySelector('.pixiv-utils-reload-button');
+    const applyButton = panel.querySelector('.pixiv-utils-edit-bookmark-apply');
+    expect(refreshButton.disabled).toBe(true);
+    expect(applyButton.disabled).toBe(true);
+
+    // gmConfig-style disabled treatment, mirroring the settings panel buttons.
+    const css = pixiv.styles.join('\n');
+    expect(css).toContain('.pixiv-utils-edit-bookmark-panel .pixiv-utils-reload-button:disabled');
+    expect(css).toContain('.pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-apply:disabled');
+    expect(css).toContain('cursor: not-allowed');
+    expect(css).toContain('.pixiv-utils-reload-button:hover:not(:disabled)');
+    expect(css).toContain('.pixiv-utils-alert button:hover:not(:disabled)');
+    expect(css).toContain('.pixiv-utils-alert-ok:hover:not(:disabled)');
+
+    resolveTags({ ok: true, json: async () => ({ body: { tags: { public: [{ tag: 'foo', cnt: 2 }] } } }) });
+    await flush(8);
+
+    expect(refreshButton.disabled).toBe(false);
+    expect(applyButton.disabled).toBe(false);
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('shows the reload button spinner while fetching bookmark state after the tags load', async () => {
+    if (!('showModal' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    }
+    if (!('close' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.close = function () { this.open = false; };
+    }
+
+    // Tags resolve immediately; the bookmark data request stays in flight.
+    let resolveData;
+    const fetchMock = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('bookmark/tags')) {
+        return { ok: true, json: async () => ({ body: { tags: { public: [{ tag: 'foo', cnt: 2 }] } } }) };
+      }
+      if (urlStr.includes('bookmarkData')) {
+        return new Promise(resolve => { resolveData = resolve; });
+      }
+      if (urlStr.includes('bookmark_add.php')) {
+        return { ok: true, text: async () => '<input name="tag" value="foo">' };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const panel = await openPanelForCard(pixiv);
+    expect(panel).not.toBeNull();
+    await flush(2);
+
+    // Tags are rendered but inert while the bookmark state is still loading.
+    const status = panel.querySelector('.pixiv-utils-edit-bookmark-status');
+    const refreshButton = panel.querySelector('.pixiv-utils-reload-button');
+    const checkbox = panel.querySelector('.pixiv-utils-edit-bookmark-tag input[type="checkbox"]');
+    expect(status.classList.contains('is-loading')).toBe(false);
+    expect(checkbox).not.toBeNull();
+    expect(checkbox.disabled).toBe(true);
+    expect(refreshButton.classList.contains('is-loading')).toBe(true);
+
+    resolveData({ ok: true, json: async () => ({ body: { isBookmarkable: true, bookmarkData: null } }) });
+    await flush(8);
+
+    expect(refreshButton.classList.contains('is-loading')).toBe(false);
+    expect(refreshButton.disabled).toBe(false);
+    expect(panel.querySelector('.pixiv-utils-edit-bookmark-apply').disabled).toBe(false);
+    expect(pixiv.console.error).toEqual([]);
+  });
+
   it('bypasses the browser cache on every bookmark API request', async () => {
     if (!('showModal' in HTMLDialogElement.prototype)) {
       HTMLDialogElement.prototype.showModal = function () { this.open = true; };
