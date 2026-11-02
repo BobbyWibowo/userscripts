@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const BASE_URL = 'http://127.0.0.1:8080'
+const BASE_URL = 'http://127.0.0.1:8081'
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -32,7 +32,7 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command: 'npm run serve',
+    command: 'npx http-server -c-1 -p 8081',
     // Readiness probe only: any 2xx/3xx response counts.
     url: `${BASE_URL}/tests/fixtures/`,
     reuseExistingServer: !process.env.CI,
