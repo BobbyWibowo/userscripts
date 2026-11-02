@@ -168,5 +168,3 @@ describe('pixiv-utils edit bookmark', () => {
     expect(document.querySelector('.pixiv-utils-alert')).toBeNull();
   });
 });
-
-
