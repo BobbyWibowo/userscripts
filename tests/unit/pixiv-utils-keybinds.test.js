@@ -81,6 +81,50 @@ describe('pixiv-utils keybinds', () => {
     expect(clicks.count).toBe(1);
   });
 
+  it('ignores keybinds while a select control is focused', async () => {
+    document.body.innerHTML = `
+      <a aria-label="Next" href="/users/12345?p=2">Next</a>
+      <select id="field"><option>a</option></select>
+    `;
+
+    await loadPixivUtils({ url: '/users/12345' });
+
+    const next = document.querySelector('a[aria-label="Next"]');
+    const clicks = countClicks(next);
+    const field = document.querySelector('#field');
+
+    field.focus();
+    keydown('ArrowRight');
+
+    expect(clicks.count).toBe(0);
+
+    field.blur();
+    keydown('ArrowRight');
+
+    expect(clicks.count).toBe(1);
+  });
+
+  it('ignores keybinds during IME composition', async () => {
+    document.body.innerHTML = EDIT_BOOKMARK_MARKUP;
+
+    await loadPixivUtils();
+
+    const button = document.querySelector('.pixiv_utils_edit_bookmark');
+    const clicks = countClicks(button);
+
+    // Modern composition marker, and the legacy processed-IME key code.
+    keydown('B', { shiftKey: true, isComposing: true });
+    const legacyEvent = new KeyboardEvent('keydown', { key: 'B', shiftKey: true, bubbles: true, cancelable: true });
+    Object.defineProperty(legacyEvent, 'keyCode', { value: 229 });
+    document.dispatchEvent(legacyEvent);
+
+    expect(clicks.count).toBe(0);
+
+    keydown('B', { shiftKey: true });
+
+    expect(clicks.count).toBe(1);
+  });
+
   it('uses the artist page pagination links for arrow keys', async () => {
     document.body.innerHTML = `
       <a aria-label="Previous" href="/users/12345?p=1">Previous</a>

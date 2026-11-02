@@ -8101,9 +8101,15 @@
         return;
       }
 
-      // Ignore keybinds when currently focused to an input/textarea/editable element.
+      // Ignore keybinds during IME composition and when focused on an interactive
+      // control (input, textarea, select, or editable element).
+      if (event.isComposing || event.keyCode === 229) {
+        return;
+      }
+
       if (document.activeElement &&
-        (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable)) {
+        (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) ||
+          document.activeElement.isContentEditable)) {
         return;
       }
 
