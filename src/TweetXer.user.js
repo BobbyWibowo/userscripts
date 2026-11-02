@@ -521,6 +521,10 @@
     updateInfo (text) {
       const el = document.getElementById('info');
       if (el) el.textContent = text;
+      // Mirror into the fixed progress-bar container, which stays visible
+      // while the (non-sticky) banner scrolls away
+      const fixed = document.getElementById(`${this.dId}_progress_text`);
+      if (fixed) fixed.textContent = text;
     },
 
     // Fire-and-forget a long-running task, but surface unexpected failures
@@ -616,8 +620,9 @@
     // over the slot, i.e. right below the rest of the header; once the slot scrolls off the
     // top, the bar stays pinned to the top edge of the viewport.
     createProgressBar () {
-      const existing = document.getElementById('progressbar');
-      if (existing) existing.remove();
+      // Full cleanup (fixed container, banner slot, window listeners) first, so
+      // a new run can never stack empty bars at the top of the viewport.
+      this.removeProgressBar();
 
       const progressbar = document.createElement('progress');
       progressbar.id = 'progressbar';
@@ -625,10 +630,15 @@
       progressbar.max = this.total;
       progressbar.style.cssText = 'display:block;width:100%;height:8px;';
 
+      // Status text mirrored from the banner, so it stays visible while pinned
+      const info = document.createElement('span');
+      info.id = `${this.dId}_progress_text`;
+      info.style.cssText = 'display:block;color:black;font:12px/1.4 system-ui,sans-serif;padding-top:2px;';
+
       const bar = document.createElement('div');
       bar.id = `${this.dId}_progress`;
       bar.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;box-sizing:border-box;padding:4px 10%;background:#87CEFA;opacity:0.95;';
-      bar.appendChild(progressbar);
+      bar.append(progressbar, info);
       document.body.appendChild(bar);
 
       const slot = document.createElement('div');
