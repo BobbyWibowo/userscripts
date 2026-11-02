@@ -9,7 +9,7 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=dragontea.ink
 // @run-at       document-end
 // @grant        GM_getValue
-// @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
+// @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js#sha256-S8rx06n8uSoJCmTdVlxdMN8x+vDYoC+++ssWvEj4M6s=
 // @noframes
 // ==/UserScript==
 

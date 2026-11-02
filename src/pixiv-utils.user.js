@@ -24,10 +24,10 @@
 // @grant              GM_setValue
 // @grant              GM_registerMenuCommand
 // @grant              window.onurlchange
-// @require            https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js
-// @require            https://cdn.jsdelivr.net/npm/@floating-ui/core@1.8.0/dist/floating-ui.core.umd.min.js
-// @require            https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.8.0/dist/floating-ui.dom.umd.min.js
-// @require            https://cdn.jsdelivr.net/npm/@kobzi/gmconfig@1.0.0/dist/gmConfig.iife.js
+// @require            https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js#sha256-S8rx06n8uSoJCmTdVlxdMN8x+vDYoC+++ssWvEj4M6s=
+// @require            https://cdn.jsdelivr.net/npm/@floating-ui/core@1.8.0/dist/floating-ui.core.umd.min.js#sha256-ZZQNhmprbYMTlKS77ZntCjkzC6yYtkM4bZovh6Gh1do=
+// @require            https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.8.0/dist/floating-ui.dom.umd.min.js#sha256-YaRvlDxOmTeerwc0R4Ea7H6LjxINL2RjFuAbdpS8kKM=
+// @require            https://cdn.jsdelivr.net/npm/@kobzi/gmconfig@1.0.0/dist/gmConfig.iife.js#sha256-90flNl94y5/N3x9hsSqMvtK2Al5MCONYvD9PGiFDDtg=
 // @noframes
 // ==/UserScript==
 
