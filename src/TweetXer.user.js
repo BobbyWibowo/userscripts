@@ -85,6 +85,7 @@
     // a small dismissible prompt, and the banner opens via the userscript manager's menu.
     boot () {
       if (typeof GM_registerMenuCommand === 'function') {
+        if (this.running) return;
         GM_registerMenuCommand('Start TweetXer', () => this.init());
         GM_registerMenuCommand('Stop TweetXer', () => this.stop());
         this.showPrompt('TweetXer is installed but idle. To use it, open your userscript manager\'s menu and choose "Start TweetXer". Not using it? You can disable the script.');
@@ -96,6 +97,8 @@
     // Shows (or updates) the small info box. It doesn't remember being dismissed.
     showPrompt (text) {
       this.promptShowsError = false;
+      const existing = document.getElementById(this.promptId);
+      if (existing) existing.remove();
       let box = document.getElementById(this.promptId);
       if (!box) {
         box = document.createElement('div');
@@ -148,7 +151,7 @@
 
     // Opens the banner. Triggered by the userscript manager's "Start TweetXer" menu command.
     async init () {
-      if (this.starting || document.getElementById(this.dId)) return; // already starting or open
+      if (this.starting || this.running || document.getElementById(this.dId)) return; // already starting or open
       this.starting = true;
       try {
         this.baseUrl = `https://${window.location.hostname}`;
@@ -614,10 +617,7 @@
     // top, the bar stays pinned to the top edge of the viewport.
     createProgressBar () {
       const existing = document.getElementById('progressbar');
-      if (existing) {
-        existing.max = this.total;
-        return;
-      }
+      if (existing) existing.remove();
 
       const progressbar = document.createElement('progress');
       progressbar.id = 'progressbar';
