@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_LISTENER_COUNT,
+  PREBUILT_KEY,
   STARTED_LOG,
   cleanupPixivUtils,
+  createStorage,
   flush,
   loadFixture,
   loadPixivUtils
@@ -88,6 +90,30 @@ describe('pixiv-utils configuration error isolation', () => {
     expect(tagSelector).toContain('div.custom-tag-button');
   });
 
+  it('still combines a stored array of custom selectors with the built-ins', async () => {
+    const pixiv = await loadPixivUtils({
+      settings: { PIXIV_BLOCKED_TAGS: ['blocked-tag'], SELECTORS_TAG_BUTTON: ['div.custom-tag-a', 'div.custom-tag-b'] }
+    });
+
+    expect(pixiv.console.error).toEqual([]);
+
+    const tagSelector = pixiv.selectors().find(selector => String(selector).includes('tags_carousel'));
+    expect(tagSelector).toContain('div.custom-tag-a');
+    expect(tagSelector).toContain('div.custom-tag-b');
+  });
+
+  it('still combines a comma-separated multi-line custom selector string with the built-ins', async () => {
+    const pixiv = await loadPixivUtils({
+      settings: { PIXIV_BLOCKED_TAGS: ['blocked-tag'], SELECTORS_TAG_BUTTON: 'div.custom-tag-a,\ndiv.custom-tag-b' }
+    });
+
+    expect(pixiv.console.error).toEqual([]);
+
+    const tagSelector = pixiv.selectors().find(selector => String(selector).includes('tags_carousel'));
+    expect(tagSelector).toContain('div.custom-tag-a');
+    expect(tagSelector).toContain('div.custom-tag-b');
+  });
+
   it('skips an unparseable blocked-tag regex while valid rules still block', async () => {
     const pixiv = await loadPixivUtils({
       settings: { PIXIV_BLOCKED_TAGS: ['blocked-tag', ['(bad', 'i']] }
@@ -159,5 +185,42 @@ describe('pixiv-utils configuration error isolation', () => {
     // The eleven built-in sections plus the one valid custom section register
     // two callbacks each (parent and derived container).
     expect(pixiv.listeners).toHaveLength(DEFAULT_LISTENER_COUNT + 2);
+  });
+
+  it('reuses a valid pre-built selector cache without rebuilding', async () => {
+    const storage = createStorage();
+    const first = await loadPixivUtils({ storage });
+    expect(logMessages(first)).toContain('[Pixiv Utils]: CSS selectors have been pre-built and cached for future runs.');
+
+    const second = await loadPixivUtils({ storage });
+    expect(logMessages(second)).toContain('[Pixiv Utils]: Reusing cached pre-built CSS selectors.');
+    expect(logMessages(second)).not.toContain('[Pixiv Utils]: CSS selectors have been pre-built and cached for future runs.');
+    expect(second.console.error).toEqual([]);
+
+    // The cached selectors are the ones registered with sentinel.
+    expect(second.selectors().some(selector => String(selector).includes('data-ga4-label="thumbnail"'))).toBe(true);
+    expect(second.listeners).toHaveLength(DEFAULT_LISTENER_COUNT);
+  });
+
+  it('rejects a tampered pre-built selector cache and rebuilds', async () => {
+    const storage = createStorage();
+    await loadPixivUtils({ storage });
+
+    const cached = storage.values.get(PREBUILT_KEY);
+    cached.selectors.SELECTORS_IMAGE = 'div>>';
+
+    const pixiv = await loadPixivUtils({ storage });
+    expect(logMessages(pixiv)).not.toContain('[Pixiv Utils]: Reusing cached pre-built CSS selectors.');
+    expect(logMessages(pixiv)).toContain('[Pixiv Utils]: CSS selectors have been pre-built and cached for future runs.');
+    expect(pixiv.console.error).toEqual([]);
+
+    // The corrupt cached value never reaches a registered selector...
+    for (const selector of pixiv.selectors()) {
+      expect(String(selector)).not.toContain('div>>');
+    }
+
+    // ...and the built-in image selectors remain active.
+    expect(pixiv.selectors().some(selector => String(selector).includes('data-ga4-label="thumbnail"'))).toBe(true);
+    expect(pixiv.listeners).toHaveLength(DEFAULT_LISTENER_COUNT);
   });
 });

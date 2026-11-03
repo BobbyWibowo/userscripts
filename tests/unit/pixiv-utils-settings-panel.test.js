@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  PREBUILT_KEY,
   cleanupPixivUtils,
   flush,
   loadFixture,
@@ -79,8 +80,23 @@ const createFakeGmConfig = () => {
 
     async init (definitions, options) {
       this._options = options;
+      this._fields = {};
+      for (const [key, definition] of Object.entries(definitions)) {
+        this._fields[key] = { value: definition.default, definition };
+      }
+      await this._load();
       const reload = options.footerContent?.();
       if (reload) this._footer.appendChild(reload);
+    }
+
+    _vals () {
+      return Object.fromEntries(Object.entries(this._fields).map(([key, field]) => [key, field.value]));
+    }
+
+    _mark () {}
+
+    _json () {
+      return '';
     }
 
     async open () {
@@ -265,6 +281,25 @@ describe('settings panel session view memory', () => {
     expect(activeTabIndex(parts)).toBe(3);
     expect(parts.body.scrollTop).toBe(80);
     instances.at(-1).close();
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('saves one-selector-per-line input as an array of strings', async () => {
+    const { FakeGmConfig, instances } = createFakeGmConfig();
+    globalThis.gmConfig = FakeGmConfig;
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    await openSettings(pixiv);
+    const instance = instances.at(-1);
+
+    // Fresh installs store nothing; the selector textarea starts empty.
+    expect(instance._fields.SELECTORS_TAG_BUTTON.value).toBe('');
+
+    instance._fields.SELECTORS_TAG_BUTTON.value = 'div.custom-a\ndiv.custom-b';
+    await instance.save();
+
+    expect(pixiv.storage.values.get('SELECTORS_TAG_BUTTON')).toEqual(['div.custom-a', 'div.custom-b']);
+    expect(pixiv.storage.values.get(PREBUILT_KEY)).toBeNull();
     expect(pixiv.console.error).toEqual([]);
   });
 });
