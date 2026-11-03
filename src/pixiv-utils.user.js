@@ -180,6 +180,9 @@
       /* recommended users on home's illustrations tab */
       div:has(> div > div > div > a.gtm-illust-toppage-recommend-user-work[href*="artworks/"] img[src]),
 
+      /* recommended users on home's novels tab */
+      div:has(> div > div > div > div > a.gtm-novel-toppage-recommend-user-work[href*="/novel/"] img[src]),
+
       /* expanded view's artist sidebar */
       nav:not([style]) > div:has(
         a[href*="artworks/"] img[src],
@@ -330,7 +333,9 @@
       /* recommended users after following */
       body > div > div[style*="translateY"] ul li.inline-block,
       /* recommended users on home's illustrations tab */
-      ul > div:has(.gtm-illust-toppage-recommend-user-profile)
+      ul > div:has(.gtm-illust-toppage-recommend-user-profile),
+      /* recommended users on home's illustrations tab */
+      ul > div:has(.gtm-novel-toppage-recommend-user-profile)
     `,
 
     SELECTORS_TAG_BUTTON: /*css*/`
@@ -5204,7 +5209,9 @@
   /* recommended users after following */
   body > div > div[style*="translateY"] ul li.inline-block > div > div > div:has(a[href*="artworks/"] img[src]),
   /* recommended users on home's illustrations tab */
-  div:has(> div > div > div > a.gtm-illust-toppage-recommend-user-work[href*="artworks/"] img[src]) {
+  div:has(> div > div > div > a.gtm-illust-toppage-recommend-user-work[href*="artworks/"] img[src]),
+  /* recommended users on home's novels tab */
+  div:has(> div > div > div > div > a.gtm-novel-toppage-recommend-user-work[href*="/novel/"] img[src]) {
     &[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
       border-radius: 0;
     }

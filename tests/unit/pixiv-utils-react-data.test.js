@@ -372,4 +372,28 @@ describe('pixiv-utils React artwork data extraction', () => {
     expect(isBlocked(card)).toBe(true);
     expect(overlayOf(card)).not.toBeNull();
   });
+
+  it('covers the novels top page recommended users with a structural selector', async () => {
+    const pixiv = await loadPixivUtils();
+
+    // Registration: the normalized desktop SELECTORS_IMAGE preset includes the
+    // novels top page recommended-users entry (structural, no sc- hashes).
+    const registered = pixiv.selectors().flatMap(selector => String(selector).split(','));
+    const novelSelector = registered
+      .map(selector => selector.trim())
+      .find(selector => selector.includes('gtm-novel-toppage-recommend-user-work'));
+    expect(novelSelector).toBeDefined();
+
+    // Matching: the live-observed 4-div wrapper chain around the cover link.
+    document.body.innerHTML = `
+      <section>
+        <div class="artist-block"><div class="per-work"><div><div><div><div>
+          <a class="gtm-novel-toppage-recommend-user-work" data-gtm-user-id="71611452" href="/novel/show.php?id=28710210"><img src="cover.jpg" alt=""></a>
+        </div></div></div></div></div>
+      </section>`;
+    const wrapper = document.querySelector('.per-work');
+
+    expect(wrapper.matches(novelSelector)).toBe(true);
+    expect(document.querySelector(novelSelector)).toBe(wrapper);
+  });
 });
