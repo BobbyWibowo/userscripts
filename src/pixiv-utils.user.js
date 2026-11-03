@@ -2101,18 +2101,42 @@
 
   const _prebuilt = GM_getValue(_PREBUILT_KEY, null);
   // A hand-edited cache can hold syntactically invalid selectors; reject it
-  // so the build path below re-validates and isolates them.
-  const isCachedSelectorValid = value => typeof value === 'string' && isSelectorValid(value);
-  const isCachedSectionValid = section => section && typeof section === 'object' && !Array.isArray(section) &&
-    ['selectorParent', 'selectorHeader', 'selectorImagesContainer'].every(field =>
-      isSelectorValid(normalizeSelectorList(section[field])));
+  // so the build path below re-validates and isolates them. On a cache hit
+  // this is the only validation pass selector settings get on a page load.
+  // Normalize a section's selector fields without validating them. Shared by
+  // the pre-built cache read path (which only needs comparable strings) and
+  // normalizeSection().
+  const normalizeSectionFields = section => {
+    if (section === null || typeof section !== 'object' || Array.isArray(section)) return section;
+    const result = { ...section };
+    for (const selectorKey of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
+      if (Object.prototype.hasOwnProperty.call(result, selectorKey)) {
+        result[selectorKey] = normalizeSelectorList(result[selectorKey]);
+      }
+    }
+    return result;
+  };
+
+  // Normalize and validate a section in a single pass; null when the section
+  // or any of its selector fields is missing, empty, or invalid.
+  const normalizeSection = section => {
+    const result = normalizeSectionFields(section);
+    if (!result || typeof result !== 'object' || Array.isArray(result)) return null;
+    const valid = ['selectorParent', 'selectorHeader', 'selectorImagesContainer'].every(field =>
+      typeof result[field] === 'string' && result[field] !== '' && isSelectorValid(result[field]));
+    return valid ? result : null;
+  };
+
+  // Cache probe: normalize first so hand-edited multi-line or commented
+  // selectors are judged on their parsed form.
+  const isValidSection = section => normalizeSection(section) !== null;
   const _prebuiltValid = !_debugMode && Boolean(_prebuilt) && typeof _prebuilt === 'object' && !Array.isArray(_prebuilt) &&
     _prebuilt.version === GM_info.script.version &&
     _prebuilt.selectors && typeof _prebuilt.selectors === 'object' && !Array.isArray(_prebuilt.selectors) &&
     _selectorKeys.every(key => Object.prototype.hasOwnProperty.call(_prebuilt.selectors, key)) &&
     _selectorKeys.every(key => key === 'SECTIONS_TOGGLE_BOOKMARKED'
-      ? Array.isArray(_prebuilt.selectors[key]) && _prebuilt.selectors[key].every(isCachedSectionValid)
-      : isCachedSelectorValid(_prebuilt.selectors[key]));
+      ? Array.isArray(_prebuilt.selectors[key]) && _prebuilt.selectors[key].every(isValidSection)
+      : typeof _prebuilt.selectors[key] === 'string' && isSelectorValid(_prebuilt.selectors[key]));
   const _prebuiltSelectors = _prebuiltValid ? _prebuilt.selectors : null;
 
   for (const key of Object.keys(ENV)) {
@@ -2124,16 +2148,7 @@
           ? storedSections.map(storedSection => {
             const result = { ...storedSection };
             if (Array.isArray(PRESETS[key])) {
-              const normalizedPresets = PRESETS[key].map(presetSection => {
-                if (!presetSection || typeof presetSection !== 'object' || Array.isArray(presetSection)) return presetSection;
-                const normalized = { ...presetSection };
-                for (const selectorKey of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
-                  if (Object.prototype.hasOwnProperty.call(normalized, selectorKey)) {
-                    normalized[selectorKey] = normalizeSelectorList(normalized[selectorKey]);
-                  }
-                }
-                return normalized;
-              });
+              const normalizedPresets = PRESETS[key].map(normalizeSectionFields);
               const match = normalizedPresets.find(presetSection =>
                 presetSection && typeof presetSection === 'object' && !Array.isArray(presetSection) &&
                 presetSection.selectorParent === result.selectorParent &&
@@ -2172,27 +2187,21 @@
       }
     } else if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
       // Selectors may be written as multi-line template literals, just like SELECTORS_.
-      // Normalize every selector field into a single-line selector string, while
-      // preserving any extra properties (e.g. sanityCheck).
-      const normalizeSection = section => {
-        if (section === null || typeof section !== 'object' || Array.isArray(section)) return section;
-        const result = { ...section };
-        for (const selectorKey of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
-          if (Object.prototype.hasOwnProperty.call(result, selectorKey)) {
-            result[selectorKey] = normalizeSelectorList(result[selectorKey]);
-          }
-        }
-        return result;
-      };
-      const presetSections = Array.isArray(PRESETS[key]) ? PRESETS[key].map(normalizeSection) : PRESETS[key];
+      // normalizeSection() normalizes and validates every field in a single pass
+      // while preserving extra properties (e.g. sanityCheck); invalid sections
+      // are dropped here, and runtime registration trusts CONFIG.
+      const presetSections = Array.isArray(PRESETS[key])
+        ? PRESETS[key].map(normalizeSection).filter((section, index) => {
+          if (section) return true;
+          console.error(`[Pixiv Utils]: ${key} preset section ${index} contains an invalid selector and was ignored. Stored value =`, PRESETS[key][index]);
+          return false;
+        })
+        : PRESETS[key];
       if (Array.isArray(ENV[key])) {
         const customSections = [];
         ENV[key].forEach((section, index) => {
           const normalized = normalizeSection(section);
-          const valid = normalized && typeof normalized === 'object' && !Array.isArray(normalized) &&
-            ['selectorParent', 'selectorHeader', 'selectorImagesContainer'].every(field =>
-              isSelectorValid(normalizeSelectorList(normalized[field])));
-          if (valid) {
+          if (normalized) {
             customSections.push(normalized);
           } else {
             console.error(`[Pixiv Utils]: ${key} section ${index} contains an invalid selector and was ignored. Stored value =`, section);
@@ -2783,9 +2792,10 @@
     }
     if (key === 'FLOATING_TOOLTIPS_OPTIONS') return JSON.parse(value);
     if (key.startsWith('SELECTORS_')) {
-      return Array.isArray(previous)
-        ? value.split('\n').map(s => s.trim()).filter(Boolean)
-        : value || null;
+      // Always persist the line-separated textarea as an array; boot joins the
+      // entries with commas, and plain string values stay supported for hand
+      // edits made outside the settings panel.
+      return value.split('\n').map(s => s.trim()).filter(Boolean);
     }
     return value;
   };
@@ -4829,14 +4839,19 @@
 
   /** MAIN STYLES **/
 
-  const formatChildSelector = (parentSelector, childSelector) =>
-    splitSelectorList(childSelector).map(selector => {
+  const formatChildSelectorList = (parentSelector, childSelector) => {
+    const parent = normalizeSelectorList(parentSelector);
+    return splitSelectorList(childSelector).map(selector => {
       const child = selector.startsWith('&') ? selector.slice(1).trimStart() : selector;
-      return `:is(${normalizeSelectorList(parentSelector)})${child ? ` ${child}` : ''}`;
-    }).join(', ');
+      return `:is(${parent})${child ? ` ${child}` : ''}`;
+    });
+  };
+
+  const formatChildSelector = (parentSelector, childSelector) =>
+    formatChildSelectorList(parentSelector, childSelector).join(', ');
 
   const _FORMATTED_SELECTORS_MULTI_VIEW_CONTROLS =
-    splitSelectorList(formatChildSelector(CONFIG.SELECTORS_MULTI_VIEW, CONFIG.SELECTORS_MULTI_VIEW_CONTROLS));
+    formatChildSelectorList(CONFIG.SELECTORS_MULTI_VIEW, CONFIG.SELECTORS_MULTI_VIEW_CONTROLS);
 
   const SELECTORS_IMAGE_HIGHLIGHTED =
     ':not(.page-count, [size="16"], [size="24"]):has(> img:not([src^="data"]))::after';
@@ -8025,24 +8040,10 @@
       processNewElement(doMultiView, element, { isHome });
     });
 
-    // Toggle Bookmarked Sections
+    // Toggle Bookmarked Sections. Their selectors were normalized and validated
+    // once at boot (cache check or build path), so registration trusts CONFIG.
     if (CONFIG.ENABLE_TOGGLE_BOOKMARKED) {
       for (const sectionConfig of CONFIG.SECTIONS_TOGGLE_BOOKMARKED) {
-        let configValid = true;
-        for (const key of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
-          // Parse multi-line template literals/comments into a single-line selector.
-          sectionConfig[key] = normalizeSelectorList(sectionConfig[key]);
-          if (!sectionConfig[key] || !isSelectorValid(sectionConfig[key])) {
-            console.error(`[Pixiv Utils]: SECTIONS_TOGGLE_BOOKMARKED contains invalid runtime ${key}:`, sectionConfig[key]);
-            configValid = false;
-            break;
-          }
-        }
-
-        if (!configValid) {
-          continue;
-        }
-
         sentinel.on(sectionConfig.selectorParent, element => {
           doToggleBookmarkedSection(element, sectionConfig);
         });
