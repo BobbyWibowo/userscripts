@@ -6412,58 +6412,77 @@
     if (target.userName === null && typeof name === 'string' && name) target.userName = name;
   };
 
+  // Live React cards carry the artwork data in one of these props on a fiber
+  // near the card element (verified on bookmark, home, ranking, profile,
+  // search, novel and following-collections pages). Ranking's legacy
+  // `content` uses snake_case fields; the other pages use camelCase
+  // `thumbnail`/`rawThumbnail`. Collection cards thread the collection object
+  // through an array child's props. The identity check rejects lookalike
+  // props such as unrelated `content`.
+  const reactPixivDataSource = props => {
+    if (!props || typeof props !== 'object') return null;
+
+    for (const key of ['thumbnail', 'rawThumbnail', 'content', 'work']) {
+      const source = props[key];
+      if (source && typeof source === 'object' &&
+        (source.id ?? source.illust_id ?? source.workId) != null) {
+        return source;
+      }
+    }
+
+    if (Array.isArray(props.children)) {
+      for (const child of props.children) {
+        const collection = child?.props?.collection;
+        if (collection && typeof collection === 'object' &&
+          (collection.id ?? collection.illust_id ?? collection.workId) != null) {
+          return collection;
+        }
+      }
+    }
+    return null;
+  };
+
+  // The card's own fiber subtree carries the source within a few levels
+  // (depth 1-2 down on every verified page); home's collection cards carry it
+  // up to three ancestor levels up instead. Down takes priority: descendant
+  // metadata identifies the artwork's artist more reliably than ancestors.
+  const findReactPixivSource = element => {
+    const fiberKey = Object.keys(element).find(key => key.startsWith('__reactFiber'));
+    if (!fiberKey) return null;
+
+    const MAX_STEPS = 5;
+    let fiber = element[fiberKey];
+    let steps = 0;
+
+    while (fiber && steps < MAX_STEPS) {
+      const source = reactPixivDataSource(fiber.memoizedProps);
+      if (source) return source;
+      fiber = fiber.child;
+      steps += 1;
+    }
+
+    const MAX_UP_STEPS = 3;
+    let ancestor = element[fiberKey].return;
+    let up = 0;
+
+    while (ancestor && up < MAX_UP_STEPS) {
+      const source = reactPixivDataSource(ancestor.memoizedProps);
+      if (source) return source;
+      ancestor = ancestor.return;
+      up += 1;
+    }
+    return null;
+  };
+
   const extractArtistMetadata = element => {
     const artist = { userId: null, userName: null };
     if (element.__vue__) {
       readArtistMetadata(element.__vue__._props?.item, artist);
       readArtistMetadata(element.__vue__._props?.illustDetails, artist);
     } else {
-      // React view: the card's own React props carry artist fields under rawThumbnail/thumbnail/work.
-      const propsKey = Object.keys(element).find(k => k.startsWith('__reactProps'));
-      const props = propsKey && element[propsKey]?.children?.props;
-      if (props) {
-        for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
-          readArtistMetadata(props[key], artist);
-          if (artist.userId !== null && artist.userName !== null) break;
-        }
-      }
+      readArtistMetadata(findReactPixivSource(element), artist);
     }
     return artist;
-  };
-
-  const reactPixivDataSource = props => {
-    const children = props.children;
-    const sources = [];
-    const nestedChildren = children?.props?.children;
-
-    if (props.tags) sources.push(props);
-    if (props.content?.tags) sources.push(props.content);
-    if (props.content?.thumbnails?.length) sources.push(props.content.thumbnails[0]);
-    for (const key of ['rawThumbnail', 'thumbnail', 'work']) {
-      if (props[key]) sources.push(props[key]);
-    }
-
-    if (Array.isArray(nestedChildren)) {
-      for (const child of nestedChildren) {
-        if (child?.props?.thumbnail) sources.push(child.props.thumbnail);
-      }
-    }
-
-    if (Array.isArray(children)) {
-      for (const child of children) {
-        const childProps = child?.props;
-        const nestedProps = childProps?.children?.props;
-        if (childProps?.collection) sources.push(childProps.collection);
-        else if (nestedProps?.workId && nestedProps?.workType) sources.push(nestedProps);
-      }
-    } else if (children) {
-      if (children.props?.thumbnail) sources.push(children.props.thumbnail);
-      const content = children.props?.content;
-      if (content?.thumbnails?.length) sources.push(content.thumbnails[0]);
-      else if (content) sources.push(content);
-    }
-
-    return sources.find(source => source && typeof source === 'object') || null;
   };
 
   const readVuePixivData = (source, data, detailsLoaded) => {
@@ -6486,7 +6505,9 @@
   };
 
   const normalizePixivWorkType = type => {
-    if (type === 'novel') return 'novel';
+    // Ranking cards expose the legacy numeric illust_type (0/1 = illust/manga,
+    // 2 = novel) instead of a string.
+    if (type === 'novel' || type === 2 || type === '2') return 'novel';
     if (type === 'collection' || type === 'collections') return 'collections';
     return 'illust';
   };
@@ -6522,48 +6543,28 @@
         }
       }
     } else {
-      const reactFiberKey = Object.keys(element).find(k => k.startsWith('__reactFiber'));
-      if (reactFiberKey) {
-        const MAX_STEPS = 5;
+      const source = findReactPixivSource(element);
 
-        let step = 0;
-        const traverseChild = obj => {
-          if (!obj || !obj.memoizedProps) return;
+      if (source) {
+        const id = source.id ?? source.illust_id ?? source.workId;
+        const type = normalizePixivWorkType(source.type ?? source.workType ?? source.kind ?? source.illust_type);
+        const cached = id == null ? null : PIXIV_DATA_CACHE.get(`${type}:${id}`);
+        if (cached) {
+          Object.assign(data, cached);
+          return data;
+        }
 
-          step++;
+        readArtistMetadata(source, data);
+        if (id != null) data.id = String(id);
+        if (source.title != null) data.title = source.title;
+        data.ai = source.aiType == null ? null : source.aiType === 2;
+        data.type = type;
+        data.tags = source.tags ?? null;
 
-          const props = obj.memoizedProps;
-          const source = reactPixivDataSource(props);
-
-          if (source) {
-            const id = source.id ?? source.illust_id ?? source.workId;
-            const type = normalizePixivWorkType(source.type ?? source.workType ?? source.kind);
-            const cached = id == null ? null : PIXIV_DATA_CACHE.get(`${type}:${id}`);
-            if (cached) {
-              Object.assign(data, cached);
-              return true;
-            }
-
-            readArtistMetadata(source, data);
-            if (id != null) data.id = String(id);
-            if (source.title != null) data.title = source.title;
-            data.ai = source.aiType == null ? null : source.aiType === 2;
-            data.type = type;
-            data.tags = source.tags ?? null;
-
-            const date = Number.isFinite(source.illust_upload_timestamp)
-              ? (source.illust_upload_timestamp * 1000)
-              : source.createDate;
-            if (date !== undefined) data.createDate = formatArtworkDate(date);
-          }
-
-          // Source metadata identifies the artwork's artist more reliably than
-          // ancestor props, which can refer to a different user.
-          if (data.userId === null || data.userName === null) readArtistMetadata(props, data);
-          return data.tags === null && step < MAX_STEPS && traverseChild(obj.child);
-        };
-
-        if (traverseChild(element[reactFiberKey])) return data;
+        const date = Number.isFinite(source.illust_upload_timestamp)
+          ? (source.illust_upload_timestamp * 1000)
+          : source.createDate;
+        if (date !== undefined) data.createDate = formatArtworkDate(date);
       }
     }
 
