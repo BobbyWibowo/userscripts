@@ -23,6 +23,7 @@
 // @grant              GM_listValues
 // @grant              GM_setValue
 // @grant              GM_registerMenuCommand
+// @grant              GM_unregisterMenuCommand
 // @grant              unsafeWindow
 // @grant              window.onurlchange
 // @require            https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js#sha256-S8rx06n8uSoJCmTdVlxdMN8x+vDYoC+++ssWvEj4M6s=
@@ -614,7 +615,8 @@
   // UI preferences are read straight from storage at their consumption sites.
   const preferenceValidators = {
     PREF_TOGGLE_BOOKMARKED_MODE: value => [0, 1, 2].includes(value),
-    PREF_EDIT_BOOKMARK_SORT_REVERSED: value => typeof value === 'boolean'
+    PREF_EDIT_BOOKMARK_SORT_REVERSED: value => typeof value === 'boolean',
+    PREF_TOGGLE_BLOCKED: value => typeof value === 'boolean'
   };
   for (const [key, isValid] of Object.entries(preferenceValidators)) {
     if (!existingKeys.has(key)) continue;
@@ -852,6 +854,8 @@
       'action.reset': 'Reset',
       'action.importExport': 'Import / Export',
       'action.close': 'Close',
+      'action.showBlockedItems': 'Show blocked items',
+      'action.hideBlockedItems': 'Hide blocked items',
       'message.save': 'Settings saved. Reload the page to apply changes.',
       'message.reset': 'Settings reset. Reload the page to apply changes.',
       'message.resetConfirm': 'Reset all settings to their defaults?',
@@ -859,6 +863,8 @@
       'message.validation': '{key}: {error}',
       'message.discardChanges': 'Discard unsaved changes?',
       'toast.cachesCleared': 'Caches cleared ✓',
+      'toast.blockedItemsShown': 'Blocked items are now visible ✓',
+      'toast.blockedItemsHidden': 'Blocked items are now hidden ✓',
       'validation.object': 'Expected a JSON object.',
       'validation.arrayNull': 'Expected an array or null.',
       'validation.arrayObjects': 'Expected an array of objects.',
@@ -1100,6 +1106,8 @@
       'action.reset': 'リセット',
       'action.importExport': 'インポート／エクスポート',
       'action.close': '閉じる',
+      'action.showBlockedItems': 'ブロックした作品を表示',
+      'action.hideBlockedItems': 'ブロックした作品を非表示',
       'message.save': '設定を保存しました。反映するにはページを再読み込みしてください。',
       'message.reset': '設定をリセットしました。反映するにはページを再読み込みしてください。',
       'message.resetConfirm': 'すべての設定を既定値に戻しますか？',
@@ -1107,6 +1115,8 @@
       'message.validation': '{key}：{error}',
       'message.discardChanges': '未保存の変更を破棄しますか？',
       'toast.cachesCleared': 'キャッシュを消去しました ✓',
+      'toast.blockedItemsShown': 'ブロックした作品を表示しました ✓',
+      'toast.blockedItemsHidden': 'ブロックした作品を非表示にしました ✓',
       'validation.object': 'JSON オブジェクトを指定してください。',
       'validation.arrayNull': '配列または null を指定してください。',
       'validation.arrayObjects': 'オブジェクトの配列を指定してください。',
@@ -1348,6 +1358,8 @@
       'action.reset': '重置',
       'action.importExport': '导入／导出',
       'action.close': '关闭',
+      'action.showBlockedItems': '显示已屏蔽的作品',
+      'action.hideBlockedItems': '隐藏已屏蔽的作品',
       'message.save': '设置已保存。请重新加载页面以应用更改。',
       'message.reset': '设置已重置。请重新加载页面以应用更改。',
       'message.resetConfirm': '确定要将所有设置恢复为默认值吗？',
@@ -1355,6 +1367,8 @@
       'message.validation': '{key}：{error}',
       'message.discardChanges': '要放弃未保存的更改吗？',
       'toast.cachesCleared': '缓存已清除 ✓',
+      'toast.blockedItemsShown': '已显示屏蔽的作品 ✓',
+      'toast.blockedItemsHidden': '已隐藏屏蔽的作品 ✓',
       'validation.object': '应提供 JSON 对象。',
       'validation.arrayNull': '应提供数组或 null。',
       'validation.arrayObjects': '应提供对象数组。',
@@ -1596,6 +1610,8 @@
       'action.reset': '重設',
       'action.importExport': '匯入／匯出',
       'action.close': '關閉',
+      'action.showBlockedItems': '顯示已封鎖的作品',
+      'action.hideBlockedItems': '隱藏已封鎖的作品',
       'message.save': '設定已儲存。請重新載入頁面以套用更改。',
       'message.reset': '設定已重設。請重新載入頁面以套用更改。',
       'message.resetConfirm': '確定將所有設定恢復至預設值？',
@@ -1603,6 +1619,8 @@
       'message.validation': '{key}：{error}',
       'message.discardChanges': '捨棄未儲存的更改？',
       'toast.cachesCleared': '已清除快取 ✓',
+      'toast.blockedItemsShown': '封鎖的作品現已顯示 ✓',
+      'toast.blockedItemsHidden': '封鎖的作品現已隱藏 ✓',
       'validation.object': '必須提供 JSON 物件。',
       'validation.arrayNull': '必須提供數組或 null。',
       'validation.arrayObjects': '必須提供物件數組。',
@@ -1844,6 +1862,8 @@
       'action.reset': '重設',
       'action.importExport': '匯入／匯出',
       'action.close': '關閉',
+      'action.showBlockedItems': '顯示遭封鎖的作品',
+      'action.hideBlockedItems': '隱藏遭封鎖的作品',
       'message.save': '設定已儲存。請重新載入頁面以套用變更。',
       'message.reset': '設定已重設。請重新載入頁面以套用變更。',
       'message.resetConfirm': '確定要將所有設定還原為預設值嗎？',
@@ -1851,6 +1871,8 @@
       'message.validation': '{key}：{error}',
       'message.discardChanges': '要捨棄尚未儲存的變更嗎？',
       'toast.cachesCleared': '快取已清除 ✓',
+      'toast.blockedItemsShown': '已顯示遭封鎖的作品 ✓',
+      'toast.blockedItemsHidden': '已隱藏遭封鎖的作品 ✓',
       'validation.object': '應提供 JSON 物件。',
       'validation.arrayNull': '應提供陣列或 null。',
       'validation.arrayObjects': '應提供物件陣列。',
@@ -6940,6 +6962,166 @@
     return skipReason;
   };
 
+  /** MODERATION BLOCK TOGGLE **/
+
+  // Blocked items can be revealed on demand. Revealing only undoes the visual
+  // hiding; the moderation verdict stays on the tooltip so the user can still
+  // see why an item was blocked.
+  //
+  // Three hiding mechanisms are in use:
+  //   - overlay: the original thumbnail is hidden by a CSS sibling rule and a
+  //     placeholder is inserted after it.
+  //   - inline:  the element is hidden with an inline `display: none !important`.
+  //   - blur:    the element is marked so CSS blurs the artwork.
+  //
+  // `moderationTargets` remembers how each target was hidden, so the change can
+  // be undone and redone. The `data-pixiv_utils_moderation_blocked` marker
+  // stays on the target while it is revealed, because the visible
+  // `data-pixiv_utils_blocked` marker is removed when an image is revealed.
+  const moderationTargets = new WeakMap();
+  const MODERATION_BLOCKED_SELECTOR = '[data-pixiv_utils_moderation_blocked]';
+
+  let blockedItemsRevealed = GM_getValue('PREF_TOGGLE_BLOCKED', false) === true;
+
+  const isModerationBlocked = element =>
+    element?.dataset.pixiv_utils_moderation_blocked === 'true';
+
+  const markModerationBlocked = (element, record) => {
+    element.dataset.pixiv_utils_moderation_blocked = 'true';
+    moderationTargets.set(element, record);
+  };
+
+  const restoreModerationDisplay = (element, record) => {
+    if (!record) return;
+    if (record.previousDisplay) {
+      element.style.setProperty('display', record.previousDisplay, record.previousPriority || '');
+    } else {
+      element.style.removeProperty('display');
+    }
+  };
+
+  // Hide an element with an inline rule, remembering the display value it had
+  // before. The first recorded value wins, so re-blocking an already blocked
+  // element cannot record the hidden value as the original one.
+  const hideElementByModeration = element => {
+    const existing = moderationTargets.get(element);
+    const previousDisplay = existing?.previousDisplay ??
+      element.style.getPropertyValue('display');
+    const previousPriority = existing?.previousPriority ??
+      element.style.getPropertyPriority('display');
+
+    element.style.setProperty('display', 'none', 'important');
+    markModerationBlocked(element, {
+      mode: 'inline',
+      previousDisplay,
+      previousPriority
+    });
+  };
+
+  const createBlockedOverlay = link => {
+    const blockedThumb = document.createElement('a');
+    blockedThumb.className = 'pixiv_utils_blocked_image_container';
+    blockedThumb.href = link.href;
+    blockedThumb.innerHTML = BLOCKED_IMAGE_HTML;
+    addSpaNavigation(blockedThumb);
+    return blockedThumb;
+  };
+
+  // Undo the visual hiding of a blocked target. The moderation marker stays so
+  // the target can be found again and re-blocked later.
+  const revealModerationBlock = element => {
+    const record = moderationTargets.get(element);
+    if (!record) return false;
+
+    if (record.mode === 'overlay') {
+      element.querySelector('.pixiv_utils_blocked_image_container')?.remove();
+      delete element.dataset.pixiv_utils_blocked;
+    } else if (record.mode === 'inline') {
+      restoreModerationDisplay(element, record);
+      delete element.dataset.pixiv_utils_blocked;
+    } else if (record.mode === 'blur') {
+      delete element.dataset.pixiv_utils_expanded_view_blocked;
+    }
+
+    return true;
+  };
+
+  // Redo the visual hiding of a previously revealed target.
+  const reapplyModerationBlock = element => {
+    const record = moderationTargets.get(element);
+    if (!record) return false;
+
+    if (record.mode === 'overlay') {
+      element.dataset.pixiv_utils_blocked = true;
+      if (!element.querySelector('.pixiv_utils_blocked_image_container')) {
+        // The original link may have been replaced by Pixiv in the meantime.
+        const link = record.link?.isConnected
+          ? record.link
+          : Array.from(element.querySelectorAll('a[href]'))
+            .find(anchor => anchor.href === record.href);
+        if (link) link.after(createBlockedOverlay(link));
+      }
+    } else if (record.mode === 'inline') {
+      element.style.setProperty('display', 'none', 'important');
+    } else if (record.mode === 'blur') {
+      element.dataset.pixiv_utils_expanded_view_blocked = true;
+    }
+
+    return true;
+  };
+
+  // Forget a blocked target entirely, so it can be processed again from
+  // scratch. Used when an element is re-evaluated.
+  const clearModerationBlock = element => {
+    const record = moderationTargets.get(element);
+    if (record?.mode === 'inline') restoreModerationDisplay(element, record);
+
+    moderationTargets.delete(element);
+    delete element.dataset.pixiv_utils_moderation_blocked;
+    delete element.dataset.pixiv_utils_blocked;
+    delete element.dataset.pixiv_utils_expanded_view_blocked;
+    element.querySelector('.pixiv_utils_blocked_image_container')?.remove();
+  };
+
+  const setBlockedItemsRevealed = revealed => {
+    blockedItemsRevealed = Boolean(revealed);
+    GM_setValue('PREF_TOGGLE_BLOCKED', blockedItemsRevealed);
+
+    for (const element of document.querySelectorAll(MODERATION_BLOCKED_SELECTOR)) {
+      if (blockedItemsRevealed) revealModerationBlock(element);
+      else reapplyModerationBlock(element);
+    }
+  };
+
+  let toggleBlockedMenuCommandId = null;
+
+  const toggleBlockedItems = () => {
+    setBlockedItemsRevealed(!blockedItemsRevealed);
+    updateToggleBlockedMenuCommand();
+    showToast(
+      tr(blockedItemsRevealed ? 'toast.blockedItemsShown' : 'toast.blockedItemsHidden'),
+      { primary: true }
+    );
+  };
+
+  const updateToggleBlockedMenuCommand = () => {
+    const label = blockedItemsRevealed
+      ? `🙈 ${tr('action.hideBlockedItems')}`
+      : `👁️ ${tr('action.showBlockedItems')}`;
+
+    if (toggleBlockedMenuCommandId !== null) {
+      // Without the API the label cannot change, so the command is kept as is
+      // instead of registering a second, redundant entry.
+      if (typeof GM_unregisterMenuCommand !== 'function') return;
+      GM_unregisterMenuCommand(toggleBlockedMenuCommandId);
+      toggleBlockedMenuCommandId = null;
+    }
+
+    toggleBlockedMenuCommandId = GM_registerMenuCommand(label, toggleBlockedItems);
+  };
+
+  updateToggleBlockedMenuCommand();
+
   const setImageBlocked = (element, options = {}) => {
     // Skip if already blocked (check for element due to possibility of dynamic update).
     const alreadyBlocked = element.querySelector('.pixiv_utils_blocked_image_container');
@@ -6956,20 +7138,30 @@
     }
 
     // For mobile, never remove blocked, as it does not behave well with Pixiv's in-place navigation.
-    if (options.remove && !options.mobile) {
-      element.style.setProperty('display', 'none', 'important');
-      return true;
+    const useInline = Boolean(options.remove && !options.mobile);
+    const existing = moderationTargets.get(element);
+
+    // Undo a hide of the other kind, so only one mechanism is ever active.
+    if (existing?.mode === 'inline' && !useInline) {
+      restoreModerationDisplay(element, existing);
+    }
+    if (existing?.mode === 'overlay' && useInline) {
+      element.querySelector('.pixiv_utils_blocked_image_container')?.remove();
     }
 
-    if (!alreadyBlocked) {
-      const blockedThumb = document.createElement('a');
-      blockedThumb.className = 'pixiv_utils_blocked_image_container';
-      blockedThumb.href = options.link.href;
-      blockedThumb.innerHTML = BLOCKED_IMAGE_HTML;
-      addSpaNavigation(blockedThumb);
+    if (useInline) {
+      hideElementByModeration(element);
+    } else {
+      markModerationBlocked(element, { mode: 'overlay', link: options.link, href: options.link?.href });
 
-      options.link.after(blockedThumb);
+      // The placeholder is not needed while blocked items are revealed.
+      if (!alreadyBlocked && !blockedItemsRevealed) {
+        options.link.after(createBlockedOverlay(options.link));
+      }
     }
+
+    // Reveal immediately when blocked items are currently shown.
+    if (blockedItemsRevealed) revealModerationBlock(element);
 
     return true;
   };
@@ -7095,13 +7287,9 @@
     }
 
     // Skip if already blocked, unless forced.
-    if (element.dataset.pixiv_utils_blocked) {
+    if (element.dataset.pixiv_utils_blocked || isModerationBlocked(element)) {
       if (options.forced) {
-        delete element.dataset.pixiv_utils_blocked;
-        const blockedThumb = element.querySelector('.pixiv_utils_blocked_image_container');
-        if (blockedThumb) {
-          blockedThumb.remove();
-        }
+        clearModerationBlock(element);
       } else {
         return false;
       }
@@ -7191,8 +7379,14 @@
     }
 
     // For multi view artwork, always hide the whole entry instead.
-    element.parentNode.style.setProperty('display', 'none', 'important');
+    const entry = element.parentNode;
+    if (!entry) return false;
+
+    hideElementByModeration(entry);
     logDebug(`Multi view entry removed (${obj.options.hint})`, element);
+
+    // Reveal immediately when blocked items are currently shown.
+    if (blockedItemsRevealed) revealModerationBlock(entry);
 
     return true;
   };
@@ -7247,9 +7441,13 @@
     }
 
     element.dataset.pixiv_utils_expanded_view_blocked = true;
+    markModerationBlocked(element, { mode: 'blur' });
 
     setModerationTooltip(obj.titleTarget, obj.evaluation, true);
     logDebug(`Expanded view blocked (${obj.options.hint})`, element);
+
+    // Reveal immediately when blocked items are currently shown.
+    if (blockedItemsRevealed) revealModerationBlock(element);
 
     return true;
   };
@@ -7288,7 +7486,11 @@
       });
     }
 
-    if (!blocked) setModerationTooltip(titleTarget, evaluation);
+    if (!blocked) {
+      // The artwork is no longer blockable, so drop any earlier verdict.
+      if (isModerationBlocked(image)) clearModerationBlock(image);
+      setModerationTooltip(titleTarget, evaluation);
+    }
 
     // Init MutationObserver for dynamic expanded view.
     if (image.__vue__) {
@@ -7513,8 +7715,11 @@
 
     const blocked = PIXIV_BLOCKED_USERS_SET.has(match[1]);
     if (blocked) {
-      element.style.setProperty('display', 'none', 'important');
+      hideElementByModeration(element);
       logDebug(`Recommended user removed (${match[1]})`);
+
+      // Reveal immediately when blocked items are currently shown.
+      if (blockedItemsRevealed) revealModerationBlock(element);
     }
     return blocked;
   };
@@ -7582,15 +7787,24 @@
     const multiView = element.closest(CONFIG.SELECTORS_MULTI_VIEW);
     if (multiView) {
       // For multi view artwork, always hide the whole entry instead.
-      multiView.parentNode.style.setProperty('display', 'none', 'important');
+      const entry = multiView.parentNode;
+      if (!entry) return false;
+
+      hideElementByModeration(entry);
       logDebug(`Multi view entry removed (UTag: ${utag})`, multiView);
+
+      // Reveal immediately when blocked items are currently shown.
+      if (blockedItemsRevealed) revealModerationBlock(entry);
       return true;
     }
 
     const recommendedUserContainer = element.closest(CONFIG.SELECTORS_RECOMMENDED_USER_CONTAINER);
     if (recommendedUserContainer) {
-      recommendedUserContainer.style.setProperty('display', 'none', 'important');
+      hideElementByModeration(recommendedUserContainer);
       logDebug(`Recommended user removed (UTag: ${utag})`, recommendedUserContainer);
+
+      // Reveal immediately when blocked items are currently shown.
+      if (blockedItemsRevealed) revealModerationBlock(recommendedUserContainer);
       return true;
     }
 

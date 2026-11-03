@@ -347,7 +347,7 @@ const installBrowserGlobals = ({ autoIntersect, nativeUrlChange }) => {
  * regardless, and the script relies on `GM_info.script.version`.
  */
 const installGmApis = ({ storage, sentinel, styles, menuCommands }) => {
-  const names = ['GM_info', 'GM_addStyle', 'GM_getValue', 'GM_setValue', 'GM_listValues', 'GM_registerMenuCommand', 'sentinel'];
+  const names = ['GM_info', 'GM_addStyle', 'GM_getValue', 'GM_setValue', 'GM_listValues', 'GM_registerMenuCommand', 'GM_unregisterMenuCommand', 'sentinel'];
   const targets = windowTargets();
   const gmAddStyle = css => {
     // Recorded, not injected: jsdom would try to parse selectors it cannot
@@ -366,8 +366,13 @@ const installGmApis = ({ storage, sentinel, styles, menuCommands }) => {
     target.GM_setValue = (key, value) => storage.set(key, value);
     target.GM_listValues = () => storage.list();
     target.GM_registerMenuCommand = (label, onClick) => {
-      menuCommands.push({ label, onClick });
-      return menuCommands.length;
+      const id = menuCommands.length + 1;
+      menuCommands.push({ id, label, onClick });
+      return id;
+    };
+    target.GM_unregisterMenuCommand = id => {
+      const index = menuCommands.findIndex(command => command.id === id);
+      if (index >= 0) menuCommands.splice(index, 1);
     };
     target.sentinel = sentinel;
   }
