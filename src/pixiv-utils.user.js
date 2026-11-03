@@ -23,6 +23,7 @@
 // @grant              GM_listValues
 // @grant              GM_setValue
 // @grant              GM_registerMenuCommand
+// @grant              unsafeWindow
 // @grant              window.onurlchange
 // @require            https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js#sha256-S8rx06n8uSoJCmTdVlxdMN8x+vDYoC+++ssWvEj4M6s=
 // @require            https://cdn.jsdelivr.net/npm/@floating-ui/core@1.8.0/dist/floating-ui.core.umd.min.js#sha256-ZZQNhmprbYMTlKS77ZntCjkzC6yYtkM4bZovh6Gh1do=
@@ -31,7 +32,7 @@
 // @noframes
 // ==/UserScript==
 
-/* global sentinel, FloatingUIDOM, gmConfig */
+/* global sentinel, FloatingUIDOM, gmConfig, unsafeWindow */
 
 (function () {
   'use strict';
@@ -4791,6 +4792,151 @@
     logDebug('Using window.onurlchange polyfill.');
   }
 
+  /** SPA navigation infrastructure **/
+
+  // Pixiv serves exactly two layouts, chosen server-side by the client's
+  // User-Agent: the React/Next.js desktop app and the Vue 2 mobile app. The
+  // layout cannot change without a full reload, so it is detected once (with
+  // retries until the markers appear) and cached for the page's lifetime.
+  // #__next / #spa-contents ship in the SSR HTML, so detection works before
+  // hydration; window.next.router and the Vue instance cover late boot.
+  // Pixiv's own scripts run in the page's main world, while userscript
+  // managers execute this script in an isolated world: page JS globals (e.g.
+  // the Next.js router on window.next) are invisible here, but the DOM — and
+  // DOM expandos such as the Vue instance marker — are shared. unsafeWindow
+  // bridges to the main world when the manager honors the grant.
+  const pageWindow = typeof unsafeWindow === 'undefined' ? window : unsafeWindow;
+
+  // The React (Next.js pages router) instance is resolved in priority order:
+  // the page-world global through the unsafeWindow bridge, then a bounded
+  // breadth-first scan of the React fiber tree rooted at #__next. DOM
+  // container expandos (__reactContainer$ / _reactRootContainer) are shared
+  // with the isolated world, so the scan works without any grant — managers
+  // that lack unsafeWindow (e.g. Safari's quoid/userscripts) take that path.
+  let reactRouter = null;
+
+  const isReactRouter = candidate => Boolean(candidate) &&
+    typeof candidate.push === 'function' &&
+    typeof candidate.pathname === 'string';
+
+  const scanFiberTreeForRouter = hostRoot => {
+    // AppContext.Provider (props.value.router) and the App component
+    // (props.router) sit near the root, so a shallow budget suffices. Only
+    // child/sibling links are followed, keeping the walk acyclic.
+    const queue = [hostRoot];
+    let scanned = 0;
+    while (queue.length > 0 && scanned < 20000) {
+      const fiber = queue.shift();
+      scanned += 1;
+      if (!fiber) continue;
+
+      const props = fiber.memoizedProps;
+      if (props && typeof props === 'object') {
+        if (isReactRouter(props.router)) return props.router;
+        if (isReactRouter(props.value?.router)) return props.value.router;
+      }
+
+      if (fiber.child) queue.push(fiber.child);
+      if (fiber.sibling) queue.push(fiber.sibling);
+    }
+    return null;
+  };
+
+  const getReactRouter = () => {
+    if (reactRouter) return reactRouter;
+
+    const globalRouter = pageWindow.next?.router;
+    if (isReactRouter(globalRouter)) {
+      reactRouter = globalRouter;
+      return reactRouter;
+    }
+
+    const container = document.getElementById('__next');
+    if (container) {
+      // React 18 createRoot stores the host root fiber in a container
+      // expando; React 17 ReactDOM.render exposes it via _reactRootContainer.
+      const containerKey = Object.keys(container).find(key => key.startsWith('__reactContainer$'));
+      const hostRoot = containerKey
+        ? container[containerKey]
+        : container._reactRootContainer?._internalRoot?.current;
+      const scanned = hostRoot ? scanFiberTreeForRouter(hostRoot) : null;
+      if (isReactRouter(scanned)) {
+        reactRouter = scanned;
+        return reactRouter;
+      }
+    }
+
+    return null;
+  };
+
+  let pixivLayout = null;
+
+  const detectPixivLayout = () => {
+    if (document.getElementById('__next') || pageWindow.next?.router) return 'react';
+    if (document.getElementById('spa-contents')) return 'vue';
+    return null;
+  };
+
+  const getPixivLayout = () => {
+    if (pixivLayout) return pixivLayout;
+    const detected = detectPixivLayout();
+    if (detected) pixivLayout = detected;
+    return detected;
+  };
+
+  const spaNavigate = href => {
+    if (typeof href !== 'string' || !href) return false;
+
+    let path;
+    try {
+      const url = new URL(href, window.location.origin);
+      // The script only runs on www.pixiv.net; treat its URLs as internal even
+      // when they are written absolutely (e.g. the artist pill).
+      if (url.host !== window.location.host && url.host !== 'www.pixiv.net') return false;
+      path = url.pathname + url.search + url.hash;
+    } catch {
+      return false;
+    }
+
+    const layout = getPixivLayout();
+
+    if (layout === 'react') {
+      const router = getReactRouter();
+      if (router) {
+        router.push(path);
+        return true;
+      }
+      return false;
+    }
+
+    if (layout === 'vue') {
+      const router = document.getElementById('spa-contents')?.__vue__?.$router;
+      if (typeof router?.push === 'function') {
+        router.push(path);
+        return true;
+      }
+      // vue-router transitions on the current location, so history emulation
+      // renders the route even without the instance. Next.js ignores this
+      // state shape, so it is never used as a desktop fallback.
+      history.pushState({ key: 'pixiv-utils' }, '', path);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      return true;
+    }
+
+    return false;
+  };
+
+  // Left clicks on userscript-generated anchors navigate through the SPA
+  // router when reachable; modifier clicks, other buttons, and the fallback
+  // (router unreachable) keep the anchor's default full navigation.
+  const addSpaNavigation = anchor => {
+    anchor.addEventListener('click', event => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (spaNavigate(anchor.href)) event.preventDefault();
+    });
+    return anchor;
+  };
+
   class SimpleCache {
     constructor (maxSize = 100) {
       const size = Number(maxSize);
@@ -6812,6 +6958,7 @@
       blockedThumb.className = 'pixiv_utils_blocked_image_container';
       blockedThumb.href = options.link.href;
       blockedThumb.innerHTML = BLOCKED_IMAGE_HTML;
+      addSpaNavigation(blockedThumb);
 
       options.link.after(blockedThumb);
     }
@@ -6872,6 +7019,7 @@
     replacement.className = 'pixiv_utils_image_artist';
     replacement.href = href;
     replacement.textContent = artist.userName;
+    addSpaNavigation(replacement);
     div.append(replacement);
     element.append(div);
     element.dataset.pixiv_utils_artist_added = true;
@@ -8000,6 +8148,11 @@
     // Immediately attempt to determine page type.
     isHome = Boolean(document.querySelector(CONFIG.SELECTORS_HOME));
     isOwnProfile = isOwnProfileByUrl() || Boolean(document.querySelector(CONFIG.SELECTORS_OWN_PROFILE));
+
+    // Detect the layout once (React desktop or Vue mobile; server-decided by
+    // User-Agent and frozen for the page's lifetime). getPixivLayout() retries
+    // internally if the boot ran before hydration markers appeared.
+    logDebug(`Pixiv layout: ${getPixivLayout() ?? 'unknown (will retry on first use)'}`);
 
     sentinel.on(CONFIG.SELECTORS_HOME, () => { isHome = true; });
     sentinel.on(CONFIG.SELECTORS_OWN_PROFILE, () => { isOwnProfile = true; });

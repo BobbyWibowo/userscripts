@@ -12,6 +12,7 @@ const userscriptOverrides = {
 export default [
   {
     ignores: [
+      '.kilo/**',
       'temp/**',
       'coverage/**',
       'playwright-report/**',
