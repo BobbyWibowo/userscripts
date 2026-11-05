@@ -6441,33 +6441,81 @@
     if (target.userName === null && typeof name === 'string' && name) target.userName = name;
   };
 
-  // Live React cards carry the artwork data in one of these props on a fiber
-  // near the card element (verified on bookmark, home, ranking, profile,
-  // search, novel and following-collections pages). Ranking's legacy
-  // `content` uses snake_case fields; the other pages use camelCase
-  // `thumbnail`/`rawThumbnail`. Collection cards thread the collection object
-  // through an array child's props. The identity check rejects lookalike
-  // props such as unrelated `content`.
+  // Live React cards carry the artwork object on a fiber near the card element
+  // (verified on bookmark, home, ranking, profile, search, novel, following
+  // collections and the expanded view). It is always either the component's
+  // own props or a value under one of a few known prop keys, and React
+  // children are transparent: a card may hand the artwork down to a child
+  // instead of holding it. So the shape is described by two rules instead of
+  // one rule per place the data was ever seen.
+  const REACT_SOURCE_KEYS = ['thumbnail', 'rawThumbnail', 'content', 'work', 'collection'];
+
+  const reactSourceIdentity = source =>
+    source?.id ?? source?.illust_id ?? source?.workId ?? null;
+
+  const reactSourceType = source =>
+    source?.type ?? source?.workType ?? source?.kind ?? source?.illust_type ?? null;
+
+  // A value under a known key is a dedicated data object, so an identity is
+  // enough to accept it.
+  const isReactArtworkValue = value =>
+    Boolean(value) && typeof value === 'object' && reactSourceIdentity(value) !== null;
+
+  // A props object is a container, so it needs more evidence before it can be
+  // taken for the artwork itself: the expanded view passes the illust object
+  // straight through, and unrelated props carry neither a tag list nor a work
+  // type. Pixiv's novel cards use the workId/workType pair instead of a tag
+  // list, so that pairing counts as evidence too.
+  const isReactArtworkProps = props =>
+    reactSourceIdentity(props) !== null &&
+    (Array.isArray(props.tags)
+      ? ['illust', 'novel', 'manga', 'collection', 'collections', 0, 1, 2]
+          .includes(reactSourceType(props))
+      : props.workId != null && props.workType != null);
+
+  // The props objects reachable from a fiber's props: its own, plus the props
+  // of its React children and grandchildren. The walk is bounded in both depth
+  // and total size, so a props object with many children cannot stall it.
+  const REACT_PROPS_TREE_DEPTH = 3;
+  const REACT_PROPS_TREE_LIMIT = 64;
+
+  const reactPropsTree = (props, depth) => {
+    const tree = [];
+
+    const collect = (object, remaining) => {
+      if (tree.length >= REACT_PROPS_TREE_LIMIT) return;
+      if (!object || typeof object !== 'object' || remaining <= 0) return;
+
+      tree.push(object);
+
+      const children = object.children;
+      const list = Array.isArray(children) ? children : children ? [children] : [];
+
+      for (const child of list) collect(child?.props, remaining - 1);
+    };
+
+    collect(props, depth);
+
+    return tree;
+  };
+
   const reactPixivDataSource = props => {
-    if (!props || typeof props !== 'object') return null;
+    for (const object of reactPropsTree(props, REACT_PROPS_TREE_DEPTH)) {
+      // The props object itself can be the artwork.
+      if (isReactArtworkProps(object)) return object;
 
-    for (const key of ['thumbnail', 'rawThumbnail', 'content', 'work']) {
-      const source = props[key];
-      if (source && typeof source === 'object' &&
-        (source.id ?? source.illust_id ?? source.workId) != null) {
-        return source;
-      }
-    }
+      // A value under a known key is the artwork. The legacy ranking `content`
+      // has no identity of its own and keeps it in a thumbnail instead.
+      for (const key of REACT_SOURCE_KEYS) {
+        const value = object[key];
+        if (isReactArtworkValue(value)) return value;
 
-    if (Array.isArray(props.children)) {
-      for (const child of props.children) {
-        const collection = child?.props?.collection;
-        if (collection && typeof collection === 'object' &&
-          (collection.id ?? collection.illust_id ?? collection.workId) != null) {
-          return collection;
+        for (const thumbnail of value?.thumbnails ?? []) {
+          if (isReactArtworkValue(thumbnail)) return thumbnail;
         }
       }
     }
+
     return null;
   };
 

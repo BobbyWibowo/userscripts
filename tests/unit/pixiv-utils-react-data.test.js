@@ -84,6 +84,46 @@ const isBlocked = card => card.hasAttribute('data-pixiv_utils_blocked');
 
 const overlayOf = card => card.querySelector(OVERLAY_SELECTOR);
 
+const EXPANDED_VIEW_BLOCKED_ATTRIBUTE = 'data-pixiv_utils_expanded_view_blocked';
+
+/**
+ * The expanded-view controls registration: `main div[style*="translateY"] section`
+ * plus the mobile `.work-interactions` fallback.
+ */
+const expandedViewListener = pixiv => {
+  const entry = pixiv.listeners.find(candidate =>
+    String(candidate.selector).includes('work-interactions')
+  );
+
+  if (!entry) throw new Error('No expanded-view sentinel callback registered.');
+
+  return entry;
+};
+
+/**
+ * Render the desktop expanded view: an image container (first div of the
+ * section holding the figure) with the controls section nested inside it,
+ * mirroring the live DOM where the controls sit below the artwork.
+ */
+const renderExpandedView = artworkId => {
+  document.body.innerHTML = `
+    <main>
+      <section>
+        <div id="expanded-image">
+          <figure><img src="https://i.pximg.net/artwork.jpg" alt=""></figure>
+          <div style="translateY(0px)">
+            <section id="expanded-controls"><nav><a href="/artworks/${artworkId}">artwork</a></nav></section>
+          </div>
+        </div>
+      </section>
+    </main>`;
+
+  return {
+    image: document.getElementById('expanded-image'),
+    controls: document.getElementById('expanded-controls')
+  };
+};
+
 describe('pixiv-utils React artwork data extraction', () => {
   beforeEach(() => {
     loadFixture();
@@ -395,5 +435,158 @@ describe('pixiv-utils React artwork data extraction', () => {
 
     expect(wrapper.matches(novelSelector)).toBe(true);
     expect(document.querySelector(novelSelector)).toBe(wrapper);
+  });
+
+  it('blocks an expanded view whose artwork data is the component\'s own props', async () => {
+    const pixiv = await loadPixivUtils({ settings: { PIXIV_BLOCKED_TAGS: ['原神'] } });
+    const { image, controls } = renderExpandedView('151616953');
+
+    // The live expanded view passes the illust object straight through as the
+    // component's props, one fiber below the image container.
+    mountReactCard(image, [
+      {},
+      {
+        illustId: '151616953',
+        id: '151616953',
+        type: 'illust',
+        title: 'デンジャラスなアレ',
+        userId: '743604',
+        userName: '幸永',
+        tags: ['幼児化', '原神'],
+        aiType: 1,
+        createDate: '2026-11-03T01:25:00+09:00'
+      }
+    ]);
+
+    await pixiv.fireListener(expandedViewListener(pixiv), controls);
+    await flush(6);
+
+    expect(image.hasAttribute(EXPANDED_VIEW_BLOCKED_ATTRIBUTE)).toBe(true);
+    const figure = image.querySelector('figure');
+    // Floating tooltips are off in the harness, so the tooltip is a title.
+    expect(figure.title).toContain('原神');
+    expect(figure.title).toContain('Blocked by:');
+  });
+
+  it('reads novel cards that carry the workId and workType pair', async () => {
+    const pixiv = await loadPixivUtils({ settings: { PIXIV_BLOCKED_USERS: ['60612096'] } });
+    const [card] = renderNovelCards(['29527945']);
+
+    mountReactCard(card, [
+      {
+        children: [
+          {
+            props: {
+              children: {
+                props: {
+                  workId: '29527945',
+                  workType: 'novel',
+                  title: '流萤&风堇的运动会游戏',
+                  userId: '60612096',
+                  userName: 'doki -doki'
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]);
+
+    await processCard(pixiv, card);
+
+    expect(isBlocked(card)).toBe(true);
+    expect(overlayOf(card)).not.toBeNull();
+  });
+
+  it('reads artwork data threaded one level deeper in the children tree', async () => {
+    const pixiv = await loadPixivUtils({ settings: { PIXIV_BLOCKED_USERS: ['743604'] } });
+    const [card] = renderWorkCards(['16112933']);
+
+    // Profile's spotlight row hands the thumbnail to a child of the children.
+    mountReactCard(card, [
+      {
+        children: {
+          props: {
+            children: [
+              {
+                props: {
+                  thumbnail: {
+                    id: '151616953',
+                    type: 'illust',
+                    userId: '743604',
+                    userName: '幸永',
+                    title: 'デンジャラスなアレ',
+                    tags: ['幼児化'],
+                    aiType: 1
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]);
+
+    await processCard(pixiv, card);
+
+    expect(isBlocked(card)).toBe(true);
+    expect(overlayOf(card)).not.toBeNull();
+  });
+
+  it('reads legacy content thumbnails that carry no identity of their own', async () => {
+    const pixiv = await loadPixivUtils({ settings: { PIXIV_BLOCKED_TAGS: ['firefly'] } });
+    const [card] = renderWorkCards(['16112933']);
+
+    mountReactCard(card, [
+      {},
+      {
+        content: {
+          thumbnails: [
+            {
+              id: '16112933',
+              type: 'illust',
+              userId: '42505656',
+              userName: 'Restra25',
+              title: 'Firefly',
+              tags: ['firefly'],
+              aiType: 1
+            }
+          ]
+        }
+      }
+    ]);
+
+    await processCard(pixiv, card);
+
+    expect(isBlocked(card)).toBe(true);
+    expect(overlayOf(card)).not.toBeNull();
+  });
+
+  it('ignores component props that only look like artwork data', async () => {
+    const pixiv = await loadPixivUtils({ settings: { PIXIV_BLOCKED_TAGS: ['real-tag'] } });
+    const [card] = renderWorkCards(['16112933']);
+
+    mountReactCard(card, [
+      {},
+      // Tags and an id, but not a work type: not artwork data.
+      { id: 'not-a-work', tags: ['real-tag'], type: 'search' },
+      {
+        thumbnail: {
+          id: '16112933',
+          type: 'illust',
+          userId: '9999',
+          userName: 'Real',
+          tags: ['real-tag'],
+          aiType: 1
+        }
+      }
+    ]);
+
+    await processCard(pixiv, card);
+
+    expect(isBlocked(card)).toBe(true);
+    // The lookalike props must not win over the real source.
+    const overlay = overlayOf(card);
+    expect(overlay.href).toContain('16112933');
   });
 });
