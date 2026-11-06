@@ -4694,8 +4694,6 @@
     'aside:has(iframe[src*="premium_lp"]) > ul > li' // tags page's popular works
   ].join(', ');
 
-  const SELECTORS_IMAGE_MOBILE = '.works-item';
-
   // Both rule types compile literal tags and regexes identically. Keep one
   // compiler while retaining highlighted group order and explicit color priority.
   // Malformed stored rules are reported by setting name and skipped, so one
@@ -5165,11 +5163,13 @@
     padding: 0 4px;
   }
 
-  :not(#higher_specificity) :not(:is(${SELECTORS_IMAGE_MOBILE}))[data-pixiv_utils_toggle_bookmarked_hide] {
+  /* mobile images */
+  :not(#higher_specificity) :not(.works-item)[data-pixiv_utils_toggle_bookmarked_hide] {
     display: none !important;
   }
 
-  :not(#higher_specificity) :is(${SELECTORS_IMAGE_MOBILE})[data-pixiv_utils_toggle_bookmarked_hide] > * {
+  /* mobile images */
+  :not(#higher_specificity) .works-item[data-pixiv_utils_toggle_bookmarked_hide] > * {
     visibility: hidden !important;
   }
 
@@ -5199,7 +5199,7 @@
 
   :is(${SELECTORS_IMAGE_CONTAINER_SIMPLIFIED}) [data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED},
   :is(${SELECTORS_IMAGE_SMALL})[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED},
-  :is(${SELECTORS_IMAGE_MOBILE})[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
+  .works-item[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
     box-shadow: inset 0 0 0 2px var(--pixiv_utils_highlight_color, ${CONFIG.PIXIV_HIGHLIGHTED_COLOR});
   }
 
@@ -5209,7 +5209,7 @@
   }
 
   /* mobile images */
-  :is(${SELECTORS_IMAGE_MOBILE})[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
+  .works-item[data-pixiv_utils_highlight] ${SELECTORS_IMAGE_HIGHLIGHTED} {
     border-radius: 0;
   }
 
@@ -7308,7 +7308,7 @@
     }
 
     const status = setImageBlocked(element, {
-      mobile: element.matches(SELECTORS_IMAGE_MOBILE),
+      mobile: Boolean(element.__vue__),
       remove,
       link: obj.data.link
     });
@@ -7864,24 +7864,16 @@
   };
 
   const doUtags = async (element, options) => {
-    let image = element.closest(CONFIG.SELECTORS_IMAGE);
+    const utag = element.dataset.utags_tag;
 
-    let mobile = false;
+    const image = element.closest(CONFIG.SELECTORS_IMAGE);
     if (image) {
-      mobile = image.matches(SELECTORS_IMAGE_MOBILE);
-    } else {
       // For mobile images, re-attempt query with some patience.
-      image = element.closest(SELECTORS_IMAGE_MOBILE);
-      if (image) {
-        mobile = true;
+      if (image.__vue__) {
         const awaited = await waitFor(() => image.querySelector('.thumb:not([src^="data"])'), image);
         if (!image.isConnected || !awaited) return false;
       }
-    }
 
-    const utag = element.dataset.utags_tag;
-
-    if (image) {
       const { pixivData, data } = await getImageData(image);
       if (!image.isConnected || data.id === null || !data.link) return false;
 
@@ -7906,7 +7898,7 @@
         return false;
       } else {
         const status = setImageBlocked(image, {
-          mobile,
+          mobile: Boolean(image.__vue__),
           remove: false,
           link: data.link,
           priority: true
