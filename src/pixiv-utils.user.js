@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.8.12
+// @version            1.8.13
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -7364,7 +7364,7 @@
     if (CONFIG.UTAGS_INTEGRATION) {
       const utagElements = element.querySelectorAll(SELECTORS_UTAGS);
       for (const utagEl of utagElements) {
-        await doUtags(utagEl, { isOwnProfile: options.isOwnProfile });
+        await doUtags(utagEl, { image: element, isOwnProfile: options.isOwnProfile });
       }
       if (element.dataset.pixiv_utils_blocked || isModerationBlocked(element)) return true;
     }
@@ -7863,10 +7863,10 @@
     return blocked;
   };
 
-  const doUtags = async (element, options) => {
+  const doUtags = async (element, options = {}) => {
     const utag = element.dataset.utags_tag;
 
-    const image = element.closest(CONFIG.SELECTORS_IMAGE);
+    const image = options.image || element.closest(CONFIG.SELECTORS_IMAGE);
     if (image) {
       // For mobile images, re-attempt query with some patience.
       if (image.__vue__) {
