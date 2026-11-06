@@ -188,6 +188,26 @@ describe('pixiv-utils edit bookmark', () => {
   const checkboxOf = (panel, tag) => [...panel.querySelectorAll('.pixiv-utils-edit-bookmark-tag input[type="checkbox"]')]
     .find(cb => cb.value === tag);
 
+  /** The tag list a panel renders, as `{ tag: count }`. */
+  const tagCountsOf = panel => {
+    const counts = {};
+    for (const label of panel.querySelectorAll('.pixiv-utils-edit-bookmark-tag')) {
+      const tag = label.querySelector('span')?.textContent?.replace(/^#/, '');
+      const count = label.querySelector('.pixiv-utils-edit-bookmark-tag-count')?.textContent;
+      counts[tag] = Number(count);
+    }
+    return counts;
+  };
+
+  /** Create a tag through the panel's own "create tag" flow. */
+  const createTagInPanel = (panel, name) => {
+    panel.querySelector('.pixiv-utils-edit-bookmark-create-link').click();
+    panel.querySelector('.pixiv-utils-edit-bookmark-create textarea').value = name;
+    const save = [...panel.querySelectorAll('.pixiv-utils-edit-bookmark-create button')]
+      .find(button => button.textContent === 'Save');
+    save.click();
+  };
+
   const callsMatching = (fetchMock, fragment) =>
     fetchMock.mock.calls.filter(([url]) => String(url).includes(fragment)).length;
 
@@ -697,6 +717,208 @@ describe('pixiv-utils edit bookmark', () => {
       expect(init?.cache, String(url)).toBe('no-store');
     }
     expect(document.querySelector('.pixiv-utils-toast')).not.toBeNull();
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('keeps the cached tag list after a save and moves the counts of the changed tags', async () => {
+    if (!('showModal' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    }
+    if (!('close' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.close = function () { this.open = false; };
+    }
+
+    let serverTags = ['foo'];
+    const fetchMock = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('bookmark/tags')) {
+        return { ok: true, json: async () => ({ body: { tags: { public: [{ tag: 'foo', cnt: 2 }, { tag: 'bar', cnt: 1 }] } } }) };
+      }
+      if (urlStr.includes('bookmarkData')) {
+        return { ok: true, json: async () => ({ body: { isBookmarkable: true, bookmarkData: { id: 'bm-1' } } }) };
+      }
+      if (urlStr.includes('bookmark_add.php')) {
+        return { ok: true, text: async () => serverTags.map(tag => `<input name="tag" value="${tag}">`).join('') };
+      }
+      if (urlStr.includes('remove_tags')) {
+        serverTags = serverTags.filter(tag => tag !== 'foo');
+        return { ok: true, json: async () => ({}) };
+      }
+      if (urlStr.includes('add_tags')) {
+        serverTags = [...serverTags, 'bar'];
+        return { ok: true, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const panel = await openPanelForCard(pixiv);
+    expect(panel).not.toBeNull();
+    expect(tagCountsOf(panel)).toEqual({ foo: 2, bar: 1 });
+
+    // Remove "foo" and add "bar".
+    checkboxOf(panel, 'foo').click();
+    checkboxOf(panel, 'bar').click();
+    await flush(2);
+
+    panel.querySelector('.pixiv-utils-alert-ok').click();
+    await flush(10);
+
+    // The tag list was not refetched: the save only adjusts the cached counts.
+    expect(callsMatching(fetchMock, 'bookmark/tags')).toBe(1);
+
+    // Reopening the panel reads the cached list with the adjusted counts.
+    const reopened = await openPanelForCard(pixiv);
+    expect(reopened).not.toBeNull();
+    expect(callsMatching(fetchMock, 'bookmark/tags')).toBe(1);
+    expect(tagCountsOf(reopened)).toEqual({ bar: 2, foo: 1 });
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('creates a cache entry for a tag created in the panel, with a count of one', async () => {
+    if (!('showModal' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    }
+    if (!('close' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.close = function () { this.open = false; };
+    }
+
+    let serverTags = ['foo'];
+    const fetchMock = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('bookmark/tags')) {
+        return { ok: true, json: async () => ({ body: { tags: { public: [{ tag: 'foo', cnt: 2 }] } } }) };
+      }
+      if (urlStr.includes('bookmarkData')) {
+        return { ok: true, json: async () => ({ body: { isBookmarkable: true, bookmarkData: { id: 'bm-1' } } }) };
+      }
+      if (urlStr.includes('bookmark_add.php')) {
+        return { ok: true, text: async () => serverTags.map(tag => `<input name="tag" value="${tag}">`).join('') };
+      }
+      if (urlStr.includes('add_tags')) {
+        serverTags = [...serverTags, 'fresh'];
+        return { ok: true, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const panel = await openPanelForCard(pixiv);
+    expect(panel).not.toBeNull();
+
+    createTagInPanel(panel, 'fresh');
+    await flush(2);
+    expect(checkboxOf(panel, 'fresh').checked).toBe(true);
+
+    panel.querySelector('.pixiv-utils-alert-ok').click();
+    await flush(10);
+
+    // The new tag is not refetched from the server; it enters the cache with
+    // the one item it was saved to.
+    expect(callsMatching(fetchMock, 'bookmark/tags')).toBe(1);
+
+    const reopened = await openPanelForCard(pixiv);
+    expect(reopened).not.toBeNull();
+    expect(tagCountsOf(reopened)).toEqual({ foo: 2, fresh: 1 });
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('drops a tag from the cache when its last item is removed', async () => {
+    if (!('showModal' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    }
+    if (!('close' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.close = function () { this.open = false; };
+    }
+
+    let serverTags = ['foo'];
+    const fetchMock = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('bookmark/tags')) {
+        return { ok: true, json: async () => ({ body: { tags: { public: [{ tag: 'foo', cnt: 1 }] } } }) };
+      }
+      if (urlStr.includes('bookmarkData')) {
+        return { ok: true, json: async () => ({ body: { isBookmarkable: true, bookmarkData: { id: 'bm-1' } } }) };
+      }
+      if (urlStr.includes('bookmark_add.php')) {
+        return { ok: true, text: async () => serverTags.map(tag => `<input name="tag" value="${tag}">`).join('') };
+      }
+      if (urlStr.includes('remove_tags')) {
+        serverTags = serverTags.filter(tag => tag !== 'foo');
+        return { ok: true, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const panel = await openPanelForCard(pixiv);
+    expect(panel).not.toBeNull();
+    expect(tagCountsOf(panel)).toEqual({ foo: 1 });
+
+    // Unassign the only item of the only tag.
+    checkboxOf(panel, 'foo').click();
+    await flush(2);
+
+    panel.querySelector('.pixiv-utils-alert-ok').click();
+    await flush(10);
+
+    const reopened = await openPanelForCard(pixiv);
+    expect(reopened).not.toBeNull();
+    expect(callsMatching(fetchMock, 'bookmark/tags')).toBe(1);
+    expect(tagCountsOf(reopened)).toEqual({});
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('adjusts the counts of the operations that succeeded when a later one fails', async () => {
+    if (!('showModal' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    }
+    if (!('close' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.close = function () { this.open = false; };
+    }
+
+    // Removing "foo" commits; adding "bar" never succeeds.
+    let serverTags = ['foo'];
+    const fetchMock = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('bookmark/tags')) {
+        return { ok: true, json: async () => ({ body: { tags: { public: [{ tag: 'foo', cnt: 2 }, { tag: 'bar', cnt: 1 }] } } }) };
+      }
+      if (urlStr.includes('bookmarkData')) {
+        return { ok: true, json: async () => ({ body: { isBookmarkable: true, bookmarkData: { id: 'bm-1' } } }) };
+      }
+      if (urlStr.includes('bookmark_add.php')) {
+        return { ok: true, text: async () => serverTags.map(tag => `<input name="tag" value="${tag}">`).join('') };
+      }
+      if (urlStr.includes('remove_tags')) {
+        serverTags = serverTags.filter(tag => tag !== 'foo');
+        return { ok: true, json: async () => ({}) };
+      }
+      if (urlStr.includes('add_tags')) return { ok: false };
+      return { ok: false };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const panel = await openPanelForCard(pixiv);
+    expect(panel).not.toBeNull();
+
+    checkboxOf(panel, 'foo').click();
+    checkboxOf(panel, 'bar').click();
+    await flush(2);
+
+    panel.querySelector('.pixiv-utils-alert-ok').click();
+    await flush(10);
+
+    // The tag list is not refetched after the partial save either.
+    expect(callsMatching(fetchMock, 'bookmark/tags')).toBe(1);
+
+    // Only the committed removal moved the counts: "foo" lost one item, "bar"
+    // did not gain one.
+    expect(tagCountsOf(panel)).toEqual({ foo: 1, bar: 1 });
     expect(pixiv.console.error).toEqual([]);
   });
 });

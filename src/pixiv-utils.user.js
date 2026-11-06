@@ -5712,6 +5712,12 @@
   // tags never overwrite each other.
   const bookmarkTagCaches = { illust: null, novel: null };
   const bookmarkTagPromises = { illust: null, novel: null };
+  // Tag-count changes applied while a tag list was being fetched. The fetched
+  // list predates them, so they are folded in when the request resolves.
+  const bookmarkTagInflightDeltas = { illust: [], novel: [] };
+  // The fetch a cache write belongs to. A newer fetch supersedes an older one,
+  // which must not write the cache when it resolves.
+  const bookmarkTagFetchTokens = { illust: null, novel: null };
   const bookmarkStateCache = new SimpleCache(10);
 
   GM_registerMenuCommand(`🧹 ${tr('action.clearCaches')}`, () => {
@@ -5719,6 +5725,10 @@
     for (const key of Object.keys(bookmarkTagCaches)) {
       bookmarkTagCaches[key] = null;
       bookmarkTagPromises[key] = null;
+      bookmarkTagInflightDeltas[key] = [];
+      // A running request must not write the cache it was cleared from.
+      if (bookmarkTagFetchTokens[key]) bookmarkTagFetchTokens[key].superseded = true;
+      bookmarkTagFetchTokens[key] = null;
     }
     bookmarkStateCache.clear();
     try { if (typeof PIXIV_DATA_CACHE !== 'undefined') PIXIV_DATA_CACHE.clear(); } catch (_) {}
@@ -5728,14 +5738,53 @@
   // Each bookmark API request is retried this many times before failing.
   const BOOKMARK_API_RETRIES = 3;
 
-  // Drop every cache derived from the server's bookmark state so the next read
-  // refetches it. Called after each committed mutation, including when a later
-  // operation in the same save fails.
-  const invalidateBookmarkCaches = (isNovel, id) => {
+  // Drop the cached state of one bookmark so the next read refetches it.
+  const invalidateBookmarkState = (isNovel, id) => {
     const api = getBookmarkApi(isNovel);
-    bookmarkTagCaches[api.cacheKey] = null;
-    bookmarkTagPromises[api.cacheKey] = null;
     bookmarkStateCache.delete(`${api.cacheKey}:${id}`);
+  };
+
+  // Drop the cached tag list so the next read refetches it.
+  const invalidateBookmarkTagList = isNovel => {
+    const key = getBookmarkApi(isNovel).cacheKey;
+    bookmarkTagCaches[key] = null;
+    bookmarkTagPromises[key] = null;
+  };
+
+  // Apply tag-count changes to a tag list. A tag that loses its last item is
+  // dropped, because Pixiv removes such tags server-side too. The list is
+  // re-sorted the way a freshly fetched one is.
+  const applyBookmarkTagDeltas = (tags, deltas) => {
+    const counts = new Map(tags.map(entry => [entry.tag, entry.count]));
+
+    for (const { tag, delta } of deltas) {
+      const next = (counts.get(tag) ?? 0) + delta;
+      if (next > 0) counts.set(tag, next);
+      else counts.delete(tag);
+    }
+
+    return [...counts.entries()]
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || String(b.tag).localeCompare(String(a.tag)));
+  };
+
+  // Follow a committed save in the cached tag list instead of refetching it.
+  // The server applies the same change, so the counts move with it: a tag
+  // gains an item when it is assigned and loses one when it is unassigned.
+  // Tags the user just created get an entry with a count of one.
+  const adjustBookmarkTagCounts = (isNovel, deltas) => {
+    if (!deltas.length) return;
+
+    const key = getBookmarkApi(isNovel).cacheKey;
+
+    // A request that is already running returns the state from before the
+    // change, so it has to be told about the change.
+    for (const inflight of bookmarkTagInflightDeltas[key]) {
+      for (const delta of deltas) inflight.push(delta);
+    }
+
+    const cache = bookmarkTagCaches[key];
+    if (cache) bookmarkTagCaches[key] = applyBookmarkTagDeltas(cache, deltas);
   };
 
   // Fetches a bookmark API endpoint, retrying transient failures. JSON is the
@@ -5782,6 +5831,13 @@
     }
     if (bookmarkTagCaches[key]) return bookmarkTagCaches[key];
     if (bookmarkTagPromises[key]) return bookmarkTagPromises[key];
+    const token = {};
+    // The previous fetch must not write the cache once this one takes over.
+    if (bookmarkTagFetchTokens[key]) bookmarkTagFetchTokens[key].superseded = true;
+    bookmarkTagFetchTokens[key] = token;
+    // Changes committed while this request runs are not part of its response.
+    const inflight = [];
+    bookmarkTagInflightDeltas[key].push(inflight);
     const promise = (async () => {
       const userId = cachedOwnUserId;
       const url = api.bookmarkTagsUrl(userId);
@@ -5808,14 +5864,22 @@
         if (!existing || existing.count < entry.count) map.set(entry.tag, entry);
       }
       const result = [...map.values()].filter(entry => entry.count > 0).sort((a, b) => b.count - a.count || String(b.tag).localeCompare(String(a.tag)));
-      bookmarkTagCaches[key] = result;
-      return result;
+      const index = bookmarkTagInflightDeltas[key].indexOf(inflight);
+      if (index >= 0) bookmarkTagInflightDeltas[key].splice(index, 1);
+      if (token.superseded) {
+        // A newer fetch took over, so its result is the current one.
+        return bookmarkTagPromises[key] ?? result;
+      }
+      bookmarkTagCaches[key] = inflight.length ? applyBookmarkTagDeltas(result, inflight) : result;
+      return bookmarkTagCaches[key];
     })();
     bookmarkTagPromises[key] = promise;
     try {
       return await promise;
     } catch (error) {
-      bookmarkTagPromises[key] = null;
+      const index = bookmarkTagInflightDeltas[key].indexOf(inflight);
+      if (index >= 0) bookmarkTagInflightDeltas[key].splice(index, 1);
+      if (bookmarkTagFetchTokens[key] === token) bookmarkTagPromises[key] = null;
       throw error;
     }
   };
@@ -5878,10 +5942,10 @@
     const toAdd = addedTags || [];
     // Operations are sequential, not transactional: an earlier mutation stays
     // committed when a later one fails. Track what was saved so partial
-    // failures can be reported and stale caches are never reused.
+    // failures can be reported and the cached counts stay in sync.
     const completedOperations = [];
 
-    const runOperation = async (operation, url, body) => {
+    const runOperation = async (operation, url, body, deltas = []) => {
       await fetchBookmarkApi(url, {
         method: 'POST',
         credentials: 'same-origin',
@@ -5889,9 +5953,12 @@
         body: JSON.stringify(body)
       }, tr('editBookmark.saveFailed'));
       completedOperations.push(operation);
-      // The server already committed this change, so cached reads must not
-      // serve stale state even if a later operation fails.
-      invalidateBookmarkCaches(isNovel, id);
+      // The server already committed this change, so the item's cached state
+      // must not be served again. The cached tag counts follow the change
+      // instead of being refetched, and only for the operations that
+      // succeeded.
+      invalidateBookmarkState(isNovel, id);
+      adjustBookmarkTagCounts(isNovel, deltas);
     };
 
     try {
@@ -5902,13 +5969,13 @@
           restrict: isPrivate ? 1 : 0,
           comment: '',
           tags: toAdd
-        });
+        }, toAdd.map(tag => ({ tag, delta: 1 })));
       } else {
         if (toRemove.length) {
-          await runOperation('removeTags', `https://www.pixiv.net/ajax/${typeSegment}/bookmarks/remove_tags`, { removeTags: toRemove, bookmarkIds: [bookmarkId] });
+          await runOperation('removeTags', `https://www.pixiv.net/ajax/${typeSegment}/bookmarks/remove_tags`, { removeTags: toRemove, bookmarkIds: [bookmarkId] }, toRemove.map(tag => ({ tag, delta: -1 })));
         }
         if (toAdd.length) {
-          await runOperation('addTags', `https://www.pixiv.net/ajax/${typeSegment}/bookmarks/add_tags`, { tags: toAdd, bookmarkIds: [bookmarkId] });
+          await runOperation('addTags', `https://www.pixiv.net/ajax/${typeSegment}/bookmarks/add_tags`, { tags: toAdd, bookmarkIds: [bookmarkId] }, toAdd.map(tag => ({ tag, delta: 1 })));
         }
         const currentPrivate = state.isPrivate === true;
         if (typeof isPrivate === 'boolean' && currentPrivate !== isPrivate) {
@@ -5926,7 +5993,13 @@
   };
 
   const openEditBookmarkPanel = async (id, isNovel) => {
-    if (document.querySelector('.pixiv-utils-edit-bookmark-panel')) return;
+    // A closed panel removes itself on its "close" event. One that lingers
+    // must not block the next open, but an open panel must not be duplicated.
+    const existing = document.querySelector('.pixiv-utils-edit-bookmark-panel');
+    if (existing) {
+      if (existing.open) return;
+      existing.remove();
+    }
 
     addSettingsStyleOnce();
 
@@ -6161,7 +6234,9 @@
       sortToggleButton.disabled = true;
       sortToggleButton.setAttribute('disabled', '');
       try {
-        tags = await fetchBookmarkTagsFor(isNovel, force);
+        // Copy the list: the panel adds the item's own tags to its own view
+        // and must not write into the shared cache.
+        tags = [...await fetchBookmarkTagsFor(isNovel, force)];
         renderTags(tags, false);
         headerRow.style.display = '';
         privacyContainer.style.display = '';
@@ -6217,7 +6292,10 @@
     };
 
     refreshButton.addEventListener('click', () => {
-      invalidateBookmarkCaches(isNovel, id);
+      // A manual refresh asks the server for everything again, including the
+      // tag list the saves have been keeping in sync.
+      invalidateBookmarkState(isNovel, id);
+      invalidateBookmarkTagList(isNovel);
       setButtonLoading(refreshButton, true);
       load(true).finally(() => {
         setButtonLoading(refreshButton, false);
@@ -6239,11 +6317,13 @@
         dialog.close();
       } catch (error) {
         if (error instanceof PartialBookmarkSaveError) {
-          // Earlier operations were already committed, so refresh the panel
-          // from the server instead of showing stale selections, and keep it
-          // open. Only a fully successful save closes the dialog.
+          // Earlier operations were already committed, so refresh the item's
+          // own state from the server instead of showing stale selections, and
+          // keep the panel open. The tag list is not refetched: the saved
+          // operations already moved its counts. Only a fully successful save
+          // closes the dialog.
           logDebug('Bookmark save partially failed. Completed operations:', error.completedOperations);
-          await load(true);
+          await load(false);
           showAlert(error.message);
         } else {
           showAlert(error?.message || tr('editBookmark.saveFailed'));
