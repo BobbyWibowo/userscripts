@@ -7358,6 +7358,17 @@
     const { pixivData, data } = await getImageData(element);
     if (!element.isConnected || data.id === null || !data.link) return false;
 
+    // Re-apply UTags blocks that may have been detected before this image
+    // was initialized (e.g. on Rankings pages where artist links carry UTags
+    // before the card is scrolled into view).
+    if (CONFIG.UTAGS_INTEGRATION) {
+      const utagElements = element.querySelectorAll('[data-utags_tag]');
+      for (const utagEl of utagElements) {
+        await doUtags(utagEl, { isOwnProfile: options.isOwnProfile });
+      }
+      if (element.dataset.pixiv_utils_blocked || isModerationBlocked(element)) return true;
+    }
+
     if (options.isHome) {
       if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && data.novel) {
         element.style.setProperty('display', 'none', 'important');
