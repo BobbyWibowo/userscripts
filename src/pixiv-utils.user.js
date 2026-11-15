@@ -994,8 +994,8 @@
       'label.PIXIV_REMOVE_BLOCKED': 'ブロックした作品を削除（PC 版）',
       'field.blockAiInfo': '作者が AI 生成と設定した作品のみブロックします。',
       // User settings.
-      'label.ADD_IMAGE_ARTIST': '',
-      'label.LINK_COMMENT_USERNAMES': '',
+      'label.ADD_IMAGE_ARTIST': '画像カードに作者タグを追加（モバイル）',
+      'label.LINK_COMMENT_USERNAMES': 'コメント内のユーザー名をクリック可能にする（デスクトップ）',
       'label.PIXIV_BLOCKED_USERS': 'ブロックするユーザー ID',
       'users.add': 'ユーザー ID を追加',
       'users.id': 'ユーザー ID',
@@ -1248,8 +1248,8 @@
       'label.PIXIV_REMOVE_BLOCKED': '直接移除被屏蔽的作品（桌面版）',
       'field.blockAiInfo': '仅屏蔽作者标记为 AI 生成的作品。',
       // User settings.
-      'label.ADD_IMAGE_ARTIST': '',
-      'label.LINK_COMMENT_USERNAMES': '',
+      'label.ADD_IMAGE_ARTIST': '在图片卡片上添加画师标签（移动端）',
+      'label.LINK_COMMENT_USERNAMES': '使评论中的用户名可点击（桌面端）',
       'label.PIXIV_BLOCKED_USERS': '要屏蔽的用户 ID',
       'users.add': '添加用户 ID',
       'users.id': '用户 ID',
@@ -1502,8 +1502,8 @@
       'label.PIXIV_REMOVE_BLOCKED': '直接移除被屏蔽的作品（電腦版）',
       'field.blockAiInfo': '只會屏蔽作者標記為 AI 生成的作品。',
       // User settings.
-      'label.ADD_IMAGE_ARTIST': '',
-      'label.LINK_COMMENT_USERNAMES': '',
+      'label.ADD_IMAGE_ARTIST': '在圖片卡片上新增畫師標籤（流動裝置）',
+      'label.LINK_COMMENT_USERNAMES': '讓留言中的用戶名稱可點擊（桌面版）',
       'label.PIXIV_BLOCKED_USERS': '要屏蔽的用戶 ID',
       'users.add': '添加用戶 ID',
       'users.id': '用戶 ID',
@@ -1756,8 +1756,8 @@
       'label.PIXIV_REMOVE_BLOCKED': '直接移除被屏蔽的作品（電腦版）',
       'field.blockAiInfo': '只屏蔽作者自行標記為 AI 生成的作品。',
       // User settings.
-      'label.ADD_IMAGE_ARTIST': '',
-      'label.LINK_COMMENT_USERNAMES': '',
+      'label.ADD_IMAGE_ARTIST': '在圖片卡片上新增繪師標籤（行動裝置）',
+      'label.LINK_COMMENT_USERNAMES': '讓留言中的使用者名稱可點擊（桌面版）',
       'label.PIXIV_BLOCKED_USERS': '要屏蔽的使用者 ID',
       'users.add': '新增使用者 ID',
       'users.id': '使用者 ID',
