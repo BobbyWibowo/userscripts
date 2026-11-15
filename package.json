@@ -21,6 +21,7 @@
     "serve": "http-server -c-1"
   },
   "devDependencies": {
+    "@kobzi/gmconfig": "^1.0.0",
     "@playwright/test": "^1.64.1",
     "@types/tampermonkey": "^5.5.0",
     "@vitest/coverage-v8": "^5.0.5",
