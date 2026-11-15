@@ -2346,7 +2346,7 @@
   .bookmark-detail-unit .meta[data-pixiv_utils_duplicate_date] {
     display: block;
     font-size: 16px;
-    font-weight: bold;
+    font-weight: 700;
     color: inherit;
     margin-left: 0;
     margin-top: 10px;
@@ -3828,7 +3828,6 @@
     color: var(--pixiv-utils-ui-muted);
     font: inherit;
     font-size: 11px;
-    font-weight: 500;
   }
   .pixiv-utils-edit-bookmark-panel .pixiv-utils-reload-button:hover:not(:disabled) {
     border-color: var(--pixiv-utils-ui-accent);
@@ -4044,7 +4043,6 @@
     background-image: none;
     color: var(--pixiv-utils-ui-text);
     font: inherit;
-    font-weight: 500;
     box-shadow: none;
     cursor: pointer;
     transition: background-color 120ms ease, border-color 120ms ease;
@@ -4057,7 +4055,6 @@
     border-color: var(--pixiv-utils-ui-accent);
     background: var(--pixiv-utils-ui-accent);
     color: #fff;
-    font-weight: 650;
   }
   .gc-p .gc-f button.gc-bp:hover {
     border-color: color-mix(in srgb, var(--pixiv-utils-ui-accent) 84%, black);
@@ -4074,7 +4071,6 @@
     background: var(--pixiv-utils-ui-surface);
     color: var(--pixiv-utils-ui-text);
     font: inherit;
-    font-weight: 500;
   }
   .gc-p .gc-f > .gc-h button.pixiv-utils-reload-button:hover {
     border-color: var(--pixiv-utils-ui-accent);
@@ -4314,7 +4310,6 @@
     color: var(--pixiv-utils-ui-accent);
     font: inherit;
     font-size: 13px;
-    font-weight: 550;
     cursor: pointer;
     transition: background-color 120ms ease, color 120ms ease;
   }
@@ -5086,7 +5081,7 @@
     margin-top: 7px;
     margin-right: 2px;
     border-radius: 10px;
-    font-weight: bold;
+    font-weight: 700;
     font-size: 10px;
     line-height: 20px;
     height: 20px;
@@ -5179,7 +5174,7 @@
     box-sizing: border-box;
     padding: 6px;
     border-radius: 10px;
-    font-weight: bold;
+    font-weight: 700;
     margin-left: 12px;
     cursor: pointer;
     user-select: none;
@@ -5365,7 +5360,7 @@
 
   [data-pixiv_utils_duplicate_date]:not([data-pixiv_utils_date_prefix]) {
     font-size: 14px !important;
-    font-weight: bold !important;
+    font-weight: 700 !important;
     color: rgb(214, 214, 214) !important;
   }`
   : ''}
