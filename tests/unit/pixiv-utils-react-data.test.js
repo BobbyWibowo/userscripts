@@ -378,6 +378,31 @@ describe('pixiv-utils React artwork data extraction', () => {
     expect(card.dataset.pixiv_utils_artist_added).toBe('true');
   });
 
+  it('skips the artist pill when PIXIV_ADD_IMAGE_ARTIST is disabled', async () => {
+    const pixiv = await loadPixivUtils({ settings: { PIXIV_ADD_IMAGE_ARTIST: false } });
+    const [card] = renderWorkCards(['16112933']);
+    mountReactCard(card, [
+      {},
+      {
+        thumbnail: {
+          id: '16112933',
+          type: 'illust',
+          userId: '22444847',
+          userName: '言言papa',
+          title: '菲欧妮',
+          tags: [],
+          createDate: '2026-11-03T15:52:02+09:00',
+          aiType: 1
+        }
+      }
+    ]);
+
+    await processCard(pixiv, card);
+
+    expect(card.querySelector(ARTIST_SELECTOR)).toBeNull();
+    expect(card.dataset.pixiv_utils_artist_added).toBeUndefined();
+  });
+
   it('reads collection cards that thread the collection through array children', async () => {
     const pixiv = await loadPixivUtils({ settings: { PIXIV_BLOCKED_TAGS: ['firefly'] } });
     document.body.innerHTML = `

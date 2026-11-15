@@ -38,9 +38,19 @@ const imageListener = pixiv => {
   return entry;
 };
 
-/** Attach Vue-style page metadata and run the image pipeline on one card. */
+/**
+ * Attach React-style page metadata and run the image pipeline on one card.
+ *
+ * Desktop cards are React-backed, so the fixture carries a fiber instead of a
+ * Vue instance: a `__vue__` card is treated as a mobile layout card, which
+ * never uses the inline (remove) blocking path these tests assert.
+ */
 const processCard = async (pixiv, card, props) => {
-  card.__vue__ = { _props: { item: { id: '9001', tags: [], ...props } } };
+  card.__reactFiber$fixture = {
+    memoizedProps: { id: '9001', type: 'illust', tags: [], ...props },
+    child: null,
+    return: null
+  };
 
   await pixiv.fireListener(imageListener(pixiv), card);
   await flush(4);
@@ -104,7 +114,7 @@ describe('pixiv-utils artwork blocking', () => {
 
   it('blocks AI-generated works only when AI blocking is enabled', async () => {
     const off = await loadPixivUtils();
-    const allowed = await processCard(off, plainCard(), { id: '9006', ai_type: 2, tags: [] });
+    const allowed = await processCard(off, plainCard(), { id: '9006', aiType: 2, tags: [] });
 
     expect(isBlocked(allowed)).toBe(false);
 
@@ -112,8 +122,8 @@ describe('pixiv-utils artwork blocking', () => {
     loadFixture();
 
     const on = await loadPixivUtils({ settings: { PIXIV_BLOCK_AI: true } });
-    const blocked = await processCard(on, plainCard(), { id: '9007', ai_type: 2, tags: [] });
-    const notAi = await processCard(on, bookmarkedCard(), { id: '9008', ai_type: 1, tags: [] });
+    const blocked = await processCard(on, plainCard(), { id: '9007', aiType: 2, tags: [] });
+    const notAi = await processCard(on, bookmarkedCard(), { id: '9008', aiType: 1, tags: [] });
 
     expect(isBlocked(blocked)).toBe(true);
     expect(isBlocked(notAi)).toBe(false);

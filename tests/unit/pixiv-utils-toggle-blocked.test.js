@@ -56,9 +56,19 @@ const toggleBlockedItems = async pixiv => {
   await flush();
 };
 
-/** Attach Vue-style page metadata and run the image pipeline on one card. */
+/**
+ * Attach React-style page metadata and run the image pipeline on one card.
+ *
+ * Desktop cards are React-backed, so the fixture carries a fiber instead of a
+ * Vue instance: a `__vue__` card is treated as a mobile layout card, which
+ * never uses the inline (remove) blocking path these tests assert.
+ */
 const processCard = async (pixiv, card, props) => {
-  card.__vue__ = { _props: { item: { id: '9001', tags: [], ...props } } };
+  card.__reactFiber$fixture = {
+    memoizedProps: { id: '9001', type: 'illust', tags: [], ...props },
+    child: null,
+    return: null
+  };
 
   await pixiv.fireListener(imageListener(pixiv), card);
   await flush(4);
@@ -214,7 +224,11 @@ describe('pixiv-utils blocked-items toggle', () => {
     expect(overlayOf(card)).toBeNull();
 
     // A forced re-evaluation must not undo the revealed state.
-    card.__vue__ = { _props: { item: { id: '9205', tags: ['blocked-tag'] } } };
+    card.__reactFiber$fixture = {
+      memoizedProps: { id: '9205', type: 'illust', tags: ['blocked-tag'] },
+      child: null,
+      return: null
+    };
     await pixiv.fireListener(imageListener(pixiv), card);
     await flush(4);
 
