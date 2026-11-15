@@ -24,6 +24,20 @@ const utagsListener = pixiv => {
 };
 
 /**
+ * The image registration is the fourth unconditional callback: home, own
+ * profile, expanded-view controls, then images.
+ */
+const imageListener = pixiv => {
+  const entry = pixiv.listeners.find(candidate =>
+    String(candidate.selector).includes('data-ga4-label="thumbnail"')
+  );
+
+  if (!entry) throw new Error('No image sentinel callback registered.');
+
+  return entry;
+};
+
+/**
  * Render one artwork card that carries a UTag marker, and attach the Vue
  * props the data extractor reads.
  */
@@ -39,6 +53,21 @@ const renderTaggedCard = (props = {}) => {
   card.__vue__ = { _props: { item: { id: '9001', tags: [], ...props } } };
 
   return card;
+};
+
+/**
+ * Render a Rankings-style card whose artist link already carries a UTag
+ * marker, but without the artwork link yet: image data cannot be extracted
+ * until the card finishes initializing (i.e. scrolls into view).
+ */
+const renderDeferredCard = () => {
+  document.body.insertAdjacentHTML('beforeend', `
+    <div data-ga4-label="thumbnail" id="utags-deferred-card">
+      <span data-utags_tag="block"></span>
+      <div class="controls"><div data-ga4-label="bookmark_button"><button type="button">Bookmark</button></div></div>
+    </div>`);
+
+  return document.getElementById('utags-deferred-card');
 };
 
 /** Fire the UTags callback for the card's marker element. */
@@ -95,5 +124,53 @@ describe('pixiv-utils UTags integration', () => {
 
     // Floating tooltips are off in the harness, so the tooltip is a title.
     expect(card.title).toContain('UTag: block');
+  });
+
+  it('re-applies a UTag block when only the image pipeline processes the card', async () => {
+    const pixiv = await loadPixivUtils();
+    const card = renderTaggedCard();
+
+    // The UTags sentinel never fires for this marker: the block can only
+    // come from the re-apply loop inside doImage.
+    await pixiv.fireListener(imageListener(pixiv), card);
+    await flush(4);
+
+    expect(isBlocked(card)).toBe(true);
+    expect(overlayOf(card)).not.toBeNull();
+    expect(card.getAttribute(MODERATION_MARKER)).toBe('true');
+  });
+
+  it('re-applies a UTag block when a deferred Rankings card scrolls into view', async () => {
+    // Deferred cards only process once their intersection is delivered, which
+    // models the below-the-fold Rankings cards the fix targets.
+    const pixiv = await loadPixivUtils({ autoIntersect: false });
+    const card = renderDeferredCard();
+
+    // The marker fires while the card has no artwork data yet, so the
+    // detection cannot extract image data and skips without blocking.
+    await fireUtags(pixiv, card);
+    expect(isBlocked(card)).toBe(false);
+    expect(overlayOf(card)).toBeNull();
+
+    // The artwork link renders afterwards; the image sentinel now registers
+    // the card, but it stays deferred with autoIntersect off.
+    card.insertAdjacentHTML('afterbegin', `
+      <a href="/artworks/16112933"><img src="https://i.pximg.net/x.jpg" alt=""></a>`);
+
+    await pixiv.fireListener(imageListener(pixiv), card);
+    await flush(4);
+    expect(isBlocked(card)).toBe(false);
+
+    const observer = pixiv.observers.find(instance => instance.targets.has(card));
+    expect(observer).toBeDefined();
+
+    // Scrolling into view delivers the intersection: doImage runs and its
+    // re-apply loop picks up the marker detected earlier.
+    observer.deliver([{ target: card, isIntersecting: true }]);
+    await flush(4);
+
+    expect(isBlocked(card)).toBe(true);
+    expect(overlayOf(card)).not.toBeNull();
+    expect(card.getAttribute(MODERATION_MARKER)).toBe('true');
   });
 });
