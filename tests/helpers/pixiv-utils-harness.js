@@ -61,10 +61,10 @@ export const ONURLCHANGE_NATIVE_LOG = 'Using window.onurlchange.';
  */
 export const TOGGLE_SECTION_COUNT = SCRIPT_SOURCE.match(/selectorParent:\s*\/\*css\*\//g)?.length ?? 0;
 
-/** Sentinel callback count registered by default (`6` base + `2` per toggle section + dates + UTags). */
+/** Sentinel callback count registered by default (`6` base + `2` per toggle section + dates + UTags + comments). */
 export const BASE_LISTENER_COUNT = 6;
 
-export const DEFAULT_LISTENER_COUNT = BASE_LISTENER_COUNT + (TOGGLE_SECTION_COUNT * 2) + 2;
+export const DEFAULT_LISTENER_COUNT = BASE_LISTENER_COUNT + (TOGGLE_SECTION_COUNT * 2) + 3;
 
 /** Flush pending microtasks and macrotasks, including deferred artwork work. */
 export const flush = async (turns = 3) => {

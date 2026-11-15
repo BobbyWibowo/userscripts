@@ -378,8 +378,8 @@ describe('pixiv-utils React artwork data extraction', () => {
     expect(card.dataset.pixiv_utils_artist_added).toBe('true');
   });
 
-  it('skips the artist pill when PIXIV_ADD_IMAGE_ARTIST is disabled', async () => {
-    const pixiv = await loadPixivUtils({ settings: { PIXIV_ADD_IMAGE_ARTIST: false } });
+  it('skips the artist pill when ADD_IMAGE_ARTIST is disabled', async () => {
+    const pixiv = await loadPixivUtils({ settings: { ADD_IMAGE_ARTIST: false } });
     const [card] = renderWorkCards(['16112933']);
     mountReactCard(card, [
       {},

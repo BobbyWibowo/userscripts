@@ -302,4 +302,28 @@ describe('settings panel session view memory', () => {
     expect(pixiv.storage.values.get(PREBUILT_KEY)).toBeNull();
     expect(pixiv.console.error).toEqual([]);
   });
+
+  it('places the image-artist and clickable-username switches above the blocked-users list', async () => {
+    const { FakeGmConfig, instances } = createFakeGmConfig();
+    globalThis.gmConfig = FakeGmConfig;
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    await openSettings(pixiv);
+    const { _fields } = instances.at(-1);
+
+    expect(_fields.ADD_IMAGE_ARTIST.definition).toMatchObject({
+      tab: 'Users', type: 'checkbox', default: true
+    });
+    expect(_fields.LINK_COMMENT_USERNAMES.definition).toMatchObject({
+      tab: 'Users', type: 'checkbox', default: true
+    });
+
+    // Definition order is the rendered order within the Users tab.
+    const order = Object.keys(_fields);
+    expect(order.indexOf('ADD_IMAGE_ARTIST')).toBeLessThan(order.indexOf('LINK_COMMENT_USERNAMES'));
+    expect(order.indexOf('LINK_COMMENT_USERNAMES')).toBeLessThan(order.indexOf('PIXIV_BLOCKED_USERS'));
+
+    instances.at(-1).close();
+    expect(pixiv.console.error).toEqual([]);
+  });
 });

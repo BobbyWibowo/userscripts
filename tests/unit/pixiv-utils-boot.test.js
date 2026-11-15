@@ -137,8 +137,9 @@ describe('pixiv-utils boot', () => {
 
     expect(pixiv.selectors()).toContain(DEFAULT_UTAGS_SELECTOR);
 
-    // The tag-button and recommended-user callbacks are the only conditional
-    // extras, so the base count doubles as proof that neither registered.
+    // The tag-button and recommended-user callbacks are the only callbacks
+    // outside the default set, so the default count doubles as proof that
+    // neither registered.
     expect(pixiv.listeners).toHaveLength(DEFAULT_LISTENER_COUNT);
   });
 
@@ -159,7 +160,7 @@ describe('pixiv-utils boot', () => {
     // selectors that differ are the two conditional registrations.
     const added = configured.selectors().filter(selector => !defaultSelectors.includes(selector));
 
-    expect(defaults.listeners).toHaveLength(BASE_LISTENER_COUNT + (TOGGLE_SECTION_COUNT * 2) + 2);
+    expect(defaults.listeners).toHaveLength(BASE_LISTENER_COUNT + (TOGGLE_SECTION_COUNT * 2) + 3);
     expect(configured.listeners).toHaveLength(DEFAULT_LISTENER_COUNT + 2);
     expect(added).toHaveLength(2);
     expect(added.some(selector => selector.includes(TAG_BUTTON_MARKER))).toBe(true);
@@ -169,7 +170,7 @@ describe('pixiv-utils boot', () => {
   it('skips only the toggle sections when the bookmark filter is disabled', async () => {
     const pixiv = await loadPixivUtils({ settings: { ENABLE_TOGGLE_BOOKMARKED: false } });
 
-    expect(pixiv.listeners).toHaveLength(BASE_LISTENER_COUNT + 2);
+    expect(pixiv.listeners).toHaveLength(BASE_LISTENER_COUNT + 3);
     expect(pixiv.selectors()).toContain(DEFAULT_UTAGS_SELECTOR);
   });
 
@@ -178,7 +179,8 @@ describe('pixiv-utils boot', () => {
       settings: {
         ENABLE_TOGGLE_BOOKMARKED: false,
         DATE_CONVERSION: false,
-        UTAGS_INTEGRATION: false
+        UTAGS_INTEGRATION: false,
+        LINK_COMMENT_USERNAMES: false
       }
     });
 
