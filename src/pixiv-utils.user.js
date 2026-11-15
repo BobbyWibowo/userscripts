@@ -3700,13 +3700,10 @@
     max-height: 50vh;
     overflow-y: auto;
     margin: 0;
-    padding: 0;
+    padding: 8px 0;
   }
   .pixiv-utils-edit-bookmark-panel .pixiv-utils-alert-message {
     padding: 0 0 16px;
-  }
-  .pixiv-utils-edit-bookmark-status {
-    padding: 0 16px;
   }
   .pixiv-utils-edit-bookmark-tag {
     min-height: 40px;
@@ -3724,12 +3721,6 @@
     background: var(--pixiv-utils-ui-subtle, rgba(0, 0, 0, 0.06));
     border-radius: 0;
   }
-  .pixiv-utils-edit-bookmark-privacy label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-  }
   .pixiv-utils-edit-bookmark-tag-count {
     display: inline-flex;
     align-items: center;
@@ -3743,14 +3734,14 @@
     font-size: 11px;
     line-height: 1.2;
   }
-  .pixiv-utils-edit-bookmark-tag input[type='checkbox'] {
+  .pixiv-utils-alert .pixiv-utils-edit-bookmark-tag input[type='checkbox'] {
     margin-left: auto;
   }
   .pixiv-utils-edit-bookmark-header-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 16px 8px;
+    padding: 8px 16px 0;
   }
   .pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-create-link {
     font-size: 12px;
@@ -3774,7 +3765,10 @@
   }
   .pixiv-utils-edit-bookmark-create textarea {
     flex: 1;
-    min-height: 24px;
+    box-sizing: border-box;
+    min-height: 36px;
+    appearance: none;
+    -webkit-appearance: none;
     resize: none;
     border: 1px solid var(--pixiv-utils-ui-border, rgba(0,0,0,0.2));
     border-radius: 6px;
@@ -3808,15 +3802,64 @@
     transform: translateY(-1px);
   }
   .pixiv-utils-edit-bookmark-privacy {
-    display: flex;
-    gap: 16px;
-    padding: 8px 16px 0;
+    display: block;
+    padding: 0 16px;
   }
-  .pixiv-utils-edit-bookmark-privacy label {
+  .pixiv-utils-edit-bookmark-segment-group {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    min-height: 40px;
+    overflow: hidden;
+    border: 1px solid var(--pixiv-utils-ui-border, rgba(0, 0, 0, 0.2));
+    border-radius: 6px;
+    background: var(--pixiv-utils-ui-surface, Canvas);
+  }
+  .pixiv-utils-edit-bookmark-segment {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    padding: 4px 8px;
     font-size: 13px;
+    color: var(--pixiv-utils-ui-text, CanvasText);
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .pixiv-utils-edit-bookmark-segment + .pixiv-utils-edit-bookmark-segment {
+    border-left: 1px solid var(--pixiv-utils-ui-border, rgba(0, 0, 0, 0.2));
+  }
+  .pixiv-utils-edit-bookmark-segment input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    clip-path: inset(50%);
+    overflow: hidden;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .pixiv-utils-edit-bookmark-segment:has(input:not(:disabled)):hover {
+    background: var(--pixiv-utils-ui-subtle, rgba(0, 0, 0, 0.06));
+  }
+  .pixiv-utils-edit-bookmark-segment:has(input:checked) {
+    background: var(--pixiv-utils-ui-accent, #0096fa);
+    color: #fff;
+  }
+  .pixiv-utils-edit-bookmark-segment:has(input:checked):hover {
+    background: var(--pixiv-utils-ui-accent, #0096fa);
+  }
+  .pixiv-utils-edit-bookmark-segment:has(input:disabled) {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+  .pixiv-utils-edit-bookmark-segment:has(input:focus-visible) {
+    outline: 2px solid var(--pixiv-utils-ui-accent);
+    outline-offset: -2px;
   }
   .pixiv-utils-edit-bookmark-panel .pixiv-utils-reload-button {
     position: relative;
@@ -3847,8 +3890,12 @@
     padding: 0 16px;
   }
   .pixiv-utils-edit-bookmark-status {
-    padding: 8px 16px 0;
+    padding: 0 16px;
     color: var(--pixiv-utils-ui-muted, #666);
+  }
+  .pixiv-utils-edit-bookmark-status.is-loading,
+  .pixiv-utils-edit-bookmark-status:has(.pixiv-utils-edit-bookmark-status-message:not(:empty)) {
+    padding-top: 8px;
   }
   .pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-apply,
   .pixiv-utils-edit-bookmark-panel .pixiv-utils-reload-button {
@@ -3932,6 +3979,10 @@
   }
   .pixiv-utils-alert button:hover:not(:disabled) { border-color: var(--pixiv-utils-ui-accent); }
   .pixiv-utils-alert button:focus-visible { outline: 2px solid var(--pixiv-utils-ui-accent); outline-offset: 2px; }
+  .pixiv-utils-alert :is(input, select, textarea):focus-visible {
+    outline: 2px solid var(--pixiv-utils-ui-accent);
+    outline-offset: 2px;
+  }
   .pixiv-utils-alert button.pixiv-utils-alert-close {
     display: grid;
     flex: 0 0 36px;
@@ -3973,6 +4024,9 @@
     .pixiv-utils-alert-actions { padding: 0 12px 12px; }
     .pixiv-utils-alert button { min-height: 44px; }
     .pixiv-utils-alert button.pixiv-utils-alert-close { min-height: 36px; }
+    .pixiv-utils-edit-bookmark-segment-group { min-height: 44px; }
+    .pixiv-utils-edit-bookmark-tag { min-height: 44px; }
+    .pixiv-utils-edit-bookmark-create textarea { min-height: 44px; }
   }
   /* gmConfig's .gc-c uses width:100%; account for padding and borders. */
   .gc-p, .gc-p * {
@@ -4090,10 +4144,27 @@
     color: var(--pixiv-utils-ui-text);
   }
   .gc-p :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea) {
-    border-color: var(--pixiv-utils-ui-border);
+    border: 1px solid var(--pixiv-utils-ui-border);
     border-radius: 6px;
     background-color: var(--pixiv-utils-ui-surface);
     color: var(--pixiv-utils-ui-text);
+  }
+  .gc-p :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select) {
+    min-height: 36px;
+  }
+  .gc-p :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="color"]), select) {
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .gc-p textarea {
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .gc-p select {
+    padding-right: 26px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23808080' d='M4 6l4 4 4-4z'/%3E%3C/svg%3E");
+    background-position: right 6px center;
+    background-repeat: no-repeat;
   }
   .gc-p :is(input, select, textarea, button):focus-visible {
     outline: 2px solid var(--pixiv-utils-ui-accent);
@@ -4167,7 +4238,7 @@
      active bottom underline, which clashed with gmConfig's tab strip. */
   .gc-p .gc-tb > button {
     flex: 0 0 auto;
-    min-height: 34px;
+    min-height: 36px;
     padding: 7px 12px;
     border: 0 !important;
     border-radius: 6px;
@@ -4256,11 +4327,90 @@
     width: 100%;
     box-sizing: border-box;
   }
+  .gc-p .pixiv-utils-date-editor select {
+    padding-right: 26px;
+  }
   .gc-p .pixiv-utils-date-preview {
     grid-column: 1 / -1;
     font-size: 12px;
     opacity: 0.85;
     padding: 8px;
+  }
+  .pixiv-utils-alert input[type="checkbox"],
+  .gc-p input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    border: 1px solid var(--pixiv-utils-ui-border, rgba(0, 0, 0, 0.2));
+    border-radius: 4px;
+    background: var(--pixiv-utils-ui-surface, Canvas);
+    display: inline-grid;
+    place-content: center;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+  .pixiv-utils-alert input[type="checkbox"]::before,
+  .gc-p input[type="checkbox"]::before {
+    content: '';
+    width: 4px;
+    height: 8px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg) scale(0);
+    transition: transform 120ms ease;
+  }
+  .pixiv-utils-alert input[type="checkbox"]:checked,
+  .gc-p input[type="checkbox"]:checked {
+    background: var(--pixiv-utils-ui-accent, #0096fa);
+    border-color: var(--pixiv-utils-ui-accent, #0096fa);
+  }
+  .pixiv-utils-alert input[type="checkbox"]:checked::before,
+  .gc-p input[type="checkbox"]:checked::before {
+    transform: rotate(45deg) scale(1);
+  }
+  .pixiv-utils-alert input[type="checkbox"]:disabled,
+  .gc-p input[type="checkbox"]:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+  .gc-p input[type="radio"] {
+    appearance: none;
+    -webkit-appearance: none;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    border: 1px solid var(--pixiv-utils-ui-border, rgba(0, 0, 0, 0.2));
+    border-radius: 50%;
+    background: var(--pixiv-utils-ui-surface, Canvas);
+    display: inline-grid;
+    place-content: center;
+    cursor: pointer;
+    transition: border-color 120ms ease;
+  }
+  .gc-p input[type="radio"]::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--pixiv-utils-ui-accent, #0096fa);
+    transform: scale(0);
+    transition: transform 120ms ease;
+  }
+  .gc-p input[type="radio"]:checked {
+    border-color: var(--pixiv-utils-ui-accent, #0096fa);
+  }
+  .gc-p input[type="radio"]:checked::before {
+    transform: scale(1);
+  }
+  .gc-p input[type="radio"]:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
   }
   /* Keep rule editors proportional when the flags field is hidden. */
   .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
@@ -4289,7 +4439,7 @@
     align-self: flex-start;
     font: inherit;
     font-size: 11px;
-    min-height: 30px;
+    min-height: 36px;
     padding: 4px 9px;
     cursor: pointer;
     border: 1px solid var(--pixiv-utils-ui-border);
@@ -4302,7 +4452,7 @@
     color: var(--pixiv-utils-ui-accent);
   }
   .gc-p .gc-list-add {
-    min-height: 34px;
+    min-height: 36px;
     padding: 5px 11px;
     border: 1px solid var(--pixiv-utils-ui-accent);
     border-radius: 6px;
@@ -4376,8 +4526,23 @@
     gap: 8px;
   }
   .gc-p .pixiv-utils-backup-buttons button {
-    padding: 5px 9px;
+    appearance: none;
+    -webkit-appearance: none;
+    min-height: 36px;
+    padding: 6px 13px;
+    border: 1px solid var(--pixiv-utils-ui-border);
+    border-radius: 6px;
+    background: var(--pixiv-utils-ui-surface);
+    background-image: none;
+    color: var(--pixiv-utils-ui-text);
+    font: inherit;
+    box-shadow: none;
     cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+  .gc-p .pixiv-utils-backup-buttons button:hover {
+    border-color: color-mix(in srgb, var(--pixiv-utils-ui-accent) 48%, var(--pixiv-utils-ui-border));
+    background: var(--pixiv-utils-ui-raised);
   }
   .gc-p .gc-f > .gc-h button {
     cursor: pointer;
@@ -4405,7 +4570,7 @@
       padding: 4px;
     }
     .gc-p .gc-tb > button {
-      min-height: 38px;
+      min-height: 44px;
       padding: 7px 10px;
     }
     .gc-p .gc-f {
@@ -4416,6 +4581,10 @@
       min-height: 44px;
     }
     .gc-p .gc-f > .gc-h button.pixiv-utils-reload-button {
+      min-height: 44px;
+    }
+    .gc-p .pixiv-utils-collapse-group,
+    .gc-p .gc-list-add {
       min-height: 44px;
     }
     .gc-p .gc-f > .gc-h {
@@ -4438,6 +4607,9 @@
     .gc-p .pixiv-utils-backup textarea {
       font-size: 16px;
     }
+    .gc-p :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select) {
+      min-height: 44px;
+    }
     .gc-p .gc-li-h {
       flex-wrap: wrap;
     }
@@ -4445,7 +4617,7 @@
       align-items: stretch;
     }
     .gc-p .pixiv-utils-backup-buttons button {
-      min-height: 36px;
+      min-height: 44px;
     }
     /* Stack regex fields on narrow screens to preserve usable input widths. */
     .gc-p .gc-li-b > .gc-r:has(> .gc-g input[id$="_value"]) {
@@ -6123,12 +6295,15 @@
     const privacyContainer = document.createElement('div');
     privacyContainer.className = 'pixiv-utils-edit-bookmark-privacy';
     privacyContainer.style.display = 'none';
+    const privacyGroup = document.createElement('div');
+    privacyGroup.className = 'pixiv-utils-edit-bookmark-segment-group';
     const publicRadio = document.createElement('input');
     publicRadio.type = 'radio';
     publicRadio.name = 'pixiv_utils_bookmark_privacy';
     publicRadio.value = 'public';
     publicRadio.checked = true;
     const publicLabel = document.createElement('label');
+    publicLabel.className = 'pixiv-utils-edit-bookmark-segment';
     publicLabel.append(publicRadio, document.createTextNode(tr('editBookmark.public')));
     const privateRadio = document.createElement('input');
     privateRadio.type = 'radio';
@@ -6137,8 +6312,10 @@
     publicRadio.disabled = true;
     privateRadio.disabled = true;
     const privateLabel = document.createElement('label');
+    privateLabel.className = 'pixiv-utils-edit-bookmark-segment';
     privateLabel.append(privateRadio, document.createTextNode(tr('editBookmark.private')));
-    privacyContainer.append(publicLabel, privateLabel);
+    privacyGroup.append(publicLabel, privateLabel);
+    privacyContainer.append(privacyGroup);
     body.append(privacyContainer);
 
     const applyButton = document.createElement('button');
