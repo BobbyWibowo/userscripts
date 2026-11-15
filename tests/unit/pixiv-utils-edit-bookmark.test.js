@@ -921,4 +921,214 @@ describe('pixiv-utils edit bookmark', () => {
     expect(tagCountsOf(panel)).toEqual({ foo: 1, bar: 1 });
     expect(pixiv.console.error).toEqual([]);
   });
+
+  it('renders the privacy options as a segmented radio control', async () => {
+    if (!('showModal' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    }
+    if (!('close' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.close = function () { this.open = false; };
+    }
+
+    const fetchMock = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('bookmark/tags')) {
+        return { ok: true, json: async () => ({ body: { tags: { public: [{ tag: 'foo', cnt: 2 }] } } }) };
+      }
+      if (urlStr.includes('bookmarkData')) {
+        return { ok: true, json: async () => ({ body: { isBookmarkable: true, bookmarkData: null } }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const panel = await openPanelForCard(pixiv);
+    expect(panel).not.toBeNull();
+
+    const container = panel.querySelector('.pixiv-utils-edit-bookmark-privacy');
+    expect(container).not.toBeNull();
+    const group = container.querySelector('.pixiv-utils-edit-bookmark-segment-group');
+    expect(group).not.toBeNull();
+    // The group is the container's only child, so it fills the container width.
+    expect([...container.children]).toEqual([group]);
+
+    const segments = [...group.querySelectorAll('.pixiv-utils-edit-bookmark-segment')];
+    expect(segments).toHaveLength(2);
+
+    const radios = [...group.querySelectorAll('input[type="radio"]')];
+    expect(radios.map(radio => radio.value)).toEqual(['public', 'private']);
+    // One radio group: the shared name keeps form value binding and native
+    // arrow-key navigation between the segments.
+    expect(new Set(radios.map(radio => radio.name)).size).toBe(1);
+    // Each option is a label segment wrapping its own radio input.
+    expect(radios[0].closest('label')).toBe(segments[0]);
+    expect(radios[1].closest('label')).toBe(segments[1]);
+    // Loaded state: enabled, public selected.
+    expect(radios[0].disabled).toBe(false);
+    expect(radios[1].disabled).toBe(false);
+    expect(radios[0].checked).toBe(true);
+    expect(radios[1].checked).toBe(false);
+
+    // The group styles as two equal halves filling its parent.
+    const css = pixiv.styles.join('\n');
+    const groupRule = css.match(/\.pixiv-utils-edit-bookmark-segment-group \{[^}]*\}/)?.[0] ?? '';
+    expect(groupRule).toContain('grid-template-columns: 1fr 1fr');
+    expect(groupRule).toContain('width: 100%');
+
+    // Selecting the other segment deselects the previous one.
+    segments[1].click();
+    expect(radios[1].checked).toBe(true);
+    expect(radios[0].checked).toBe(false);
+
+    segments[0].click();
+    expect(radios[0].checked).toBe(true);
+    expect(radios[1].checked).toBe(false);
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('submits the selected privacy segment as the bookmark restrict value', async () => {
+    if (!('showModal' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    }
+    if (!('close' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.close = function () { this.open = false; };
+    }
+
+    const fetchMock = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('bookmark/tags')) {
+        return { ok: true, json: async () => ({ body: { tags: { public: [{ tag: 'foo', cnt: 2 }] } } }) };
+      }
+      if (urlStr.includes('bookmarkData')) {
+        return { ok: true, json: async () => ({ body: { isBookmarkable: true, bookmarkData: { id: 'bm-1' } } }) };
+      }
+      if (urlStr.includes('bookmark_add.php')) {
+        return { ok: true, text: async () => '<input name="tag" value="foo"><input name="restrict" value="0" checked>' };
+      }
+      if (urlStr.includes('edit_restrict')) {
+        return { ok: true, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const panel = await openPanelForCard(pixiv);
+    expect(panel).not.toBeNull();
+
+    // The bookmark loaded as public; switch the segmented control to Private.
+    const privateRadio = [...panel.querySelectorAll('.pixiv-utils-edit-bookmark-segment input[type="radio"]')]
+      .find(radio => radio.value === 'private');
+    privateRadio.click();
+    await flush(2);
+    expect(privateRadio.checked).toBe(true);
+
+    panel.querySelector('.pixiv-utils-alert-ok').click();
+    await flush(10);
+
+    const restrictCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes('edit_restrict'));
+    expect(restrictCalls).toHaveLength(1);
+    expect(JSON.parse(restrictCalls[0][1].body)).toEqual({
+      bookmarkIds: ['bm-1'],
+      bookmarkRestrict: 'private'
+    });
+    expect(panel.open).toBe(false);
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('styles form controls and backup buttons without native browser styling', async () => {
+    if (!('showModal' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    }
+    if (!('close' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.close = function () { this.open = false; };
+    }
+
+    const fetchMock = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('bookmark/tags')) {
+        return { ok: true, json: async () => ({ body: { tags: { public: [{ tag: 'foo', cnt: 2 }] } } }) };
+      }
+      if (urlStr.includes('bookmarkData')) {
+        return { ok: true, json: async () => ({ body: { isBookmarkable: true, bookmarkData: null } }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const panel = await openPanelForCard(pixiv);
+    expect(panel).not.toBeNull();
+
+    const css = pixiv.styles.join('\n');
+
+    // Backup buttons carry the shared button box instead of native styling.
+    const backupRule = css.match(/\.gc-p \.pixiv-utils-backup-buttons button \{[^}]*\}/)?.[0] ?? '';
+    expect(backupRule).toContain('min-height: 36px');
+    expect(backupRule).toContain('appearance: none');
+    expect(backupRule).toContain('border: 1px solid');
+    expect(css).toContain('.gc-p .pixiv-utils-backup-buttons button:hover');
+
+    // Text fields and selects share the button height, not native heights.
+    expect(css).toContain('select) {\n    min-height: 36px;');
+    expect(css).toContain('select) {\n      min-height: 44px;');
+    expect(css).toContain('.gc-p :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="color"]), select) {\n    appearance: none;');
+
+    // Custom checkbox and radio rendering replaces the native controls.
+    const checkboxRule = css.match(/\.pixiv-utils-alert input\[type="checkbox"\],[\s\S]*?\{[^}]*\}/)?.[0] ?? '';
+    expect(checkboxRule).toContain('width: 18px');
+    expect(checkboxRule).toContain('appearance: none');
+    expect(css).toContain('.gc-p input[type="radio"]');
+
+    // Selects get a custom chevron instead of the native arrow.
+    expect(css).toContain('data:image/svg+xml');
+
+    // The create-tag textarea matches the shared control heights.
+    const createTextareaRule = css.match(/\.pixiv-utils-edit-bookmark-create textarea \{[^}]*\}/)?.[0] ?? '';
+    expect(createTextareaRule).toContain('min-height: 36px');
+    expect(createTextareaRule).toContain('box-sizing: border-box');
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('pads the status row only while it shows a message or spinner', async () => {
+    if (!('showModal' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    }
+    if (!('close' in HTMLDialogElement.prototype)) {
+      HTMLDialogElement.prototype.close = function () { this.open = false; };
+    }
+
+    const fetchMock = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('bookmark/tags')) {
+        return { ok: true, json: async () => ({ body: { tags: { public: [{ tag: 'foo', cnt: 2 }] } } }) };
+      }
+      if (urlStr.includes('bookmarkData')) {
+        return { ok: true, json: async () => ({ body: { isBookmarkable: true, bookmarkData: null } }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const panel = await openPanelForCard(pixiv);
+    expect(panel).not.toBeNull();
+
+    const css = pixiv.styles.join('\n');
+
+    // Exactly one base status rule, so its padding cannot be split across
+    // duplicates again.
+    expect((css.match(/\.pixiv-utils-edit-bookmark-status \{/g) || [])).toHaveLength(1);
+
+    // The base row keeps only horizontal padding: the shorthand's first value
+    // (top) stays 0.
+    const statusRule = css.match(/\.pixiv-utils-edit-bookmark-status \{[^}]*\}/)?.[0] ?? '';
+    expect(statusRule).toContain('padding: 0 16px');
+    expect(statusRule).not.toContain('8px');
+
+    // The top gap appears only with a visible message or the loading spinner.
+    expect(css).toContain('.pixiv-utils-edit-bookmark-status.is-loading,\n  .pixiv-utils-edit-bookmark-status:has(.pixiv-utils-edit-bookmark-status-message:not(:empty)) {\n    padding-top: 8px;');
+    expect(pixiv.console.error).toEqual([]);
+  });
 });
