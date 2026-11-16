@@ -78,10 +78,10 @@
 
     // Keys that starts with "SELECTORS_", and in array, will automatically be converted to single-line strings.
     SELECTORS_VIDEO: [
-      'ytd-compact-video-renderer:has(#dismissible)',
-      'ytd-rich-item-renderer:has(#dismissible, yt-lockup-view-model, ytm-shorts-lockup-view-model-v2)',
+      'ytd-rich-item-renderer:has(yt-lockup-view-model, ytm-shorts-lockup-view-model-v2)',
       'ytd-item-section-renderer yt-lockup-view-model',
       '#items > ytm-shorts-lockup-view-model-v2',
+      'ytd-grid-video-renderer:has(#dismissible)',
       'ytd-player .ytp-suggestion-set',
       'ytd-player .ytp-ce-video.ytp-ce-element-show'
     ]
@@ -707,93 +707,184 @@
     return videoID;
   };
 
+  // The matched element may be the lockup itself (watch sidebar) or a
+  // wrapper rich-item containing one (home grid).
+  // The matched element may be the lockup itself (watch sidebar / gaming
+  // shorts shelf) or a wrapper rich-item containing one (home grid,
+  // home shorts shelf).
+  const findLockupViewModel = element =>
+    (element.tagName === 'YT-LOCKUP-VIEW-MODEL' && element) ||
+    (element.tagName === 'YTM-SHORTS-LOCKUP-VIEW-MODEL-V2' && element) ||
+    element.querySelector('yt-lockup-view-model, ytm-shorts-lockup-view-model-v2, ytm-shorts-lockup-view-model');
+
+  // componentProps payload of a card. Desktop lockups wrap it in a
+  // symbol-keyed envelope ({[Symbol]: {value}}); on home the envelope sits
+  // on a FUNCTION data property (live: data = fn "C" with Symbol(Db)), so
+  // functions must be accepted too. The shorts-shelf variant stores a
+  // plain string-keyed object directly (no symbols). Null when absent.
+  const getLockupPayload = lockupViewModel => {
+    const data = lockupViewModel?.componentProps?.data;
+    if (data === null || data === undefined) return null;
+    if (typeof data !== 'object' && typeof data !== 'function') return null;
+    const symbols = Object.getOwnPropertySymbols(data);
+    if (symbols.length) return data[symbols[0]]?.value ?? data[symbols[0]];
+    // Bare string-keyed object = shorts payload; a symbol-less function is
+    // not a payload (fail open to the API).
+    return typeof data === 'object' ? data : null;
+  };
+
+  // Positive playlist detection — never inferred from a missing views row:
+  // a video whose row failed to render must fall through to the API, not be
+  // skipped. contentType is a stable English enum in every UI locale; the
+  // contentId fallback only fires when contentType is missing/unknown
+  // (every probed video contentId was exactly 11 chars, PL/RD never are).
+  const isPlaylistPayload = payload => {
+    if (!payload) return false;
+    if (payload.contentType === 'LOCKUP_CONTENT_TYPE_PLAYLIST') return true;
+    if (payload.contentType === 'LOCKUP_CONTENT_TYPE_VIDEO') return false;
+    return typeof payload.contentId === 'string' &&
+      payload.contentId.length > 0 &&
+      !/^[A-Za-z0-9_-]{11}$/.test(payload.contentId);
+  };
+
+  // Classify a view-count display string into exact / compact / none.
+  // Works for both desktop PLAY_ARROW tokens ("70K", "428", "1,234") and
+  // shorts secondaryText ("428 views", "2.7M views"). Never feed raw text
+  // into viewCount — doVideo parseInt's it, so compact must become a safe
+  // synthetic number upstream. Errors toward fail-open (miss a hide) and
+  // never toward a false hide:
+  // - no ASCII digit → none → API (also routes non-Latin-digit exacts to
+  //   the API instead of misreading them as compact);
+  // - first token not pure digits after stripping separators → attached
+  //   unit ("2.7M", "12万") → compact (decimals only occur with scales);
+  // - leading run of pure numeric tokens → space-grouped exact ("1 234");
+  // - a following token decides: punctuation ("Mio.", "тыс.") or ≤3 chars
+  //   ("M", "K") → unit → compact; pure letters ≥4 ("views", "vues",
+  //   "Aufrufe") → label → exact; anything else → compact (safe default).
+  // Known limit: labels of ≤3 letters (ja 回視聴, ko 조회수, hi बार) read as
+  // units → those shorts' <1000 counts fail open (miss, never false-hide).
+  const classifyViewCountText = raw => {
+    const text = String(raw ?? '').trim();
+    if (!/\d/.test(text)) return { kind: 'none' };
+    const tokens = text.split(/\s+/);
+    const strip = token => token.replace(/[\s.,'’]/g, '');
+    if (!/^\d+$/.test(strip(tokens[0]))) return { kind: 'compact' };
+    const run = [];
+    let i = 0;
+    while (i < tokens.length && /^\d+$/.test(strip(tokens[i]))) {
+      run.push(strip(tokens[i]));
+      i++;
+    }
+    if (run.length === 0) return { kind: 'none' };
+    const value = Number(run.join(''));
+    const next = tokens[i];
+    if (next === undefined) return { kind: 'exact', value };
+    if (/[^\p{L}]/u.test(next)) return { kind: 'compact' };
+    if (next.length <= 3) return { kind: 'compact' };
+    if (/^\p{L}+$/u.test(next)) return { kind: 'exact', value };
+    return { kind: 'compact' };
+  };
+
+  // View count from card props: desktop lockups carry a PLAY_ARROW metadata
+  // row (pure token text; row layout differs between home and watch — flatten
+  // all parts, never fixed indices); shorts shelves carry
+  // overlayMetadata.secondaryText ("428 views" / "2.7M views").
+  // The a11y accessibilityText is deliberately NOT used — it expands scales
+  // to words ("813 thousand") which naive digit extraction would read as 813.
+  const parseCardViews = payload => {
+    const rows = payload?.metadata?.lockupMetadataViewModel?.metadata
+      ?.contentMetadataViewModel?.metadataRows ?? [];
+    const playArrow = rows.flatMap(row => row.metadataParts || [])
+      .find(candidate => candidate.leadingIcon?.name === 'PLAY_ARROW_OUTLINED');
+    if (playArrow) {
+      const text = String(playArrow.text?.content ?? '').trim();
+      if (text) return classifyViewCountText(text);
+    }
+    const secondary = payload?.overlayMetadata?.secondaryText?.content;
+    if (typeof secondary === 'string' && secondary.trim()) {
+      return classifyViewCountText(secondary);
+    }
+    return { kind: 'none' };
+  };
+
   const getVideoData = async element => {
     const videoID = getVideoID(element);
     if (!videoID) {
       return null;
     }
 
-    let channelId;
-    let metadata = {};
+    const payload = getLockupPayload(findLockupViewModel(element));
 
-    // YouTube newest design.
-    const lockupViewModel = (element.tagName === 'YT-LOCKUP-VIEW-MODEL' && element) ||
-      element.querySelector('yt-lockup-view-model');
-
-    if (lockupViewModel) {
-      if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
-        // Attempt to get channel ID early through DOM properties.
-        const symbols = Object.getOwnPropertySymbols(lockupViewModel.componentProps?.data ?? {});
-        if (symbols.length) {
-          const _metadata = lockupViewModel.componentProps.data[symbols[0]].value?.metadata?.lockupMetadataViewModel;
-          channelId = _metadata?.image?.decoratedAvatarViewModel?.rendererContext?.commandContext?.onTap
-            ?.innertubeCommand?.browseEndpoint?.browseId;
-        }
-      }
-    } else {
-      // YouTube older design.
-      // Live videos will fallback to YouTube API method.
-      const dismissible = element.querySelector('#dismissible');
-      if (dismissible) {
-        const data = dismissible.__dataHost?.__data?.data;
-        if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
-          // Attempt to get channel ID early through DOM properties.
-          channelId = data?.owner?.navigationEndpoint?.browseEndpoint?.browseId ||
-            data?.longBylineText?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId;
-        }
-
-        // For older design, views count can also be parsed through DOM properties.
-        const views = data?.viewCountText?.simpleText;
-        if (views) {
-          metadata.viewCount = 0;
-          const digits = views.match(/\d/g);
-          if (digits !== null) {
-            metadata.viewCount = Number(digits.join(''));
-          }
-        }
-      }
+    // Playlists are skipped outright: visible (noview_views marker set in
+    // finally), no threshold, no fetch — instead of an API fallback.
+    if (isPlaylistPayload(payload)) {
+      logDebug('Skipped playlist lockup', element);
+      return { videoID, skipped: true, metadata: {} };
     }
 
-    if (channelId) {
-      metadata.channelIDs = new Set([channelId]);
-      // If early-found channel ID is allowed, skip onward.
-      if (CONFIG.ALLOWED_CHANNEL_IDS.includes(channelId)) {
+    // Early channel-ID extraction from the lockup bridge — the allowlist
+    // fast path, which skips the fetch entirely when the channel is allowed.
+    if (payload && CONFIG.ALLOWED_CHANNEL_IDS.length) {
+      const channelId = payload?.metadata?.lockupMetadataViewModel?.image
+        ?.decoratedAvatarViewModel?.rendererContext?.commandContext?.onTap
+        ?.innertubeCommand?.browseEndpoint?.browseId;
+      if (channelId && CONFIG.ALLOWED_CHANNEL_IDS.includes(channelId)) {
         logDebug('Skipped metadata fetch due to allowed channel', element);
-        return { videoID, allowedChannel: channelId, metadata };
+        return {
+          videoID,
+          allowedChannel: channelId,
+          metadata: { channelIDs: new Set([channelId]) }
+        };
       }
     }
 
-    // DOM-parsed view counts (old design) are enough for the regular threshold,
-    // but still fetch when live handling or the channel allowlist need API-only
-    // fields (isLive, parent/topic channel IDs).
-    const needsFullFetch = typeof metadata?.viewCount === 'undefined' ||
-      CONFIG.VIEWS_THRESHOLD_LIVE !== null ||
-      CONFIG.ALLOWED_CHANNEL_IDS.length > 0;
-
-    if (needsFullFetch) {
-      const fetched = await fetchVideoMetadata(videoID);
-      // Keep DOM-parsed views if the API response lacks them.
-      if ((fetched.viewCount === null || typeof fetched.viewCount === 'undefined') &&
-        typeof metadata.viewCount !== 'undefined') {
-        fetched.viewCount = metadata.viewCount;
+    // DOM view fast path — skip the API whenever the parsed count already
+    // settles every configured threshold (best-effort API reduction).
+    if (payload) {
+      const parsed = parseCardViews(payload);
+      const maxThreshold = Math.max(
+        CONFIG.VIEWS_THRESHOLD ?? 0,
+        CONFIG.VIEWS_THRESHOLD_NEW ?? 0,
+        CONFIG.VIEWS_THRESHOLD_LIVE ?? 0
+      );
+      if (parsed.kind === 'exact') {
+        // An exact count settles the decision when it exceeds every
+        // configured threshold (never hidden — isLive/isUpcoming/channel
+        // cannot flip that) or when no live/allowlist context is configured
+        // (isLive has no DOM source; parent-channel allowlist matching
+        // needs API channelIDs).
+        if (parsed.value > maxThreshold ||
+          (CONFIG.VIEWS_THRESHOLD_LIVE === null && CONFIG.ALLOWED_CHANNEL_IDS.length === 0)) {
+          return { videoID, metadata: { viewCount: parsed.value } };
+        }
+      } else if (parsed.kind === 'compact' && maxThreshold < 1000) {
+        // Compact unit string ("70K") ⇒ the count is ≥1000 ⇒ above every
+        // configured threshold (all <1000) ⇒ not hidden regardless of
+        // isLive/isUpcoming/channel — a synthetic floor keeps doVideo's
+        // compare exact. No locale parsing, no API call.
+        return { videoID, metadata: { viewCount: 1000 } };
       }
-      // Keep early-extracted channel ID if the API response lacks channel data.
-      if (!fetched.channelIDs && metadata.channelIDs) {
-        fetched.channelIDs = metadata.channelIDs;
-      }
-      metadata = fetched;
     }
 
+    // API path: count not settled above (exact ≤ maxThreshold under
+    // live/allowlist context, compact with a ≥1000 threshold, missing
+    // payload/row) — cache → peer message → throttled Innertube.
+    const metadata = await fetchVideoMetadata(videoID);
     return { videoID, metadata };
   };
 
   const isVideoNew = element => {
-    if (element.tagName === 'YT-LOCKUP-VIEW-MODEL') {
-      const badges = Array.from(element.querySelectorAll('yt-content-metadata-view-model .badge-shape-wiz__text'));
-      return badges.some(badge => badge?.innerText === CONFIG.TEXT_BADGE_NEW);
-    } else {
-      return Boolean(element.querySelector(`#dismissible .badge[aria-label="${CONFIG.TEXT_BADGE_NEW}"]`));
+    // Same lockup detection as getVideoData so wrapper elements (home
+    // rich-items) are handled too; no lockup → not "new" (fail-open to the
+    // default threshold).
+    const lockupViewModel = findLockupViewModel(element);
+    if (!lockupViewModel) {
+      return false;
     }
+    const badges = lockupViewModel.querySelectorAll('yt-content-metadata-view-model .badge-shape-wiz__text');
+    // textContent instead of innerText: identical for these simple spans and
+    // it also works under jsdom, where innerText is not implemented.
+    return Array.from(badges).some(badge => badge?.textContent === CONFIG.TEXT_BADGE_NEW);
   };
 
   const doVideo = async element => {
@@ -803,6 +894,12 @@
     }
 
     element.dataset.noview_id = data.videoID;
+
+    if (data.skipped) {
+      // Playlist: stays visible (noview_views marker is set in finally),
+      // never thresholded, never fetched.
+      return false;
+    }
 
     if (CONFIG.ALLOWED_CHANNEL_IDS.length) {
       delete element.dataset.noview_allowed_channel;
