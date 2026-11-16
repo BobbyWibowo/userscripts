@@ -660,41 +660,56 @@
     return true;
   };
 
-  const waitForVideoIDChange = async element => {
+  // Shared registry so all watched cards share a single interval instead of
+  // leaking one setInterval per element for the lifetime of the page.
+  const elementsAwaitingIDChange = new Map(); // element -> last known video ID
+  let videoIDWatchInterval = null;
+
+  const reprocessAfterIDChange = element => {
+    delete element.dataset.noview_id;
+    delete element.dataset.noview_views;
+    delete element.dataset.noview_threshold_unmet;
+    delete element.dataset.noview_channel_ids;
+    delete element.dataset.noview_allowed_channel;
+    doVideoWrapped(element);
+  };
+
+  const tickVideoIDWatch = () => {
+    for (const [element, oldID] of [...elementsAwaitingIDChange]) {
+      // Drop elements that are no longer in the document.
+      if (!document.body.contains(element)) {
+        elementsAwaitingIDChange.delete(element);
+        continue;
+      }
+      // Only do thorough checks if the element is in the currently visible page.
+      if (!currentPage?.contains(element)) {
+        continue;
+      }
+      const newID = getVideoID(element);
+      if (newID && oldID !== newID) {
+        elementsAwaitingIDChange.delete(element);
+        reprocessAfterIDChange(element);
+      }
+    }
+
+    // Stop the shared timer when nothing is watched.
+    if (!elementsAwaitingIDChange.size && videoIDWatchInterval !== null) {
+      clearInterval(videoIDWatchInterval);
+      videoIDWatchInterval = null;
+    }
+  };
+
+  const waitForVideoIDChange = element => {
     const oldID = element.dataset.noview_id || getVideoID(element);
     if (!oldID) {
       return false;
     }
 
-    const newID = await new Promise(resolve => {
-      let interval = null;
-      const findNewID = () => {
-        // Exit if the element is no longer in DOM.
-        if (!document.body.contains(element)) {
-          clearInterval(interval);
-          return resolve();
-        }
-        // Only do thorough checks if the element is in the currently visible page.
-        if (currentPage?.contains(element)) {
-          const newID = getVideoID(element);
-          if (oldID !== newID) {
-            clearInterval(interval);
-            return resolve(newID);
-          }
-        }
-      };
-      findNewID();
-      interval = setInterval(findNewID, 1000);
-    });
-
-    if (newID) {
-      delete element.dataset.noview_id;
-      delete element.dataset.noview_views;
-      delete element.dataset.noview_threshold_unmet;
-      delete element.dataset.noview_channel_ids;
-      delete element.dataset.noview_allowed_channel;
-      doVideoWrapped(element);
+    elementsAwaitingIDChange.set(element, oldID);
+    if (videoIDWatchInterval === null) {
+      videoIDWatchInterval = setInterval(tickVideoIDWatch, 1000);
     }
+    return true;
   };
 
   const doVideoWrapped = async element => {
