@@ -478,23 +478,33 @@
     const onMessage = event => {
       if (event.data?.type === 'youtube-noview:video-metadata-received') {
         const data = event.data;
-        if (data.videoID && data.metadata && !videoMetadataCache.getFromCache(data.videoID)) {
-          const metadata = data.metadata;
-          const cachedData = videoMetadataCache.setupCache(data.videoID);
+        if (data.videoID && data.metadata) {
+          const existing = videoMetadataCache.getFromCache(data.videoID);
+          const hasUsefulLocal = existing && existing.viewCount !== null;
+          // Accept the peer's payload when we have nothing usable locally.
+          // A local failure (viewCount null) must not block a peer's success.
+          if (!hasUsefulLocal) {
+            const metadata = data.metadata;
+            const cachedData = videoMetadataCache.setupCache(data.videoID);
 
-          cachedData.channelIDs = metadata.channelIDs;
-          cachedData.author = metadata.author;
-          cachedData.isLive = metadata.isLive;
-          cachedData.isUpcoming = metadata.isUpcoming;
-          cachedData.viewCount = metadata.viewCount;
+            cachedData.channelIDs = metadata.channelIDs;
+            cachedData.author = metadata.author;
+            cachedData.isLive = metadata.isLive;
+            cachedData.isUpcoming = metadata.isUpcoming;
+            cachedData.viewCount = metadata.viewCount;
+          }
 
+          // Always resolve waiters: the peer's fetch is done either way, and
+          // leaving callbacks pending would hang fetchVideoMetadata callers
+          // for this videoID until reload.
           const index = waitingForMetadata.findIndex((item) => item.videoID === data.videoID);
           if (index !== -1) {
-            waitingForMetadata[index].callbacks.forEach((callback) => {
-              callback(data.metadata);
-            });
-
+            const callbacks = waitingForMetadata[index].callbacks;
             waitingForMetadata.splice(index, 1);
+            const payload = hasUsefulLocal ? existing : data.metadata;
+            callbacks.forEach((callback) => {
+              callback(payload);
+            });
           }
         }
       } else if (event.data?.type === 'youtube-noview:video-metadata-requested' &&
