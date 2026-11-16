@@ -2,7 +2,7 @@
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
 // @version      1.4.0
-// @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
+// @description  Hide videos matching views thresholds.
 // @author       Bobby Wibowo
 // @license      MIT
 // @match        *://www.youtube.com/*
@@ -56,7 +56,8 @@
     DISABLE_STYLES: false,
     DISABLE_HIDE_PROCESSING: false,
 
-    SELECTORS_ALLOWED_PAGE: null,
+    // URL pathname patterns.
+    ALLOWED_PAGE_PATHS: [],
     SELECTORS_VIDEO: null
   };
 
@@ -67,11 +68,15 @@
     // To ensure any custom values will be inserted into array, or combined together if also an array.
     ALLOWED_CHANNEL_IDS: [],
 
-    // Keys that starts with "SELECTORS_", and in array, will automatically be converted to single-line strings.
-    SELECTORS_ALLOWED_PAGE: [
-      'ytd-browse[page-subtype="home"]:not([hidden])', // home
-      'ytd-watch-flexy:not([hidden])' // watch page
+    // URL pathname patterns the script operates on.
+    // Matched against location.pathname with queries/fragments ignored.
+    ALLOWED_PAGE_PATHS: [
+      '/', // home
+      '/gaming',
+      '/watch'
     ],
+
+    // Keys that starts with "SELECTORS_", and in array, will automatically be converted to single-line strings.
     SELECTORS_VIDEO: [
       'ytd-compact-video-renderer:has(#dismissible)',
       'ytd-rich-item-renderer:has(#dismissible, yt-lockup-view-model, ytm-shorts-lockup-view-model-v2)',
@@ -149,6 +154,44 @@
     }
   }
 
+  /* Reduce a URL-ish string to a comparable pathname. Used for both stored
+   * patterns and location.pathname, so they can only ever match each other:
+   * - a full URL pattern (https://host/watch?v=x) loses its origin,
+   *   query and fragment — page type is path-only (/watch?v=… is /watch),
+   * - percent-decoding applied (malformed sequences kept raw),
+   * - one trailing slash dropped (except root), leading slash ensured
+   *   ('gaming' → '/gaming'), empty input stays empty (never matches). */
+  const normalizePath = raw => {
+    let path = String(raw ?? '').trim();
+    if (path === '') return '';
+    const originMatch = path.match(/^https?:\/\/[^/?#]+(\/.*)?$/);
+    if (originMatch) path = originMatch[1] || '/';
+    const cut = path.search(/[?#]/);
+    if (cut !== -1) path = path.slice(0, cut);
+    try {
+      path = decodeURIComponent(path);
+    } catch {
+      // Malformed percent-encoding — keep the raw path.
+    }
+    if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
+    if (path === '') return '';
+    if (!path.startsWith('/')) path = `/${path}`;
+    return path;
+  };
+
+  const isPathAllowed = pathname => {
+    const current = normalizePath(pathname);
+    return CONFIG.ALLOWED_PAGE_PATHS.some(raw => {
+      const pattern = normalizePath(raw);
+      if (!pattern) return false;
+      // Root only matches root: a prefix rule for '/' would match everything.
+      if (pattern === '/') return current === '/';
+      // Segment-boundary prefix: /watch matches /watch and /watch/… but not
+      // /watchfoo.
+      return current === pattern || current.startsWith(`${pattern}/`);
+    });
+  };
+
   let logDebug = () => {};
   if (CONFIG.MODE !== 'PROD') {
     logDebug = log;
@@ -165,14 +208,17 @@
   `);
 
   if (!CONFIG.DISABLE_HIDE_PROCESSING) {
+    // Page gating is URL-based, which CSS cannot express — the script marks
+    // the current state on <html> (applied in updateAllowedPage below) and
+    // the hide rules hang off that attribute.
     GM_addStyle(/*css*/`
-      :is(${CONFIG.SELECTORS_ALLOWED_PAGE}) :is(${CONFIG.SELECTORS_VIDEO}) {
+      html[data-noview_allowed_page] :is(${CONFIG.SELECTORS_VIDEO}) {
         transition: 0.2s opacity;
       }
 
       /* Visually hide, while still letting the element occupy the space.
       * To prevent YouTube from infinitely loading more videos. */
-      :is(${CONFIG.SELECTORS_ALLOWED_PAGE}) :is(${CONFIG.SELECTORS_VIDEO}):not([data-noview_views], [data-noview_allowed_channel]) {
+      html[data-noview_allowed_page] :is(${CONFIG.SELECTORS_VIDEO}):not([data-noview_views], [data-noview_allowed_channel]) {
         visibility: hidden;
         opacity: 0;
       }
@@ -273,36 +319,35 @@
 
   let intersectionObserver = null;
 
-  let currentPage = null;
+  // True while location.pathname matches ALLOWED_PAGE_PATHS. Gates the
+  // sentinel, the ID watcher and reconciliation, and drives the
+  // [data-noview_allowed_page] attribute that scopes the hide CSS.
+  let allowedPage = false;
 
-  // Bumped on every SPA navigation. Player requests capture the value when
-  // they are enqueued and re-check it after acquiring a throttle slot, so
-  // queued work for a page that has already been left is dropped instead of
-  // burning Innertube calls. In-flight fetches are not aborted — completing
-  // them still fills the shared metadata cache.
-  let playerNavGeneration = 0;
-
-  window.addEventListener('yt-navigate-start', event => {
-    currentPage = null;
-    playerNavGeneration += 1;
-
-    // Clear previous intersection observer.
-    if (intersectionObserver !== null) {
-      intersectionObserver.disconnect();
-      intersectionObserver = null;
+  const applyAllowedPageAttribute = () => {
+    if (!document.documentElement) return;
+    if (allowedPage) {
+      document.documentElement.setAttribute('data-noview_allowed_page', '');
+    } else {
+      document.documentElement.removeAttribute('data-noview_allowed_page');
     }
-  });
+  };
 
-  window.addEventListener('yt-navigate-finish', event => {
-    // Determine if navigated page is allowed.
-    currentPage = document.querySelector(CONFIG.SELECTORS_ALLOWED_PAGE);
-
-    if (!currentPage) {
-      logDebug('Page not allowed.');
-      return;
+  const updateAllowedPage = () => {
+    allowedPage = isPathAllowed(location.pathname);
+    if (document.documentElement) {
+      applyAllowedPageAttribute();
+    } else {
+      // @run-at document-start: <html> is not parsed yet — apply once it is.
+      document.addEventListener('DOMContentLoaded', applyAllowedPageAttribute, { once: true });
     }
+  };
 
-    // Re-init intersection observer.
+  // Invariant: allowedPage ⇒ observer non-null. The observer must therefore
+  // exist as soon as allowedPage can be true — including at boot, before the
+  // first yt-navigate-finish (the sentinel may fire in that window).
+  const createIntersectionObserver = () => {
+    if (intersectionObserver !== null) intersectionObserver.disconnect();
     // (No `delay` option: it is ignored unless trackVisibility is enabled,
     // which needs IO v2 support and isn't required for a one-shot signal.)
     intersectionObserver = new IntersectionObserver(entries => {
@@ -313,13 +358,47 @@
         }
       }
     }, { threshold: 0 });
+  };
+
+  updateAllowedPage();
+  if (allowedPage) createIntersectionObserver();
+
+  // Bumped on every SPA navigation. Player requests capture the value when
+  // they are enqueued and re-check it after acquiring a throttle slot, so
+  // queued work for a page that has already been left is dropped instead of
+  // burning Innertube calls. In-flight fetches are not aborted — completing
+  // them still fills the shared metadata cache.
+  let playerNavGeneration = 0;
+
+  window.addEventListener('yt-navigate-start', event => {
+    allowedPage = false;
+    applyAllowedPageAttribute();
+    playerNavGeneration += 1;
+
+    // Clear previous intersection observer.
+    if (intersectionObserver !== null) {
+      intersectionObserver.disconnect();
+      intersectionObserver = null;
+    }
+  });
+
+  window.addEventListener('yt-navigate-finish', event => {
+    // Determine if the navigated URL is allowed.
+    updateAllowedPage();
+
+    if (!allowedPage) {
+      logDebug('Page not allowed.');
+      return;
+    }
+
+    createIntersectionObserver();
 
     // Reconcile videos already in the DOM. Sentinel only fires on animationstart
-    // (once per match), so elements matched while currentPage was null — e.g.
+    // (once per match), so elements matched while allowedPage was false — e.g.
     // rendered between yt-navigate-start and yt-navigate-finish — would otherwise
     // be skipped forever. Skip nodes already processed to avoid duplicate
     // waitForVideoIDChange intervals.
-    for (const element of currentPage.querySelectorAll(CONFIG.SELECTORS_VIDEO)) {
+    for (const element of document.querySelectorAll(CONFIG.SELECTORS_VIDEO)) {
       if (typeof element.dataset.noview_id === 'undefined') {
         processNewElement(element);
       }
@@ -805,8 +884,10 @@
         elementsAwaitingIDChange.delete(element);
         continue;
       }
-      // Only do thorough checks if the element is in the currently visible page.
-      if (!currentPage?.contains(element)) {
+      // Only do thorough checks while an allowed page is showing; off-URL
+      // leftovers keep their entry until the URL is allowed again or the
+      // element leaves the document (handled above).
+      if (!allowedPage) {
         continue;
       }
       const newID = getVideoID(element);
@@ -861,7 +942,7 @@
     setupMetadataOnRecieve();
 
     sentinel.on(CONFIG.SELECTORS_VIDEO, element => {
-      if (currentPage?.contains(element)) {
+      if (allowedPage) {
         processNewElement(element);
       }
     });
