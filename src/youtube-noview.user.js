@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.3.5
+// @version      1.4.0
 // @description  Hide videos matching thresholds, in home page, and watch page's sidebar. CONFIGURABLE!
 // @author       Bobby Wibowo
 // @license      MIT
@@ -152,9 +152,7 @@
   let logDebug = () => {};
   if (CONFIG.MODE !== 'PROD') {
     logDebug = log;
-    for (const key of Object.keys(CONFIG)) {
-      logDebug(`${key} =`, CONFIG[key]);
-    }
+    logDebug('CONFIG:', CONFIG);
   }
 
   /** STYLES **/
