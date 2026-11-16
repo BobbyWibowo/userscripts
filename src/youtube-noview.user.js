@@ -290,6 +290,18 @@
         }
       }
     }, { delay: 100, threshold: 0 });
+
+    // Reconcile videos already in the DOM. Sentinel only fires on animationstart
+    // (once per match), so elements matched while currentPage was null — e.g.
+    // rendered between yt-navigate-start and yt-navigate-finish — would otherwise
+    // be skipped forever. Skip nodes already processed to avoid duplicate
+    // waitForVideoIDChange intervals.
+    for (const element of currentPage.querySelectorAll(CONFIG.SELECTORS_VIDEO)) {
+      if (typeof element.dataset.noview_id === 'undefined') {
+        processNewElement(element);
+      }
+    }
+
     logDebug('Page allowed, waiting for videos\u2026');
   });
 
