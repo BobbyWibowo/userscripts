@@ -262,8 +262,16 @@
 
   let currentPage = null;
 
+  // Bumped on every SPA navigation. Player requests capture the value when
+  // they are enqueued and re-check it after acquiring a throttle slot, so
+  // queued work for a page that has already been left is dropped instead of
+  // burning Innertube calls. In-flight fetches are not aborted — completing
+  // them still fills the shared metadata cache.
+  let playerNavGeneration = 0;
+
   window.addEventListener('yt-navigate-start', event => {
     currentPage = null;
+    playerNavGeneration += 1;
 
     // Clear previous intersection observer.
     if (intersectionObserver !== null) {
@@ -315,6 +323,81 @@
     viewCount: null
   };
 
+  // Pace youtubei/v1/player requests. A cold home/watch load can otherwise
+  // fan out into dozens of parallel POSTs, which YouTube risk-controls.
+  // Same idea as waitForRequestSlot in the sibling account-tool userscripts
+  // (bilibili exporter, TweetXer, pixiv-inactive-cleaner): cap in-flight
+  // requests and space out request starts. Kept faster than those scripts
+  // (500–2000 ms, fully serialized) because unprocessed cards stay
+  // visibility:hidden until metadata arrives — multi-second serialization
+  // would leave the grid blank for too long.
+  const PLAYER_REQUEST_MAX_CONCURRENT = 3;
+  const PLAYER_REQUEST_MIN_INTERVAL_MS = 250;
+  const PLAYER_REQUEST_JITTER_MS = 150;
+  // Without a timeout a hung fetch can occupy a concurrency slot forever;
+  // three of those would deadlock all further metadata requests until reload.
+  const PLAYER_REQUEST_TIMEOUT_MS = 15_000;
+
+  let playerRequestsInFlight = 0;
+  let lastPlayerRequestStartedAt = 0;
+  let playerStartGateBusy = false;
+  const playerSlotWaiters = [];
+  const playerStartWaiters = [];
+
+  // Spaces out request *starts* across concurrent slot holders so they
+  // cannot wake from the interval sleep and fire at the same moment.
+  const waitPlayerStartSlot = () => new Promise(resolve => {
+    const beginInterval = () => {
+      if (playerStartGateBusy) {
+        playerStartWaiters.push(beginInterval);
+        return;
+      }
+      playerStartGateBusy = true;
+      const targetInterval = PLAYER_REQUEST_MIN_INTERVAL_MS +
+        Math.floor(Math.random() * PLAYER_REQUEST_JITTER_MS);
+      const waitMs = Math.max(0, targetInterval - (Date.now() - lastPlayerRequestStartedAt));
+      const finish = () => {
+        lastPlayerRequestStartedAt = Date.now();
+        playerStartGateBusy = false;
+        const next = playerStartWaiters.shift();
+        if (next) next();
+        resolve();
+      };
+      if (waitMs > 0) setTimeout(finish, waitMs);
+      else finish();
+    };
+    beginInterval();
+  });
+
+  const withPlayerRequestSlot = async (runRequest, requestGeneration = playerNavGeneration) => {
+    // Reserve a concurrency slot (callback-style so waiters re-check after
+    // each release rather than spinning on an unmodified loop condition).
+    await new Promise(resolve => {
+      const tryAcquire = () => {
+        if (playerRequestsInFlight < PLAYER_REQUEST_MAX_CONCURRENT) {
+          // Reserve before sleeping on the start interval so concurrent
+          // waiters cannot overshoot the cap after waking.
+          playerRequestsInFlight++;
+          resolve();
+        } else {
+          playerSlotWaiters.push(tryAcquire);
+        }
+      };
+      tryAcquire();
+    });
+    try {
+      await waitPlayerStartSlot();
+      // Dropped if the user SPA-navigated while this request waited for a
+      // slot / start interval — don't fire a call for a page already left.
+      if (requestGeneration !== playerNavGeneration) return null;
+      return await runRequest();
+    } finally {
+      playerRequestsInFlight--;
+      const next = playerSlotWaiters.shift();
+      if (next) next();
+    }
+  };
+
   const fetchVideoDataDesktopClient = async videoID => {
     const url = 'https://www.youtube.com/youtubei/v1/player';
     const data = {
@@ -333,7 +416,8 @@
         headers: {
           'Content-Type': 'application/json'
         },
-        method: 'POST'
+        method: 'POST',
+        signal: AbortSignal.timeout(PLAYER_REQUEST_TIMEOUT_MS)
       });
 
       if (result.ok) {
@@ -443,13 +527,20 @@
     }
 
     try {
+      // Capture the navigation generation at enqueue time. If the user
+      // SPA-navigates while this request waits for a throttle slot, the
+      // generation check inside withPlayerRequestSlot drops it (returns
+      // null) instead of firing a call for a page that is already gone.
+      const requestGeneration = playerNavGeneration;
       const result = activeRequests[videoID] ?? (async () => {
         window.postMessage({
           type: 'youtube-noview:video-metadata-requested',
           videoID
         }, '*');
 
-        const metadata = await fetchVideoDataDesktopClient(videoID).catch(() => null);
+        const metadata = await withPlayerRequestSlot(() =>
+          fetchVideoDataDesktopClient(videoID), requestGeneration
+        ).catch(() => null);
 
         if (metadata) {
           const videoCache = videoMetadataCache.setupCache(videoID);
@@ -471,6 +562,9 @@
           return videoCache;
         }
 
+        // Dropped (navigation changed) or failed hard: clear the active
+        // marker so a later visit to this video can retry cleanly.
+        setTimeout(() => delete activeRequests[videoID], 500);
         const _emptyMetadata = structuredClone(emptyMetadata);
         window.postMessage({
           type: 'youtube-noview:video-metadata-received',
