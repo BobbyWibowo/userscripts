@@ -135,7 +135,8 @@
         }
       }
     } else if (Array.isArray(PRESETS[key])) {
-      CONFIG[key] = PRESETS[key];
+      // Copy: pushing custom values must not mutate the preset itself.
+      CONFIG[key] = [...PRESETS[key]];
       if (ENV[key]) {
         const customValues = Array.isArray(ENV[key]) ? ENV[key] : ENV[key].split(',').map(s => s.trim());
         CONFIG[key].push(...customValues);
@@ -253,7 +254,11 @@
   }
 
   const isPartialElementInViewport = element => {
-    if (element.style.display === 'none') {
+    // display:none (inline, [hidden], or stylesheet — e.g. our own
+    // threshold-unmet rule) yields a 0×0 rect at the origin, which would
+    // otherwise pass the intersection math below. Visibility-hidden cards
+    // still have client rects, so they keep counting as in-viewport.
+    if (!element.getClientRects().length) {
       return false;
     }
 
@@ -456,15 +461,13 @@
         const isLive = response?.videoDetails?.isLive ?? null;
         const isUpcoming = response?.videoDetails?.isUpcoming ?? null;
         const viewCount = response?.videoDetails?.viewCount ?? null;
-        const playabilityStatus = response?.playabilityStatus?.status ?? null;
 
         return {
           channelIDs: channelIds,
           author,
           isLive,
           isUpcoming,
-          viewCount,
-          playabilityStatus
+          viewCount
         };
       }
     } catch (e) {}
@@ -775,7 +778,7 @@
     }
 
     if (thresholdUnmet !== null) {
-      log(`Hid video (${viewCount} <= ${thresholdUnmet})`, element);
+      logDebug(`Hid video (${viewCount} <= ${thresholdUnmet})`, element);
       element.dataset.noview_threshold_unmet = thresholdUnmet;
     }
 
