@@ -19,7 +19,6 @@ import {
   receivedMetadata,
   releaseFetches,
   setResponder,
-  updateOldCardData,
   vid
 } from '../helpers/youtube-noview-harness.js';
 
@@ -30,6 +29,20 @@ const failResponder = () => ({ ok: false, status: 500, json: async () => ({}) })
 const playerResponder = overrides => call => {
   const videoId = JSON.parse(call.options.body).videoId;
   return { ok: true, status: 200, json: async () => playerPayload(videoId, overrides) };
+};
+
+/**
+ * Per-video view counts through the API — the only view-count source since
+ * the old-design DOM parser was removed (2026-11-16). Unmapped ids fall back
+ * to the harness default of '5000'.
+ */
+const viewsResponder = mapping => call => {
+  const videoId = JSON.parse(call.options.body).videoId;
+  return {
+    ok: true,
+    status: 200,
+    json: async () => playerPayload(videoId, { viewCount: mapping[videoId] ?? '5000' })
+  };
 };
 
 /** Flush trailing promise continuations without moving the fake clock. */
@@ -52,7 +65,7 @@ describe('youtube-noview boot and config', () => {
     const handlers = fx.sentinelCalls();
     expect(handlers).toHaveLength(1);
     expect(handlers[0].selector).toContain('ytd-rich-item-renderer');
-    expect(handlers[0].selector).toContain('ytd-compact-video-renderer');
+    expect(handlers[0].selector).toContain('ytd-player .ytp-suggestion-set');
 
     const styles = fx.styles();
     expect(styles[0]).toContain('data-noview_threshold_unmet');
@@ -84,7 +97,8 @@ describe('youtube-noview boot and config', () => {
     expect(fx.styles()[1]).not.toContain('div[');
     expect(fx.sentinelCalls()).toHaveLength(1);
 
-    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), views: '500 views' }] });
+    setResponder(viewsResponder({ [vid(1)]: '500' }));
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)) }] });
     navigate();
     await pump(() => card.dataset.noview_threshold_unmet === '999');
   });
@@ -93,14 +107,16 @@ describe('youtube-noview boot and config', () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     await loadNoview();
-    const [prodCard] = installPage({ cards: [{ href: watchUrl(vid(1)), views: '500 views' }] });
+    setResponder(viewsResponder({ [vid(1)]: '500' }));
+    const [prodCard] = installPage({ cards: [{ href: watchUrl(vid(1)) }] });
     navigate();
     await pump(() => prodCard.dataset.noview_threshold_unmet === '999');
     expect(logSpy.mock.calls.some(c => String(c[0]).includes('Hid video'))).toBe(false);
 
     logSpy.mockClear();
     await loadNoview({ env: { MODE: 'DEV' } });
-    const [devCard] = installPage({ cards: [{ href: watchUrl(vid(2)), views: '500 views' }] });
+    setResponder(viewsResponder({ [vid(2)]: '500' }));
+    const [devCard] = installPage({ cards: [{ href: watchUrl(vid(2)) }] });
     navigate();
     await pump(() => devCard.dataset.noview_threshold_unmet === '999');
     expect(logSpy.mock.calls.some(c => String(c[0]).includes('Hid video'))).toBe(true);
@@ -120,7 +136,8 @@ describe('youtube-noview navigation and reconcile', () => {
 
   it('processes cards already in the DOM at yt-navigate-finish without sentinel (#1)', async () => {
     await loadNoview();
-    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), views: '500 views' }] });
+    setResponder(viewsResponder({ [vid(1)]: '500' }));
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)) }] });
     expect(card.dataset.noview_id).toBeUndefined();
 
     navigate();
@@ -131,10 +148,11 @@ describe('youtube-noview navigation and reconcile', () => {
 
   it('skips reconcile for cards that already carry data-noview_id (#1)', async () => {
     await loadNoview();
+    setResponder(viewsResponder({ [vid(2)]: '500' }));
     const [done, fresh] = installPage({
       cards: [
-        { href: watchUrl(vid(1)), views: '500 views' },
-        { href: watchUrl(vid(2)), views: '500 views' }
+        { href: watchUrl(vid(1)) },
+        { href: watchUrl(vid(2)) }
       ]
     });
     done.dataset.noview_id = 'PRESET';
@@ -160,10 +178,11 @@ describe('youtube-noview navigation and reconcile', () => {
 
   it('defers [hidden] cards to the IntersectionObserver and processes them on intersect (#9d)', async () => {
     await loadNoview();
+    setResponder(viewsResponder({ [vid(1)]: '500', [vid(2)]: '500' }));
     const [visible, hidden] = installPage({
       cards: [
-        { href: watchUrl(vid(1)), views: '500 views' },
-        { href: watchUrl(vid(2)), views: '500 views', hidden: true }
+        { href: watchUrl(vid(1)) },
+        { href: watchUrl(vid(2)), hidden: true }
       ]
     });
 
@@ -194,10 +213,11 @@ describe('youtube-noview URL path gating', () => {
 
   it('gates processing on the URL: disallowed paths skipped, /watch and /gaming allowed', async () => {
     await loadNoview();
+    setResponder(viewsResponder({ [vid(4)]: '500', [vid(5)]: '500' }));
 
     // Disallowed: search results — cards must stay untouched, attribute off.
     history.pushState({}, '', '/results?search_query=test');
-    const [disallowed] = installPage({ cards: [{ href: watchUrl(vid(1)), views: '500 views' }] });
+    const [disallowed] = installPage({ cards: [{ href: watchUrl(vid(1)) }] });
     navigate();
     await vi.advanceTimersByTimeAsync(300);
     expect(disallowed.dataset.noview_views).toBeUndefined();
@@ -205,21 +225,21 @@ describe('youtube-noview URL path gating', () => {
 
     // Segment boundary: /watchfoo must not match the /watch pattern.
     history.pushState({}, '', '/watchfoo');
-    const [nearMiss] = installPage({ cards: [{ href: watchUrl(vid(2)), views: '500 views' }] });
+    const [nearMiss] = installPage({ cards: [{ href: watchUrl(vid(2)) }] });
     navigate();
     await vi.advanceTimersByTimeAsync(300);
     expect(nearMiss.dataset.noview_views).toBeUndefined();
 
     // Query + fragment are ignored: /watch?v=…#t=10 is still /watch.
     history.pushState({}, '', `/watch?v=${vid(3)}#t=10`);
-    const [watchCard] = installPage({ cards: [{ href: watchUrl(vid(4)), views: '500 views' }] });
+    const [watchCard] = installPage({ cards: [{ href: watchUrl(vid(4)) }] });
     navigate();
     await pump(() => watchCard.dataset.noview_threshold_unmet === '999');
     expect(document.documentElement.hasAttribute('data-noview_allowed_page')).toBe(true);
 
     // /gaming is part of the shipped preset.
     history.pushState({}, '', '/gaming');
-    const [gamingCard] = installPage({ cards: [{ href: watchUrl(vid(5)), views: '500 views' }] });
+    const [gamingCard] = installPage({ cards: [{ href: watchUrl(vid(5)) }] });
     navigate();
     await pump(() => gamingCard.dataset.noview_threshold_unmet === '999');
     expect(document.documentElement.hasAttribute('data-noview_allowed_page')).toBe(true);
@@ -227,9 +247,10 @@ describe('youtube-noview URL path gating', () => {
 
   it('extends the preset with custom ALLOWED_PAGE_PATHS from storage', async () => {
     await loadNoview({ env: { ALLOWED_PAGE_PATHS: ['/my-path'] } });
+    setResponder(viewsResponder({ [vid(1)]: '500' }));
 
     history.pushState({}, '', '/my-path');
-    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), views: '500 views' }] });
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)) }] });
     navigate();
     await pump(() => card.dataset.noview_threshold_unmet === '999');
     expect(document.documentElement.hasAttribute('data-noview_allowed_page')).toBe(true);
@@ -245,7 +266,8 @@ describe('youtube-noview URL path gating', () => {
     expect(fx.styles().join('')).not.toContain('::bogus');
 
     // The new system still works on an allowed path.
-    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), views: '500 views' }] });
+    setResponder(viewsResponder({ [vid(1)]: '500' }));
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)) }] });
     navigate();
     await pump(() => card.dataset.noview_threshold_unmet === '999');
   });
@@ -266,11 +288,11 @@ describe('youtube-noview video ID extraction', () => {
     await loadNoview();
     const ids = [vid(1), vid(2), vid(3), vid(4)];
     const cards = [
-      { href: watchUrl(ids[0]), views: '5000 views' },
-      { href: `https://www.youtube.com/shorts/${ids[1]}`, views: '5000 views' },
-      { href: `https://www.youtube.com/live/${ids[2]}`, views: '5000 views' },
-      { href: `https://www.youtube.com/embed/${ids[3]}`, views: '5000 views' },
-      { href: 'https://www.youtube.com/browse/guide', views: '5000 views' }
+      { href: watchUrl(ids[0]) },
+      { href: `https://www.youtube.com/shorts/${ids[1]}` },
+      { href: `https://www.youtube.com/live/${ids[2]}` },
+      { href: `https://www.youtube.com/embed/${ids[3]}` },
+      { href: 'https://www.youtube.com/browse/guide' }
     ];
     const els = installPage({ cards });
 
@@ -285,7 +307,8 @@ describe('youtube-noview video ID extraction', () => {
     expect(els[4].dataset.noview_id).toBeUndefined();
     expect(els[4].dataset.noview_views).toBe('');
     expect(els[4].dataset.noview_threshold_unmet).toBeUndefined();
-    expect(fetchCalls()).toHaveLength(0);
+    // The four resolvable IDs each went through the API path.
+    expect(fetchCalls()).toHaveLength(4);
   });
 });
 
@@ -300,13 +323,20 @@ describe('youtube-noview threshold decisions', () => {
     vi.useRealTimers();
   });
 
-  it('hides DOM view counts at or below the threshold without fetching (#3 fast path)', async () => {
+  it('applies thresholds from API view counts (hide at/below, keep above)', async () => {
     await loadNoview();
+    // API is the only view-count source since the old-design DOM parser was
+    // removed (2026-11-16) — per-video counts prove the threshold math.
+    setResponder(viewsResponder({
+      [vid(1)]: '500',
+      [vid(2)]: '999',
+      [vid(3)]: '1000'
+    }));
     const els = installPage({
       cards: [
-        { href: watchUrl(vid(1)), views: '500 views' },
-        { href: watchUrl(vid(2)), views: '999 views' },
-        { href: watchUrl(vid(3)), views: '1000 views' }
+        { href: watchUrl(vid(1)) },
+        { href: watchUrl(vid(2)) },
+        { href: watchUrl(vid(3)) }
       ]
     });
 
@@ -317,42 +347,42 @@ describe('youtube-noview threshold decisions', () => {
     expect(els[1].dataset.noview_threshold_unmet).toBe('999');
     expect(els[2].dataset.noview_threshold_unmet).toBeUndefined();
     expect(els[2].dataset.noview_views).toBe('1000');
-    expect(fetchCalls()).toHaveLength(0);
+    expect(fetchCalls()).toHaveLength(3);
   });
 
   it('applies the distinct NEW-badge threshold when configured', async () => {
     await loadNoview({ env: { VIEWS_THRESHOLD_NEW: 50 } });
+    setResponder(viewsResponder({
+      [vid(1)]: '100',
+      [vid(2)]: '100',
+      [vid(3)]: '10'
+    }));
 
-    // One card per page: every card carries id="dismissible" (as in production),
-    // and jsdom resolves the script's scoped compound query
-    // `#dismissible .badge[...]` only against the first duplicate ID in the
-    // document — multi-card fixtures would break badge detection for later cards.
-    const [badgeHigh] = installPage({ cards: [{ href: watchUrl(vid(1)), views: '100 views', badge: true }] });
+    const els = installPage({
+      cards: [
+        { href: watchUrl(vid(1)), badge: true },
+        { href: watchUrl(vid(2)) },
+        { href: watchUrl(vid(3)), badge: true }
+      ]
+    });
     navigate();
-    await pump(() => badgeHigh.dataset.noview_views !== undefined);
+    await pumpProcessed(3);
+
     // Badge present: judged against NEW threshold (50), not the default 999.
-    expect(badgeHigh.dataset.noview_threshold_unmet).toBeUndefined();
-    expect(badgeHigh.dataset.noview_views).toBe('100');
-
-    const [plain] = installPage({ cards: [{ href: watchUrl(vid(2)), views: '100 views' }] });
-    navigate();
-    await pump(() => plain.dataset.noview_views !== undefined);
+    expect(els[0].dataset.noview_threshold_unmet).toBeUndefined();
+    expect(els[0].dataset.noview_views).toBe('100');
     // No badge: default threshold applies.
-    expect(plain.dataset.noview_threshold_unmet).toBe('999');
-
-    const [badgeLow] = installPage({ cards: [{ href: watchUrl(vid(3)), views: '10 views', badge: true }] });
-    navigate();
-    await pump(() => badgeLow.dataset.noview_views !== undefined);
+    expect(els[1].dataset.noview_threshold_unmet).toBe('999');
     // Badge + below NEW threshold: NEW value reported.
-    expect(badgeLow.dataset.noview_threshold_unmet).toBe('50');
-    expect(fetchCalls()).toHaveLength(0);
+    expect(els[2].dataset.noview_threshold_unmet).toBe('50');
+    expect(fetchCalls()).toHaveLength(3);
   });
 
   it('skips upcoming videos reported by the API without hiding them', async () => {
     await loadNoview();
     setResponder(playerResponder({ isUpcoming: true, viewCount: '10' }));
 
-    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), type: 'new' }] });
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)) }] });
     navigate();
     await pump(() => card.dataset.noview_views !== undefined);
 
@@ -361,11 +391,11 @@ describe('youtube-noview threshold decisions', () => {
     expect(fetchCalls()).toHaveLength(1);
   });
 
-  it('fetches despite DOM view counts when VIEWS_THRESHOLD_LIVE is set (#3)', async () => {
+  it('fetches and applies VIEWS_THRESHOLD_LIVE from the API', async () => {
     await loadNoview({ env: { VIEWS_THRESHOLD_LIVE: 100 } });
     setResponder(playerResponder({ isLive: true, viewCount: '50' }));
 
-    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), views: '5000 views' }] });
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)) }] });
     navigate();
     await pump(() => card.dataset.noview_threshold_unmet !== undefined);
 
@@ -374,11 +404,11 @@ describe('youtube-noview threshold decisions', () => {
     expect(card.dataset.noview_views).toBe('50');
   });
 
-  it('skips fetch for allowlisted channels found early in the DOM', async () => {
+  it('skips fetch for allowlisted channels found early through the lockup bridge', async () => {
     await loadNoview({ env: { ALLOWED_CHANNEL_IDS: ['UC_allowed'] } });
 
     const [card] = installPage({
-      cards: [{ href: watchUrl(vid(1)), views: '500 views', channelId: 'UC_allowed' }]
+      cards: [{ href: watchUrl(vid(1)), channelId: 'UC_allowed' }]
     });
     navigate();
     await pump(() => card.dataset.noview_allowed_channel !== undefined);
@@ -390,13 +420,12 @@ describe('youtube-noview threshold decisions', () => {
     expect(card.dataset.noview_views).toBe('');
   });
 
-  it('fetches despite DOM view counts when an allowlist is configured (#3)', async () => {
+  it('still fetches for a non-allowlisted early channel (API supplies channelIDs)', async () => {
     await loadNoview({ env: { ALLOWED_CHANNEL_IDS: ['UC_allowed'] } });
-    // API disagrees with the DOM: views 500 instead of the DOM's 5000.
     setResponder(playerResponder({ viewCount: '500' }));
 
     const [card] = installPage({
-      cards: [{ href: watchUrl(vid(1)), views: '5000 views', channelId: 'UC_other' }]
+      cards: [{ href: watchUrl(vid(1)), channelId: 'UC_other' }]
     });
     navigate();
     await pump(() => card.dataset.noview_views === '500');
@@ -404,6 +433,215 @@ describe('youtube-noview threshold decisions', () => {
     expect(fetchCalls()).toHaveLength(1);
     expect(card.dataset.noview_threshold_unmet).toBe('999');
     expect(card.dataset.noview_allowed_channel).toBeUndefined();
+  });
+});
+
+describe('youtube-noview DOM view parser and playlist skip', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('uses an exact PLAY_ARROW view count from the DOM without fetching', async () => {
+    await loadNoview();
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), viewsText: '14' }] });
+
+    navigate();
+    await pump(() => card.dataset.noview_threshold_unmet === '999');
+
+    expect(fetchCalls()).toHaveLength(0);
+    expect(card.dataset.noview_views).toBe('14');
+  });
+
+  it('treats compact view text as ≥1000 for sub-1000 thresholds without fetching', async () => {
+    await loadNoview();
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), viewsText: '70K' }] });
+
+    navigate();
+    await pump(() => card.dataset.noview_views !== undefined);
+
+    // Compact ⇒ ≥1000 ⇒ above the default 999 threshold, exact decision
+    // without the API; synthetic floor lands in noview_views.
+    expect(fetchCalls()).toHaveLength(0);
+    expect(card.dataset.noview_views).toBe('1000');
+    expect(card.dataset.noview_threshold_unmet).toBeUndefined();
+  });
+
+  it('fetches compact view text when a ≥1000 threshold is configured', async () => {
+    await loadNoview({ env: { VIEWS_THRESHOLD: 5000 } });
+    setResponder(playerResponder({ viewCount: '70000' }));
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), viewsText: '70K' }] });
+
+    navigate();
+    await pump(() => card.dataset.noview_views === '70000');
+
+    expect(fetchCalls()).toHaveLength(1);
+    expect(card.dataset.noview_threshold_unmet).toBeUndefined();
+  });
+
+  it('skips playlists outright: visible, no threshold, no fetch', async () => {
+    await loadNoview();
+    // watch-style URL: getVideoID resolves the embedded video, but the
+    // lockup's contentType says playlist → skipped, not API-fallbacked.
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), playlist: true }] });
+
+    navigate();
+    await pump(() => card.dataset.noview_views !== undefined);
+
+    expect(fetchCalls()).toHaveLength(0);
+    expect(card.dataset.noview_views).toBe('');
+    expect(card.dataset.noview_threshold_unmet).toBeUndefined();
+    expect(card.dataset.noview_id).toBe(vid(1));
+  });
+
+  it('never skips a video whose views row is missing (playlist false-positive guard)', async () => {
+    await loadNoview();
+    // contentType VIDEO + no PLAY_ARROW row → must fall through to the API,
+    // never be treated as a playlist.
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), noViewsRow: true }] });
+
+    navigate();
+    await pump(() => card.dataset.noview_views !== undefined);
+
+    expect(fetchCalls()).toHaveLength(1);
+    expect(card.dataset.noview_views).toBe('5000');
+    expect(card.dataset.noview_threshold_unmet).toBeUndefined();
+  });
+
+  it('reads the symbol envelope when data is a function (live home shape)', async () => {
+    await loadNoview();
+    // Live home desktop lockups store componentProps.data as a FUNCTION
+    // carrying the symbol envelope — a typeof-object-only guard rejects it
+    // and forces every +1K card back to the API (2026-11-16 regression).
+    const [card] = installPage({
+      cards: [{ href: watchUrl(vid(1)), viewsText: '70K', dataAsFunction: true }]
+    });
+
+    navigate();
+    await pump(() => card.dataset.noview_views !== undefined);
+
+    expect(fetchCalls()).toHaveLength(0);
+    expect(card.dataset.noview_views).toBe('1000');
+    expect(card.dataset.noview_threshold_unmet).toBeUndefined();
+  });
+
+  it('shorts shelf: exact secondaryText views settle the decision without fetching', async () => {
+    await loadNoview();
+    const [card] = installPage({
+      cards: [{ href: watchUrl(vid(1)), type: 'shorts', viewsText: '428 views' }]
+    });
+
+    navigate();
+    await pump(() => card.dataset.noview_threshold_unmet === '999');
+
+    // Exact 428 ≤ 999 → hidden via the DOM only. The fixture's a11y text
+    // says "2.7 million" — if it were parsed instead of secondaryText the
+    // card would have been judged ≥1000 and left visible.
+    expect(fetchCalls()).toHaveLength(0);
+    expect(card.dataset.noview_views).toBe('428');
+    expect(card.dataset.noview_threshold_unmet).toBe('999');
+  });
+
+  it('shorts shelf: compact secondaryText acts as ≥1000 without fetching', async () => {
+    await loadNoview();
+    const [card] = installPage({
+      cards: [{ href: watchUrl(vid(1)), type: 'shorts', viewsText: '2.7M views' }]
+    });
+
+    navigate();
+    await pump(() => card.dataset.noview_views !== undefined);
+
+    expect(fetchCalls()).toHaveLength(0);
+    expect(card.dataset.noview_views).toBe('1000');
+    expect(card.dataset.noview_threshold_unmet).toBeUndefined();
+  });
+
+  it('shorts shelf payload is never mistaken for a playlist', async () => {
+    await loadNoview();
+    // The shorts payload has no contentType/contentId, yet it is a truthy
+    // payload: a playlist false-positive would show noview_views '' with
+    // no fetch. Instead the missing views text must fall to the API and
+    // the card must be thresholded normally.
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), type: 'shorts' }] });
+
+    navigate();
+    await pump(() => card.dataset.noview_views === '5000');
+
+    expect(fetchCalls()).toHaveLength(1);
+    expect(card.dataset.noview_threshold_unmet).toBeUndefined();
+  });
+
+  it('still fetches when VIEWS_THRESHOLD_LIVE is configured despite an exact DOM row', async () => {
+    await loadNoview({ env: { VIEWS_THRESHOLD_LIVE: 100 } });
+    setResponder(playerResponder({ isLive: true, viewCount: '50' }));
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), viewsText: '14' }] });
+
+    navigate();
+    await pump(() => card.dataset.noview_threshold_unmet === '100');
+
+    // isLive has no DOM source — the API wins even though the row was exact.
+    expect(fetchCalls()).toHaveLength(1);
+    expect(card.dataset.noview_views).toBe('50');
+  });
+
+  it('fetches despite an exact DOM row when a channel allowlist is configured', async () => {
+    await loadNoview({ env: { ALLOWED_CHANNEL_IDS: ['UC_allowed'] } });
+    setResponder(playerResponder({ viewCount: '500' }));
+    // Non-allowlisted bridge channel: parent-channel matching needs API
+    // channelIDs, so the DOM fast path stays off.
+    const [card] = installPage({
+      cards: [{ href: watchUrl(vid(1)), viewsText: '14', channelId: 'UC_other' }]
+    });
+
+    navigate();
+    await pump(() => card.dataset.noview_views === '500');
+
+    expect(fetchCalls()).toHaveLength(1);
+    expect(card.dataset.noview_threshold_unmet).toBe('999');
+    expect(card.dataset.noview_allowed_channel).toBeUndefined();
+  });
+
+  it('skips the API for compact text when only sub-1000 thresholds are configured (even with LIVE)', async () => {
+    await loadNoview({ env: { VIEWS_THRESHOLD_LIVE: 100 } });
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), viewsText: '70K' }] });
+
+    navigate();
+    await pump(() => card.dataset.noview_views !== undefined);
+
+    // Compact ⇒ ≥1000 ⇒ above 999 and 100 alike — isLive cannot flip that.
+    expect(fetchCalls()).toHaveLength(0);
+    expect(card.dataset.noview_views).toBe('1000');
+    expect(card.dataset.noview_threshold_unmet).toBeUndefined();
+  });
+
+  it('skips the API for an exact count that exceeds every configured threshold', async () => {
+    await loadNoview({ env: { ALLOWED_CHANNEL_IDS: ['UC_allowed'] } });
+    // Exact 1,234,567 > max(999, 0, 0): never hidden, whatever the
+    // API's isLive / parent channels could say.
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), viewsText: '1,234,567' }] });
+
+    navigate();
+    await pump(() => card.dataset.noview_views !== undefined);
+
+    expect(fetchCalls()).toHaveLength(0);
+    expect(card.dataset.noview_views).toBe('1234567');
+    expect(card.dataset.noview_threshold_unmet).toBeUndefined();
+  });
+
+  it('sends digit-less view strings to the API instead of assuming ≥1000', async () => {
+    await loadNoview();
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), viewsText: 'views' }] });
+
+    navigate();
+    await pump(() => card.dataset.noview_views !== undefined);
+
+    expect(fetchCalls()).toHaveLength(1);
+    expect(card.dataset.noview_views).toBe('5000'); // harness default responder
   });
 });
 
@@ -422,7 +660,7 @@ describe('youtube-noview request throttling', () => {
     await loadNoview();
     holdFetches();
     const els = installPage({
-      cards: [1, 2, 3, 4, 5].map(n => ({ href: watchUrl(vid(n)), type: 'new' }))
+      cards: [1, 2, 3, 4, 5].map(n => ({ href: watchUrl(vid(n)) }))
     });
 
     navigate();
@@ -441,7 +679,7 @@ describe('youtube-noview request throttling', () => {
     await loadNoview();
     holdFetches();
     installPage({
-      cards: [1, 2, 3].map(n => ({ href: watchUrl(vid(n)), type: 'new' }))
+      cards: [1, 2, 3].map(n => ({ href: watchUrl(vid(n)) }))
     });
 
     navigate();
@@ -464,7 +702,7 @@ describe('youtube-noview request throttling', () => {
     await loadNoview();
     holdFetches();
     const els = installPage({
-      cards: [1, 2, 3, 4, 5].map(n => ({ href: watchUrl(vid(n)), type: 'new' }))
+      cards: [1, 2, 3, 4, 5].map(n => ({ href: watchUrl(vid(n)) }))
     });
 
     navigate();
@@ -497,7 +735,7 @@ describe('youtube-noview shared ID watcher', () => {
   it('runs a single shared 1s interval for all processed cards (#2)', async () => {
     const fx = await loadNoview();
     installPage({
-      cards: [1, 2, 3].map(n => ({ href: watchUrl(vid(n)), views: '5000 views' }))
+      cards: [1, 2, 3].map(n => ({ href: watchUrl(vid(n)) }))
     });
 
     navigate();
@@ -512,7 +750,8 @@ describe('youtube-noview shared ID watcher', () => {
     await loadNoview();
     const idA = vid(1);
     const idB = vid(2);
-    const [card] = installPage({ cards: [{ href: watchUrl(idA), views: '5000 views' }] });
+    setResponder(viewsResponder({ [idA]: '5000', [idB]: '500' }));
+    const [card] = installPage({ cards: [{ href: watchUrl(idA) }] });
 
     navigate();
     await pump(() => card.dataset.noview_id === idA);
@@ -520,7 +759,6 @@ describe('youtube-noview shared ID watcher', () => {
 
     // YouTube recycles the node for a different video.
     card.querySelector('a').href = watchUrl(idB);
-    updateOldCardData(card, { views: '500 views' });
 
     await vi.advanceTimersByTimeAsync(1100);
     await pump(() => card.dataset.noview_id === idB);
@@ -547,7 +785,7 @@ describe('youtube-noview peer metadata protocol', () => {
     const id = vid(1);
     dispatchReceived(id, receivedMetadata({ viewCount: '500' }));
 
-    const [card] = installPage({ cards: [{ href: watchUrl(id), type: 'new' }] });
+    const [card] = installPage({ cards: [{ href: watchUrl(id) }] });
     navigate();
     await pump(() => card.dataset.noview_threshold_unmet === '999');
 
@@ -560,7 +798,7 @@ describe('youtube-noview peer metadata protocol', () => {
     const id = vid(1);
     setResponder(failResponder);
 
-    const card1 = installPage({ cards: [{ href: watchUrl(id), type: 'new' }] })[0];
+    const card1 = installPage({ cards: [{ href: watchUrl(id) }] })[0];
     navigate();
     await pump(() => card1.dataset.noview_views !== undefined);
     expect(fetchCalls()).toHaveLength(1);
@@ -569,7 +807,7 @@ describe('youtube-noview peer metadata protocol', () => {
 
     // A peer instance announces it is fetching this video; we wait on it.
     dispatchRequested(id);
-    const card2 = addCard({ href: watchUrl(id), type: 'new' });
+    const card2 = addCard({ href: watchUrl(id) });
     navigate();
     await flush();
     await vi.advanceTimersByTimeAsync(100);
@@ -588,7 +826,7 @@ describe('youtube-noview peer metadata protocol', () => {
     await loadNoview();
     const id = vid(1);
 
-    const card1 = installPage({ cards: [{ href: watchUrl(id), type: 'new' }] })[0];
+    const card1 = installPage({ cards: [{ href: watchUrl(id) }] })[0];
     navigate();
     await pump(() => card1.dataset.noview_views === '5000');
     expect(fetchCalls()).toHaveLength(1);
@@ -596,7 +834,7 @@ describe('youtube-noview peer metadata protocol', () => {
     // Peer claims much lower views; local valid entry must win.
     dispatchReceived(id, receivedMetadata({ viewCount: '500' }));
 
-    const card2 = addCard({ href: watchUrl(id), type: 'new' });
+    const card2 = addCard({ href: watchUrl(id) });
     navigate();
     await pump(() => card2.dataset.noview_views !== undefined);
 

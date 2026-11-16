@@ -244,46 +244,142 @@ export const loadNoview = async ({ env = {} } = {}) => {
 /** Unique per load (and per n) so stale cross-test postMessages can't collide. */
 export const vid = n => String(loadSeq * 1000 + n).padStart(11, '0');
 
-const oldCardData = ({ views, channelId }) => ({
-  ...(views ? { viewCountText: { simpleText: views } } : {}),
-  ...(channelId
-    ? { owner: { navigationEndpoint: { browseEndpoint: { browseId: channelId } } } }
-    : {})
-});
-
+/**
+ * Card model: rich-item wrapping yt-lockup-view-model (the dominant live
+ * shape on home/watch — the only shapes the preset matches for rich-items).
+ * type:'shorts' renders the shorts-shelf inner component
+ * ytm-shorts-lockup-view-model-v2 instead (home shorts shelf).
+ * Optional badge renders the new-design badge-shape inside
+ * yt-content-metadata-view-model; optional channelId attaches a fake
+ * componentProps bridge so the script's early allowlist extraction works.
+ * View counts come from the fetch mock (setResponder), never from fixtures.
+ */
 const buildCard = (card, id) => {
   const hidden = card.hidden ? ' hidden' : '';
   const anchor = `<a href="${card.href}">video</a>`;
-  if (card.type === 'new') {
+  if (card.type === 'shorts') {
     return `
-      <ytd-rich-item-renderer id="${id}"${hidden}>
-        <yt-lockup-view-model>${anchor}</yt-lockup-view-model>
-      </ytd-rich-item-renderer>`;
+    <ytd-rich-item-renderer id="${id}"${hidden}>
+      <ytm-shorts-lockup-view-model-v2>${anchor}</ytm-shorts-lockup-view-model-v2>
+    </ytd-rich-item-renderer>`;
   }
-  const badge = card.badge ? '<span class="badge" aria-label="New"></span>' : '';
+  const badge = card.badge
+    ? '<yt-content-metadata-view-model><span class="badge-shape-wiz__text">New</span></yt-content-metadata-view-model>'
+    : '';
   return `
     <ytd-rich-item-renderer id="${id}"${hidden}>
-      <div id="dismissible">${badge}</div>
-      ${anchor}
+      <yt-lockup-view-model>${anchor}${badge}</yt-lockup-view-model>
     </ytd-rich-item-renderer>`;
 };
 
-const attachOldData = (element, card) => {
-  if (card.type === 'new') return;
-  const dismissible = element.querySelector('#dismissible');
-  dismissible.__dataHost = { __data: { data: oldCardData(card) } };
+/**
+ * Attach a fake componentProps payload to a card's lockup, mirroring the
+ * live structure. Options (combinable except playlist vs viewsText rows):
+ * - channelId: bridge at value.metadata.lockupMetadataViewModel.image… →
+ *   browseEndpoint.browseId (script's allowlist early-exit);
+ * - viewsText: PLAY_ARROW row with that text ("14" exact, "70K" compact);
+ * - noViewsRow: contentType VIDEO but no PLAY_ARROW row (C9 false-positive
+ *   guard — must fall to API, never be skipped as a playlist);
+ * - playlist: contentType LOCKUP_CONTENT_TYPE_PLAYLIST, no PLAY_ARROW row.
+ * - dataAsFunction: put the symbol envelope on a FUNCTION data property,
+ *   mirroring live home desktop lockups (data = fn with a symbol key) —
+ *   the 2026-11-16 regression shape.
+ *
+ * type:'shorts' always attaches (live shorts cards always carry
+ * componentProps), as a plain string-keyed data object with
+ * overlayMetadata.secondaryText = viewsText when given — never a symbol
+ * envelope, never contentType/contentId. accessibilityText is deliberately
+ * misleading ("2.7 million") so tests prove it is not parsed as the count.
+ */
+const attachLockupPayload = (element, card) => {
+  if (card.type === 'shorts') {
+    const lockup = element.matches('ytm-shorts-lockup-view-model-v2')
+      ? element
+      : element.querySelector('ytm-shorts-lockup-view-model-v2');
+    if (!lockup) return;
+    const overlayMetadata = {
+      primaryText: { content: 'Short title' },
+      ...(card.viewsText !== undefined
+        ? { secondaryText: { content: card.viewsText } }
+        : {})
+    };
+    lockup.componentProps = {
+      data: {
+        entityId: `shorts_${element.id}`,
+        accessibilityText: 'Short title, 2.7 million views - play Short',
+        overlayMetadata
+      }
+    };
+    return;
+  }
+  if (!card.channelId && card.viewsText === undefined && !card.playlist && !card.noViewsRow) return;
+  const lockup = element.tagName === 'YT-LOCKUP-VIEW-MODEL'
+    ? element
+    : element.querySelector('yt-lockup-view-model');
+  if (!lockup) return;
+
+  const value = {};
+  if (card.playlist) {
+    value.contentType = 'LOCKUP_CONTENT_TYPE_PLAYLIST';
+    value.contentId = 'PLfixture000000000000000000';
+  } else {
+    value.contentType = 'LOCKUP_CONTENT_TYPE_VIDEO';
+    value.contentId = 'abcdefghijk'; // 11-char video id, as probed live
+  }
+
+  const rows = [{ metadataParts: [{ text: { content: 'Channel' } }] }];
+  if (card.viewsText !== undefined) {
+    rows.push({
+      metadataParts: [
+        { text: { content: card.viewsText }, leadingIcon: { name: 'PLAY_ARROW_OUTLINED' } },
+        { text: { content: '7d ago' } }
+      ]
+    });
+  } else if (card.playlist) {
+    rows.push({ metadataParts: [{ text: { content: 'Playlist' } }, { text: { content: 'View full playlist' } }] });
+  } else {
+    // noViewsRow / channelId-only: channel + age, no PLAY_ARROW row.
+    rows.push({ metadataParts: [{ text: { content: '7d ago' } }] });
+  }
+
+  const metadata = {
+    lockupMetadataViewModel: { metadata: { contentMetadataViewModel: { metadataRows: rows } } }
+  };
+  if (card.channelId) {
+    metadata.lockupMetadataViewModel.image = {
+      decoratedAvatarViewModel: {
+        rendererContext: {
+          commandContext: {
+            onTap: { innertubeCommand: { browseEndpoint: { browseId: card.channelId } } }
+          }
+        }
+      }
+    };
+  }
+  value.metadata = metadata;
+
+  const data = card.dataAsFunction ? () => {} : {};
+  data[Symbol('bridge')] = { value };
+  lockup.componentProps = { data };
 };
 
 /**
  * Replace the page with an allowed home container holding video cards.
  * card: {
- *   href      – anchor URL (required)
- *   type      – 'old' (dismissible + DOM view count) or 'new' (yt-lockup-view-model, API path)
- *   views     – old cards: viewCountText.simpleText; omit for the API-fallback path
- *   badge     – old cards: render .badge[aria-label="New"]
- *   channelId – old cards: owner browseId (allowlist tests)
- *   hidden    – render the card with the [hidden] attribute
+ *   href        – anchor URL (required)
+ *   badge       – render the new-design "New" badge
+ *   channelId   – componentProps bridge for the allowlist fast path
+ *   viewsText   – PLAY_ARROW row text ("14" exact / "70K" compact) → DOM path
+ *   noViewsRow  – contentType VIDEO without a views row (false-positive guard)
+ *   playlist    – contentType LOCKUP_CONTENT_TYPE_PLAYLIST, no views row
+ *   dataAsFunction – symbol envelope on a function data property (live shape)
+ *   type        – 'shorts' renders the shorts-shelf inner component
+ *                 (componentProps always attached; viewsText feeds
+ *                 overlayMetadata.secondaryText)
+ *   hidden      – render the card with the [hidden] attribute
  * }
+ * Plain lockups (none of the payload options) have no componentProps → the
+ * script resolves them through the API path (fetch mock via setResponder).
  * Returns the card elements (ids: c0, c1, ...).
  */
 export const installPage = ({ cards = [] } = {}) => {
@@ -293,7 +389,7 @@ export const installPage = ({ cards = [] } = {}) => {
     </ytd-browse>`;
   return cards.map((card, i) => {
     const element = document.getElementById(`c${i}`);
-    attachOldData(element, card);
+    attachLockupPayload(element, card);
     return element;
   });
 };
@@ -305,14 +401,8 @@ export const addCard = card => {
   wrapper.innerHTML = buildCard(card, `c${index}`).trim();
   const element = wrapper.firstElementChild;
   document.getElementById('contents').appendChild(element);
-  attachOldData(element, card);
+  attachLockupPayload(element, card);
   return element;
-};
-
-/** Re-attach dismissible data after mutating an old card's options in place. */
-export const updateOldCardData = (element, options) => {
-  const dismissible = element.querySelector('#dismissible');
-  dismissible.__dataHost = { __data: { data: oldCardData(options) } };
 };
 
 export const navigateStart = () => window.dispatchEvent(new window.Event('yt-navigate-start'));
