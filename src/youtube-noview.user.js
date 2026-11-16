@@ -300,6 +300,8 @@
     }
 
     // Re-init intersection observer.
+    // (No `delay` option: it is ignored unless trackVisibility is enabled,
+    // which needs IO v2 support and isn't required for a one-shot signal.)
     intersectionObserver = new IntersectionObserver(entries => {
       for (const entry of entries) {
         if (entry.isIntersecting) {
@@ -307,7 +309,7 @@
           intersectionObserver.unobserve(entry.target);
         }
       }
-    }, { delay: 100, threshold: 0 });
+    }, { threshold: 0 });
 
     // Reconcile videos already in the DOM. Sentinel only fires on animationstart
     // (once per match), so elements matched while currentPage was null — e.g.
