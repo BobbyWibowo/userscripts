@@ -527,18 +527,9 @@
       return cachedData;
     }
 
-    let waiting = waitingForMetadata.find(item => item.videoID === videoID);
+    const waiting = waitingForMetadata.find(item => item.videoID === videoID);
     if (waiting) {
       return new Promise((resolve) => {
-        if (!waiting) {
-          waiting = {
-            videoID,
-            callbacks: []
-          };
-
-          waitingForMetadata.push(waiting);
-        }
-
         waiting.callbacks.push(metadata => {
           videoMetadataCache.cacheUsed(videoID);
           resolve(metadata);
