@@ -112,17 +112,27 @@
   // Extend hard-coded preset values with user-defined custom values, if applicable.
   for (const key of Object.keys(ENV)) {
     if (key.startsWith('SELECTORS_')) {
-      if (Array.isArray(PRESETS[key])) {
-        CONFIG[key] = PRESETS[key].join(', ');
-      } else {
-        CONFIG[key] = PRESETS[key] || '';
-      }
-      if (ENV[key]) {
-        CONFIG[key] += `, ${Array.isArray(ENV[key]) ? ENV[key].join(', ') : ENV[key]}`;
-      }
-      if (!isSelectorValid(CONFIG[key])) {
-        console.error(`${key} contains invalid selector =`, CONFIG[key]);
+      const preset = Array.isArray(PRESETS[key]) ? PRESETS[key].join(', ') : (PRESETS[key] || '');
+      if (!isSelectorValid(preset)) {
+        // Presets are shipped with the script — if they don't validate
+        // (e.g. a browser without :has()), there is nothing usable to run.
+        console.error(`${key} preset contains invalid selector =`, preset);
         return;
+      }
+      CONFIG[key] = preset;
+      if (ENV[key]) {
+        const custom = Array.isArray(ENV[key]) ? ENV[key].join(', ') : ENV[key];
+        const combined = `${preset}, ${custom}`;
+        if (isSelectorValid(combined)) {
+          CONFIG[key] = combined;
+        } else {
+          // A typo in storage must not kill the whole script — fall back to
+          // the preset so hiding keeps working without the custom selectors.
+          console.error(
+            `${key} custom value contains invalid selector; falling back to preset only. Custom value =`,
+            custom
+          );
+        }
       }
     } else if (Array.isArray(PRESETS[key])) {
       CONFIG[key] = PRESETS[key];
