@@ -576,9 +576,25 @@
       }
     }
 
-    if (typeof metadata?.viewCount === 'undefined') {
-      // Fetch metadata via YouTube API.
-      metadata = await fetchVideoMetadata(videoID);
+    // DOM-parsed view counts (old design) are enough for the regular threshold,
+    // but still fetch when live handling or the channel allowlist need API-only
+    // fields (isLive, parent/topic channel IDs).
+    const needsFullFetch = typeof metadata?.viewCount === 'undefined' ||
+      CONFIG.VIEWS_THRESHOLD_LIVE !== null ||
+      CONFIG.ALLOWED_CHANNEL_IDS.length > 0;
+
+    if (needsFullFetch) {
+      const fetched = await fetchVideoMetadata(videoID);
+      // Keep DOM-parsed views if the API response lacks them.
+      if ((fetched.viewCount === null || typeof fetched.viewCount === 'undefined') &&
+        typeof metadata.viewCount !== 'undefined') {
+        fetched.viewCount = metadata.viewCount;
+      }
+      // Keep early-extracted channel ID if the API response lacks channel data.
+      if (!fetched.channelIDs && metadata.channelIDs) {
+        fetched.channelIDs = metadata.channelIDs;
+      }
+      metadata = fetched;
     }
 
     return { videoID, metadata };
