@@ -73,7 +73,7 @@
       'ytd-watch-flexy:not([hidden])' // watch page
     ],
     SELECTORS_VIDEO: [
-      'ytd-compact-video-renderer:has(#dimissible)',
+      'ytd-compact-video-renderer:has(#dismissible)',
       'ytd-rich-item-renderer:has(#dismissible, yt-lockup-view-model, ytm-shorts-lockup-view-model-v2)',
       'ytd-item-section-renderer yt-lockup-view-model',
       '#items > ytm-shorts-lockup-view-model-v2',
