@@ -57,8 +57,9 @@ describe('youtube-noview boot and config', () => {
     const styles = fx.styles();
     expect(styles[0]).toContain('data-noview_threshold_unmet');
     expect(styles[0]).toContain('display: none !important');
-    // hide-processing style embeds both allowed-page and video selectors
-    expect(styles[1]).toContain('ytd-browse[page-subtype="home"]');
+    // hide-processing style hangs off the URL-gate attribute on <html> and
+    // embeds the video selectors (page gating is no longer a DOM selector).
+    expect(styles[1]).toContain('html[data-noview_allowed_page]');
     expect(styles[1]).toContain(':is(');
   });
 
@@ -177,6 +178,76 @@ describe('youtube-noview navigation and reconcile', () => {
 
     intersect(hidden);
     await pump(() => hidden.dataset.noview_threshold_unmet === '999');
+  });
+});
+
+describe('youtube-noview URL path gating', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('gates processing on the URL: disallowed paths skipped, /watch and /gaming allowed', async () => {
+    await loadNoview();
+
+    // Disallowed: search results — cards must stay untouched, attribute off.
+    history.pushState({}, '', '/results?search_query=test');
+    const [disallowed] = installPage({ cards: [{ href: watchUrl(vid(1)), views: '500 views' }] });
+    navigate();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(disallowed.dataset.noview_views).toBeUndefined();
+    expect(document.documentElement.hasAttribute('data-noview_allowed_page')).toBe(false);
+
+    // Segment boundary: /watchfoo must not match the /watch pattern.
+    history.pushState({}, '', '/watchfoo');
+    const [nearMiss] = installPage({ cards: [{ href: watchUrl(vid(2)), views: '500 views' }] });
+    navigate();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(nearMiss.dataset.noview_views).toBeUndefined();
+
+    // Query + fragment are ignored: /watch?v=…#t=10 is still /watch.
+    history.pushState({}, '', `/watch?v=${vid(3)}#t=10`);
+    const [watchCard] = installPage({ cards: [{ href: watchUrl(vid(4)), views: '500 views' }] });
+    navigate();
+    await pump(() => watchCard.dataset.noview_threshold_unmet === '999');
+    expect(document.documentElement.hasAttribute('data-noview_allowed_page')).toBe(true);
+
+    // /gaming is part of the shipped preset.
+    history.pushState({}, '', '/gaming');
+    const [gamingCard] = installPage({ cards: [{ href: watchUrl(vid(5)), views: '500 views' }] });
+    navigate();
+    await pump(() => gamingCard.dataset.noview_threshold_unmet === '999');
+    expect(document.documentElement.hasAttribute('data-noview_allowed_page')).toBe(true);
+  });
+
+  it('extends the preset with custom ALLOWED_PAGE_PATHS from storage', async () => {
+    await loadNoview({ env: { ALLOWED_PAGE_PATHS: ['/my-path'] } });
+
+    history.pushState({}, '', '/my-path');
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), views: '500 views' }] });
+    navigate();
+    await pump(() => card.dataset.noview_threshold_unmet === '999');
+    expect(document.documentElement.hasAttribute('data-noview_allowed_page')).toBe(true);
+  });
+
+  it('ignores a stale SELECTORS_ALLOWED_PAGE value from old settings', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fx = await loadNoview({ env: { SELECTORS_ALLOWED_PAGE: '::bogus((' } });
+
+    // The retired key is never read: no selector validation error and none of
+    // its value leaks into the generated CSS.
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(fx.styles().join('')).not.toContain('::bogus');
+
+    // The new system still works on an allowed path.
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)), views: '500 views' }] });
+    navigate();
+    await pump(() => card.dataset.noview_threshold_unmet === '999');
   });
 });
 

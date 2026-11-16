@@ -393,6 +393,11 @@ export const cleanup = () => {
   }
   capturedListeners = [];
   document.body.innerHTML = '';
+  // Tests navigate with history.pushState; the URL persists across tests in
+  // this jsdom environment — reset it so every test boots on the allowed '/'.
+  try {
+    history.pushState({}, '', '/');
+  } catch { /* ignore */ }
   mathRandomSpy?.mockRestore();
   mathRandomSpy = null;
   intervalSpy?.mockRestore();
