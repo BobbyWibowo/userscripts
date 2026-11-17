@@ -239,6 +239,43 @@ test('gives the status row top padding only while a message shows', async ({ pag
   expect(await paddingTop()).toBe('8px');
 });
 
+test('mutes tag texts while their checkboxes are disabled', async ({ page }) => {
+  await openFixture(page, { SETTINGS_LANGUAGE: 'en' });
+  await routeBookmarkApi(page, [{ tag: 'foo', cnt: 2 }]);
+
+  // Hold the bookmark-state request so the panel renders its rows (all
+  // disabled) while the item's data is still pending.
+  let releaseData;
+  const dataPending = new Promise(resolve => { releaseData = resolve; });
+  await page.route('**/bookmarkData*', async route => {
+    await dataPending;
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ body: { isBookmarkable: true, bookmarkData: null } })
+    });
+  });
+
+  await clickEditBookmark(page);
+
+  const checkbox = page.locator('.pixiv-utils-edit-bookmark-tag input[type="checkbox"]').first();
+  const tagText = page.locator('.pixiv-utils-edit-bookmark-tag > span:not(.pixiv-utils-edit-bookmark-tag-count)').first();
+  const count = page.locator('.pixiv-utils-edit-bookmark-tag-count').first();
+
+  // While the state is pending every row is disabled and the text shares
+  // the muted color of the always-muted count pill.
+  await expect(checkbox).toBeDisabled();
+  expect(await tagText.evaluate(el => getComputedStyle(el).color))
+    .toBe(await count.evaluate(el => getComputedStyle(el).color));
+
+  releaseData();
+
+  // Once the state resolves the rows re-render enabled and the text returns.
+  await expect(page.locator('.pixiv-utils-edit-bookmark-apply')).toBeEnabled();
+  await expect(checkbox).toBeEnabled();
+  expect(await tagText.evaluate(el => getComputedStyle(el).color))
+    .not.toBe(await count.evaluate(el => getComputedStyle(el).color));
+});
+
 test('follows the light/dark color scheme for panel surfaces', async ({ page }) => {
   await openEditBookmarkPanel(page);
 
