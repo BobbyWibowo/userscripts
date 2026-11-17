@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.8.16
+// @version            1.8.17
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -3720,6 +3720,9 @@
   .pixiv-utils-edit-bookmark-tag:hover {
     background: var(--pixiv-utils-ui-subtle, rgba(0, 0, 0, 0.06));
     border-radius: 0;
+  }
+  .pixiv-utils-edit-bookmark-tag:has(input:disabled) {
+    color: var(--pixiv-utils-ui-muted, #666);
   }
   .pixiv-utils-edit-bookmark-tag-count {
     display: inline-flex;
