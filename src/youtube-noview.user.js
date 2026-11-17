@@ -9,6 +9,7 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @run-at       document-start
 // @grant        GM_addStyle
+// @grant        GM_cookie
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @require      https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js#sha256-S8rx06n8uSoJCmTdVlxdMN8x+vDYoC+++ssWvEj4M6s=
@@ -498,6 +499,142 @@
     }
   };
 
+  // ---- Innertube request auth (SAPISIDHASH) ----
+  // The same-origin player fetch already carries the browser's YouTube
+  // cookies automatically (verified live 2026-11-17), but the endpoint only
+  // treats a request as logged-in when it also receives
+  // Authorization: SAPISIDHASH <unixts>_<sha1(unixts sapisid origin)>.
+  // Without it the response reports logged_in: 0 and a degraded
+  // playabilityStatus. SAPISID is read via GM_cookie first (reaches HttpOnly
+  // cookies when the manager's cookie-access setting allows it), then
+  // document.cookie (SAPISID itself is not HttpOnly in practice). Cookie
+  // values are never logged.
+
+  const SAPISID_CACHE = { value: null, at: 0 };
+  const SAPISID_CACHE_TTL_MS = 5 * 60 * 1000;
+  const SAPISID_COOKIE_NAMES = ['SAPISID', '__Secure-3PAPISID', '__Secure-1PAPISID'];
+
+  // Minimal SHA-1: crypto.subtle is missing in some sandboxes and test
+  // environments, and this keeps the header build dependency-free.
+  const sha1Hex = message => {
+    const bytes = new TextEncoder().encode(message);
+    const paddedLength = (((bytes.length + 8) >> 6) + 1) << 6;
+    const padded = new Uint8Array(paddedLength);
+    padded.set(bytes);
+    padded[bytes.length] = 0x80;
+    const view = new DataView(padded.buffer);
+    view.setUint32(paddedLength - 8, Math.floor(bytes.length * 8 / 0x100000000));
+    view.setUint32(paddedLength - 4, (bytes.length * 8) >>> 0);
+
+    let h0 = 0x67452301;
+    let h1 = 0xEFCDAB89;
+    let h2 = 0x98BADCFE;
+    let h3 = 0x10325476;
+    let h4 = 0xC3D2E1F0;
+    const w = new Uint32Array(80);
+    for (let offset = 0; offset < paddedLength; offset += 64) {
+      for (let i = 0; i < 16; i++) w[i] = view.getUint32(offset + i * 4);
+      for (let i = 16; i < 80; i++) {
+        const x = w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16];
+        w[i] = ((x << 1) | (x >>> 31)) >>> 0;
+      }
+      let a = h0;
+      let b = h1;
+      let c = h2;
+      let d = h3;
+      let e = h4;
+      for (let i = 0; i < 80; i++) {
+        let f;
+        let k;
+        if (i < 20) {
+          f = (b & c) | (~b & d);
+          k = 0x5A827999;
+        } else if (i < 40) {
+          f = b ^ c ^ d;
+          k = 0x6ED9EBA1;
+        } else if (i < 60) {
+          f = (b & c) | (b & d) | (c & d);
+          k = 0x8F1BBCDC;
+        } else {
+          f = b ^ c ^ d;
+          k = 0xCA62C1D6;
+        }
+        const temp = ((((a << 5) | (a >>> 27)) >>> 0) + ((f >>> 0) + k) + e + w[i]) >>> 0;
+        e = d;
+        d = c;
+        c = ((b << 30) | (b >>> 2)) >>> 0;
+        b = a;
+        a = temp;
+      }
+      h0 = (h0 + a) >>> 0;
+      h1 = (h1 + b) >>> 0;
+      h2 = (h2 + c) >>> 0;
+      h3 = (h3 + d) >>> 0;
+      h4 = (h4 + e) >>> 0;
+    }
+    return [h0, h1, h2, h3, h4].map(part => part.toString(16).padStart(8, '0')).join('');
+  };
+
+  const readSapisidViaGmCookie = () => new Promise(resolve => {
+    // typeof on an undeclared identifier is safe; a direct reference would
+    // throw on managers without GM_cookie (e.g. Greasemonkey).
+    if (typeof GM_cookie === 'undefined' || typeof GM_cookie.list !== 'function') {
+      resolve(null);
+      return;
+    }
+    try {
+      // The URL must fall inside the script's @match rules — Tampermonkey
+      // rejects GM_cookie.list calls for URLs the script cannot access.
+      GM_cookie.list({ url: 'https://www.youtube.com/' }, (cookies, error) => {
+        if (error || !Array.isArray(cookies)) {
+          resolve(null);
+          return;
+        }
+        for (const name of SAPISID_COOKIE_NAMES) {
+          const found = cookies.find(cookie => cookie?.name === name && cookie?.value);
+          if (found) {
+            resolve(found.value);
+            return;
+          }
+        }
+        resolve(null);
+      });
+    } catch (e) {
+      resolve(null);
+    }
+  });
+
+  const readSapisidFromDocumentCookie = () => {
+    for (const name of SAPISID_COOKIE_NAMES) {
+      const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+      if (match && match[1]) return match[1];
+    }
+    return null;
+  };
+
+  // Positive results only are cached: a logged-out session re-checks each
+  // request (cheap), while a logged-in session skips the GM_cookie IPC for
+  // SAPISID_CACHE_TTL_MS. A mid-session login is picked up on the next miss.
+  const getSapisid = async () => {
+    if (SAPISID_CACHE.value && Date.now() - SAPISID_CACHE.at < SAPISID_CACHE_TTL_MS) {
+      return SAPISID_CACHE.value;
+    }
+    const value = (await readSapisidViaGmCookie()) || readSapisidFromDocumentCookie();
+    if (value) {
+      SAPISID_CACHE.value = value;
+      SAPISID_CACHE.at = Date.now();
+    }
+    return value;
+  };
+
+  const buildSapisidAuthHeader = async () => {
+    const sapisid = await getSapisid();
+    if (!sapisid) return null;
+    const timestamp = Math.floor(Date.now() / 1000);
+    const hash = sha1Hex(`${timestamp} ${sapisid} ${location.origin}`);
+    return `SAPISIDHASH ${timestamp}_${hash}`;
+  };
+
   const fetchVideoDataDesktopClient = async videoID => {
     const url = 'https://www.youtube.com/youtubei/v1/player';
     const data = {
@@ -511,10 +648,12 @@
     };
 
     try {
+      const authHeader = await buildSapisidAuthHeader();
       const result = await fetch(url, {
         body: JSON.stringify(data),
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(authHeader ? { Authorization: authHeader } : {})
         },
         method: 'POST',
         signal: AbortSignal.timeout(PLAYER_REQUEST_TIMEOUT_MS)

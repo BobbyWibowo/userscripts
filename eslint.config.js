@@ -46,6 +46,7 @@ export default [
     languageOptions: {
       globals: {
         GM_addStyle: 'readonly',
+        GM_cookie: 'readonly',
         GM_getResourceText: 'readonly',
         GM_getValue: 'readonly',
         GM_info: 'readonly',
