@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import {
   abortTimeouts,
   addCard,
@@ -841,5 +842,108 @@ describe('youtube-noview peer metadata protocol', () => {
     expect(card2.dataset.noview_views).toBe('5000');
     expect(card2.dataset.noview_threshold_unmet).toBeUndefined();
     expect(fetchCalls()).toHaveLength(1);
+  });
+});
+
+describe('youtube-noview Innertube SAPISID auth', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    clearSapisidCookies();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    clearSapisidCookies();
+  });
+
+  const SAPISID_NAMES = ['SAPISID', '__Secure-3PAPISID', '__Secure-1PAPISID'];
+
+  function clearSapisidCookies () {
+    for (const name of SAPISID_NAMES) {
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+    }
+  }
+
+  /** Reference SAPISIDHASH computed with node:crypto — validates the script's pure-JS SHA-1. */
+  const sapisidHeaderFor = (sapisid, atMs, origin) => {
+    const timestamp = Math.floor(atMs / 1000);
+    const hash = createHash('sha1').update(`${timestamp} ${sapisid} ${origin}`).digest('hex');
+    return `SAPISIDHASH ${timestamp}_${hash}`;
+  };
+
+  const runOneFetch = async () => {
+    const [card] = installPage({ cards: [{ href: watchUrl(vid(1)) }] });
+    navigate();
+    await pump(() => card.dataset.noview_views !== undefined);
+    return fetchCalls()[0];
+  };
+
+  it('attaches SAPISIDHASH from GM_cookie, preferred over document.cookie, and caches it', async () => {
+    document.cookie = 'SAPISID=DOCSAPISID';
+    // GM_cookie's callback is (cookies, error) — not Node's error-first order.
+    const list = vi.fn((details, respond) => respond([
+      { name: 'PREF', value: 'unrelated' },
+      { name: '__Secure-3PAPISID', value: 'THIRDPARTY' },
+      { name: 'SAPISID', value: 'GMSAPISID' }
+    ], null));
+    vi.stubGlobal('GM_cookie', { list });
+
+    await loadNoview();
+    const cards = installPage({
+      cards: [{ href: watchUrl(vid(1)) }, { href: watchUrl(vid(2)) }]
+    });
+    navigate();
+    await pump(() => cards.every(card => card.dataset.noview_views !== undefined));
+
+    // GM_cookie.list: URL must sit inside the script's @match rules, and the
+    // positive result is TTL-cached across requests.
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(list.mock.calls[0][0]).toEqual({ url: 'https://www.youtube.com/' });
+
+    const calls = fetchCalls();
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      // GM_cookie's SAPISID wins over the different document.cookie value.
+      expect(call.options.headers.Authorization).toBe(
+        sapisidHeaderFor('GMSAPISID', call.at, window.location.origin)
+      );
+    }
+  });
+
+  it('falls back to document.cookie when GM_cookie is unavailable', async () => {
+    document.cookie = 'SAPISID=DOCSAPISID';
+    await loadNoview();
+
+    const call = await runOneFetch();
+
+    expect(call.options.headers.Authorization).toBe(
+      sapisidHeaderFor('DOCSAPISID', call.at, window.location.origin)
+    );
+  });
+
+  it('falls back to document.cookie when GM_cookie.list reports an error', async () => {
+    document.cookie = 'SAPISID=DOCSAPISID';
+    vi.stubGlobal('GM_cookie', {
+      list: (details, respond) => respond(null, 'not supported')
+    });
+    await loadNoview();
+
+    const call = await runOneFetch();
+
+    expect(call.options.headers.Authorization).toBe(
+      sapisidHeaderFor('DOCSAPISID', call.at, window.location.origin)
+    );
+  });
+
+  it('omits Authorization when no SAPISID source exists (logged-out behavior unchanged)', async () => {
+    await loadNoview();
+
+    const call = await runOneFetch();
+
+    expect(call.options.headers.Authorization).toBeUndefined();
+    expect(call.options.headers['Content-Type']).toBe('application/json');
+    expect(call.url).toBe('https://www.youtube.com/youtubei/v1/player');
   });
 });
