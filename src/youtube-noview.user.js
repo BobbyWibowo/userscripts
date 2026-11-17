@@ -58,7 +58,8 @@
 
     // URL pathname patterns.
     ALLOWED_PAGE_PATHS: [],
-    SELECTORS_VIDEO: null
+    SELECTORS_VIDEO: null,
+    SELECTORS_BADGE_NEW: null
   };
 
   /* Hard-coded preset values.
@@ -84,6 +85,12 @@
       'ytd-grid-video-renderer:has(#dismissible)',
       'ytd-player .ytp-suggestion-set',
       'ytd-player .ytp-ce-video.ytp-ce-element-show'
+    ],
+
+    SELECTORS_BADGE_NEW: [
+      'yt-content-metadata-view-model .badge-shape-wiz__text',
+      'yt-thumbnail-overlay-badge-view-model .ytBadgeShapeText',
+      'ytm-shorts-lockup-view-model .ytBadgeShapeText'
     ]
   };
 
@@ -217,7 +224,7 @@
       }
 
       /* Visually hide, while still letting the element occupy the space.
-      * To prevent YouTube from infinitely loading more videos. */
+       * To prevent YouTube from infinitely loading more videos. */
       html[data-noview_allowed_page] :is(${CONFIG.SELECTORS_VIDEO}):not([data-noview_views], [data-noview_allowed_channel]) {
         visibility: hidden;
         opacity: 0;
@@ -227,9 +234,9 @@
 
   if (!CONFIG.DISABLE_STYLES) {
     GM_addStyle(/*css*/`
-      [data-noview_allowed_channel] #metadata-line span:nth-last-child(2 of .inline-metadata-item),
-      [data-noview_allowed_channel] yt-content-metadata-view-model div:nth-child(2) span:nth-last-child(2 of .yt-core-attributed-string),
-      [data-noview_allowed_channel] .ytp-videowall-still-info-author {
+      [data-noview_allowed_channel] #metadata-line > :nth-child(1 of span),
+      [data-noview_allowed_channel] yt-content-metadata-view-model .ytContentMetadataViewModelMetadataRow > :nth-last-child(2 of .ytContentMetadataViewModelMetadataText),
+      [data-noview_allowed_channel] ytm-shorts-lockup-view-model .shortsLockupViewModelHostOutsideMetadataSubhead > :nth-child(1 of span) {
         font-style: italic !important;
       }
 
@@ -390,6 +397,7 @@
       logDebug('Page not allowed.');
       return;
     }
+    logDebug('Page allowed, waiting for videos\u2026');
 
     createIntersectionObserver();
 
@@ -403,8 +411,6 @@
         processNewElement(element);
       }
     }
-
-    logDebug('Page allowed, waiting for videos\u2026');
   });
 
   /** MAIN **/
@@ -818,7 +824,7 @@
     // Playlists are skipped outright: visible (noview_views marker set in
     // finally), no threshold, no fetch — instead of an API fallback.
     if (isPlaylistPayload(payload)) {
-      logDebug('Skipped playlist lockup', element);
+      logDebug('Skipped playlist lockup', { videoID, element });
       return { videoID, skipped: true, metadata: {} };
     }
 
@@ -829,7 +835,7 @@
         ?.decoratedAvatarViewModel?.rendererContext?.commandContext?.onTap
         ?.innertubeCommand?.browseEndpoint?.browseId;
       if (channelId && CONFIG.ALLOWED_CHANNEL_IDS.includes(channelId)) {
-        logDebug('Skipped metadata fetch due to allowed channel', element);
+        logDebug('Skipped allowed channel', { videoID, channelId, element });
         return {
           videoID,
           allowedChannel: channelId,
@@ -869,6 +875,7 @@
     // API path: count not settled above (exact ≤ maxThreshold under
     // live/allowlist context, compact with a ≥1000 threshold, missing
     // payload/row) — cache → peer message → throttled Innertube.
+    logDebug('Fetching metadata from API', { videoID, element });
     const metadata = await fetchVideoMetadata(videoID);
     return { videoID, metadata };
   };
@@ -881,7 +888,7 @@
     if (!lockupViewModel) {
       return false;
     }
-    const badges = lockupViewModel.querySelectorAll('yt-content-metadata-view-model .badge-shape-wiz__text');
+    const badges = lockupViewModel.querySelectorAll(CONFIG.SELECTORS_BADGE_NEW);
     // textContent instead of innerText: identical for these simple spans and
     // it also works under jsdom, where innerText is not implemented.
     return Array.from(badges).some(badge => badge?.textContent === CONFIG.TEXT_BADGE_NEW);
@@ -923,7 +930,7 @@
     }
 
     if (!data.metadata || data.metadata.viewCount === null) {
-      logDebug('Unable to access views data', element);
+      logDebug('Unable to access views data', { videoID: data.videoID, element });
       return false;
     }
 
@@ -952,7 +959,7 @@
     }
 
     if (thresholdUnmet !== null) {
-      logDebug(`Hid video (${viewCount} <= ${thresholdUnmet})`, element);
+      logDebug(`Hid video (${viewCount} <= ${thresholdUnmet})`, { videoID: data.videoID, element });
       element.dataset.noview_threshold_unmet = thresholdUnmet;
     }
 
