@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube - Hide force-pushed low-view videos
 // @namespace    https://github.com/BobbyWibowo
-// @version      1.4.1
+// @version      1.4.2
 // @description  Hide videos matching views thresholds.
 // @author       Bobby Wibowo
 // @license      MIT
