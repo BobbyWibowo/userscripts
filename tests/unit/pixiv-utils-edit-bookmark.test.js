@@ -1131,4 +1131,28 @@ describe('pixiv-utils edit bookmark', () => {
     expect(css).toContain('.pixiv-utils-edit-bookmark-status.is-loading,\n  .pixiv-utils-edit-bookmark-status:has(.pixiv-utils-edit-bookmark-status-message:not(:empty)) {\n    padding-top: 8px;');
     expect(pixiv.console.error).toEqual([]);
   });
+
+  it('styles both modal dialogs with an entry fade that honors reduced motion', async () => {
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const css = pixiv.styles.join('\n');
+
+    // The edit-bookmark panel and the settings dialog fade in with the same
+    // duration the toast stack uses (interpolated from the shared constant).
+    expect(css).toContain('dialog.pixiv-utils-alert.pixiv-utils-edit-bookmark-panel,\n  dialog.gc-p {\n    transition: opacity 180ms ease;');
+    expect(css).toContain('transition: opacity 180ms ease, translate 180ms ease;');
+
+    // Entry fades start from transparent on first open.
+    expect(css).toContain('@starting-style');
+    expect(css).toContain('dialog.pixiv-utils-alert.pixiv-utils-edit-bookmark-panel[open],\n    dialog.gc-p[open] {\n      opacity: 0;');
+    expect(css).toContain('dialog.pixiv-utils-alert.pixiv-utils-edit-bookmark-panel[open]::backdrop,\n    dialog.gc-p[open]::backdrop {\n      opacity: 0;');
+
+    // No exit animation: no :not([open]) opacity rules and no allow-discrete
+    // display/overlay hold that would delay teardown after close.
+    expect(css).not.toContain(':not([open])');
+    expect(css).not.toContain('allow-discrete');
+
+    // Reduced motion disables every dialog transition.
+    expect(css).toContain('dialog.pixiv-utils-alert.pixiv-utils-edit-bookmark-panel,\n    dialog.gc-p,\n    dialog.pixiv-utils-alert.pixiv-utils-edit-bookmark-panel::backdrop,\n    dialog.gc-p::backdrop {\n      transition: none;');
+    expect(pixiv.console.error).toEqual([]);
+  });
 });

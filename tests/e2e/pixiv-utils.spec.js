@@ -362,3 +362,53 @@ test('stacks up to three toasts and promotes the queued one after expiry', async
   // were never promoted).
   await expect(page.locator('.pixiv-utils-toast')).toHaveCount(1, { timeout: 8000 });
 });
+
+test('fades the edit bookmark panel open and tears it down on close', async ({ page }) => {
+  await openEditBookmarkPanel(page);
+
+  const styles = await page.evaluate(() => {
+    const panel = document.querySelector('.pixiv-utils-edit-bookmark-panel');
+    const durationList = value => value.split(',').map(entry => entry.trim());
+    return {
+      transitionDuration: durationList(getComputedStyle(panel).transitionDuration),
+      transitionProperty: getComputedStyle(panel).transitionProperty,
+      backdropDuration: durationList(getComputedStyle(panel, '::backdrop').transitionDuration)
+    };
+  });
+
+  // Entry fade only: opacity animates, with no display/overlay hold that
+  // would delay teardown after close.
+  expect(styles.transitionDuration).toContain('0.18s');
+  expect(styles.transitionProperty).toContain('opacity');
+  expect(styles.transitionProperty).not.toContain('display');
+  expect(styles.backdropDuration).toContain('0.18s');
+
+  await page.locator('.pixiv-utils-edit-bookmark-panel .pixiv-utils-alert-close').click();
+  await expect(page.locator('.pixiv-utils-edit-bookmark-panel')).toHaveCount(0);
+});
+
+test('skips the dialog fade under prefers-reduced-motion', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openEditBookmarkPanel(page);
+
+  const duration = await page.evaluate(() =>
+    getComputedStyle(document.querySelector('.pixiv-utils-edit-bookmark-panel')).transitionDuration);
+  expect(duration.split(',').map(entry => entry.trim())).toContain('0s');
+
+  // The dialog still closes cleanly with the entry fade disabled.
+  await page.locator('.pixiv-utils-edit-bookmark-panel .pixiv-utils-alert-close').click();
+  await expect(page.locator('.pixiv-utils-edit-bookmark-panel')).toHaveCount(0);
+});
+
+test('fades the settings dialog open and closes it on cancel', async ({ page }) => {
+  await openFixture(page, { SETTINGS_LANGUAGE: 'en' });
+  await openSettings(page);
+
+  const duration = await page.evaluate(() =>
+    getComputedStyle(document.querySelector('.gc-p')).transitionDuration);
+  expect(duration.split(',').map(entry => entry.trim())).toContain('0.18s');
+
+  // Cancel tears the dialog down through gmConfig's synchronous close path.
+  await page.locator('.gc-f > button', { hasText: 'Cancel' }).click();
+  await expect(page.locator('.gc-p')).toHaveCount(0);
+});
