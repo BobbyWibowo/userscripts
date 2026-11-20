@@ -2482,6 +2482,40 @@
     return;
   }
 
+  /** TUNABLES **/
+
+  // Element polling (waitFor).
+  const WAIT_FOR_POLL = Number.isSafeInteger(CONFIG.WAIT_FOR_POLL) && CONFIG.WAIT_FOR_POLL > 0
+    ? CONFIG.WAIT_FOR_POLL
+    : ENV_DEFAULTS.WAIT_FOR_POLL;
+  const WAIT_FOR_TIMEOUT = 30000; // ms; callers can safely retry on later observations.
+
+  // Animations (ms): the toast stack and the dialogs' entry fade share one
+  // duration; the fallback adds grace past it so a missing transitionend
+  // cannot hang toast exit teardown.
+  const ANIMATION_TRANSITION_MS = 180;
+  const ANIMATION_EXIT_FALLBACK_MS = ANIMATION_TRANSITION_MS + 70;
+
+  // Toast stack: visible cap and default per-toast lifetime (ms).
+  const MAX_VISIBLE_TOASTS = 3;
+  const TOAST_DEFAULT_DURATION = 2500;
+
+  // Each bookmark API request is retried this many times before failing.
+  const BOOKMARK_API_RETRIES = 3;
+
+  // The props objects reachable from a fiber's props: its own, plus the props
+  // of its React children and grandchildren. The walk is bounded in both depth
+  // and total size, so a props object with many children cannot stall it.
+  const REACT_PROPS_TREE_DEPTH = 3;
+  const REACT_PROPS_TREE_LIMIT = 64;
+
+  // Toggle Bookmarked Modes.
+  // 0 = Show all
+  // 1 = Show not bookmarked
+  // 2 = Show bookmarked
+  const _TB_MIN = 0;
+  const _TB_MAX = 2;
+
   /** SETTINGS PANEL (gmConfig 1.0.0, existing per-key GM storage) **/
 
   // The library has no public storage adapter. Its TypeScript-private _load method and
@@ -3675,6 +3709,35 @@
     font-size: 14px;
     line-height: 1.45;
   }
+  /* Entry-only fades: the edit-bookmark panel and the settings dialog fade in
+     on open; closing tears them down immediately (no exit transition). */
+  dialog.pixiv-utils-alert.pixiv-utils-edit-bookmark-panel,
+  dialog.gc-p {
+    transition: opacity ${ANIMATION_TRANSITION_MS}ms ease;
+  }
+  dialog.pixiv-utils-alert.pixiv-utils-edit-bookmark-panel::backdrop,
+  dialog.gc-p::backdrop {
+    transition: opacity ${ANIMATION_TRANSITION_MS}ms ease;
+  }
+  /* Entry fades start from transparent the first time a dialog opens. */
+  @starting-style {
+    dialog.pixiv-utils-alert.pixiv-utils-edit-bookmark-panel[open],
+    dialog.gc-p[open] {
+      opacity: 0;
+    }
+    dialog.pixiv-utils-alert.pixiv-utils-edit-bookmark-panel[open]::backdrop,
+    dialog.gc-p[open]::backdrop {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    dialog.pixiv-utils-alert.pixiv-utils-edit-bookmark-panel,
+    dialog.gc-p,
+    dialog.pixiv-utils-alert.pixiv-utils-edit-bookmark-panel::backdrop,
+    dialog.gc-p::backdrop {
+      transition: none;
+    }
+  }
   .pixiv-utils-toast-stack {
     position: fixed;
     bottom: 16px;
@@ -3695,7 +3758,7 @@
     box-shadow: var(--pixiv-utils-ui-shadow, 0 12px 36px rgba(0, 0, 0, 0.24));
     font: inherit;
     font-size: 14px;
-    transition: opacity 180ms ease, translate 180ms ease;
+    transition: opacity ${ANIMATION_TRANSITION_MS}ms ease, translate ${ANIMATION_TRANSITION_MS}ms ease;
   }
   /* Enter state: stripped right after insertion so the toast fades in. */
   .pixiv-utils-toast-enter {
@@ -5702,11 +5765,6 @@
     );
   };
 
-  const WAIT_FOR_POLL = Number.isSafeInteger(CONFIG.WAIT_FOR_POLL) && CONFIG.WAIT_FOR_POLL > 0
-    ? CONFIG.WAIT_FOR_POLL
-    : ENV_DEFAULTS.WAIT_FOR_POLL;
-  const WAIT_FOR_TIMEOUT = 30000; // ms; callers can safely retry on later observations.
-
   // Share one polling timer across all pending element lookups. Each request
   // retains its own deadline, detached-element check and navigation cancellation.
   const pendingWaitFors = new Set();
@@ -5864,9 +5922,6 @@
   // owns its expiration timer (started only once it is actually displayed),
   // and an exiting toast keeps its slot until the exit transition finishes,
   // so the visible maximum holds even mid-animation.
-  const MAX_VISIBLE_TOASTS = 3;
-  const TOAST_TRANSITION_MS = 180;
-  const TOAST_EXIT_FALLBACK_MS = TOAST_TRANSITION_MS + 70;
   let toastStack = null;
   const pendingToasts = [];
   const visibleToasts = [];
@@ -5965,7 +6020,7 @@
     toast.exitFallback = setTimeout(() => {
       toast.exitFallback = null;
       finishExit(toast);
-    }, TOAST_EXIT_FALLBACK_MS);
+    }, ANIMATION_EXIT_FALLBACK_MS);
   };
 
   const makeToastVisible = toast => {
@@ -5996,7 +6051,7 @@
     const toast = {
       message: String(message),
       primary: Boolean(options.primary),
-      duration: options.duration === undefined ? 2500 : Number(options.duration),
+      duration: options.duration === undefined ? TOAST_DEFAULT_DURATION : Number(options.duration),
       state: 'queued',
       element: null,
       timer: null,
@@ -6053,9 +6108,6 @@
     try { if (typeof PIXIV_DATA_CACHE !== 'undefined') PIXIV_DATA_CACHE.clear(); } catch (_) {}
     showToast(tr('toast.cachesCleared') || 'Caches cleared ✓', { primary: true });
   });
-
-  // Each bookmark API request is retried this many times before failing.
-  const BOOKMARK_API_RETRIES = 3;
 
   // Drop the cached state of one bookmark so the next read refetches it.
   const invalidateBookmarkState = (isNovel, id) => {
@@ -6789,13 +6841,6 @@
     return null;
   };
 
-  // Toggle Bookmarked Modes.
-  // 0 = Show all
-  // 1 = Show not bookmarked
-  // 2 = Show bookmarked
-  const _TB_MIN = 0;
-  const _TB_MAX = 2;
-
   const getToggleBookmarkedMode = element => {
     const section = element.closest('[data-pixiv_utils_toggle_bookmarked_section]');
     return section ? Number(section.dataset.pixiv_utils_toggle_bookmarked_mode) : null;
@@ -6874,12 +6919,6 @@
       ? ['illust', 'novel', 'manga', 'collection', 'collections', 0, 1, 2]
           .includes(reactSourceType(props))
       : props.workId != null && props.workType != null);
-
-  // The props objects reachable from a fiber's props: its own, plus the props
-  // of its React children and grandchildren. The walk is bounded in both depth
-  // and total size, so a props object with many children cannot stall it.
-  const REACT_PROPS_TREE_DEPTH = 3;
-  const REACT_PROPS_TREE_LIMIT = 64;
 
   const reactPropsTree = (props, depth) => {
     const tree = [];
