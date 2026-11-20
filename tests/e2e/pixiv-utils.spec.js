@@ -337,3 +337,28 @@ test('raises settings controls to 44px in a mobile viewport', async ({ page }) =
   await expect(select).toBeVisible();
   expect((await select.boundingBox()).height).toBeCloseTo(44, 0);
 });
+
+test('stacks up to three toasts and promotes the queued one after expiry', async ({ page }) => {
+  await openFixture(page);
+
+  // Every blocked-items toggle queues another toast; only three may show.
+  await page.evaluate(() => {
+    const command = window.__gmMenuCommands?.find(entry => entry.label.includes('\u{1F441}'));
+    if (!command) throw new Error('Blocked-items menu command not registered');
+    for (let index = 0; index < 4; index += 1) command.callback();
+  });
+
+  await expect(page.locator('.pixiv-utils-toast')).toHaveCount(3);
+
+  // The stack keeps the single toast's anchored position.
+  const stack = page.locator('.pixiv-utils-toast-stack');
+  await expect(stack).toBeVisible();
+  expect(await stack.evaluate(element => getComputedStyle(element).position)).toBe('fixed');
+  expect(await stack.evaluate(element => getComputedStyle(element).bottom)).toBe('16px');
+
+  // Natural expiry in a real browser: the visible toasts leave through their
+  // exit transition and the queued fourth takes over a freed slot (count
+  // would stay at 3 if slots were never released, or drop to 0 if the queue
+  // were never promoted).
+  await expect(page.locator('.pixiv-utils-toast')).toHaveCount(1, { timeout: 8000 });
+});
