@@ -3645,6 +3645,8 @@
   };
 
   const settingsStyle = /*css*/`
+  /** SETTINGS STYLE **/
+
   .gc-p, .pixiv-utils-alert {
     color-scheme: light dark;
     --pixiv-utils-ui-surface: Canvas;
@@ -3673,20 +3675,44 @@
     font-size: 14px;
     line-height: 1.45;
   }
-  .pixiv-utils-toast {
+  .pixiv-utils-toast-stack {
     position: fixed;
     bottom: 16px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .pixiv-utils-toast {
     padding: 10px 14px;
     border-radius: var(--pixiv-utils-ui-radius, 8px);
     background: var(--pixiv-utils-ui-surface, Canvas);
     color: var(--pixiv-utils-ui-text, CanvasText);
     border: 1px solid var(--pixiv-utils-ui-border, rgba(0,0,0,0.2));
-    box-shadow: var(--pixiv-utils-ui-shadow, 0 12px 36px rgba(0,0,0,0.24));
+    box-shadow: var(--pixiv-utils-ui-shadow, 0 12px 36px rgba(0, 0, 0, 0.24));
     font: inherit;
     font-size: 14px;
+    transition: opacity 180ms ease, translate 180ms ease;
+  }
+  /* Enter state: stripped right after insertion so the toast fades in. */
+  .pixiv-utils-toast-enter {
+    opacity: 0;
+    translate: 0 8px;
+  }
+  .pixiv-utils-toast.is-exiting {
+    opacity: 0;
+    translate: 0 6px;
+  }
+  .pixiv-utils-toast-primary {
+    background: var(--pixiv-utils-ui-accent, #0096fa);
+    color: #fff;
+    border: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pixiv-utils-toast { transition: none; }
   }
   .pixiv-utils-toast-primary {
     background: var(--pixiv-utils-ui-accent, #0096fa);
@@ -4641,16 +4667,6 @@
   }
   `;
 
-  // Settings-only CSS is unnecessary until the user opens the panel.
-  // Keep it for the rest of this page session so reopening cannot add duplicates.
-  let settingsStyleAdded = false;
-  const addSettingsStyleOnce = () => {
-    if (settingsStyleAdded) return;
-
-    GM_addStyle(settingsStyle);
-    settingsStyleAdded = true;
-  };
-
   const localizePanelChrome = panel => {
     const dialog = panel._dlg;
     if (!dialog) return;
@@ -4775,7 +4791,6 @@
     try {
       settingsUiLocale = resolveSettingsLocale(getSetting('SETTINGS_LANGUAGE'));
       await waitPageLoaded();
-      addSettingsStyleOnce();
       const SettingsConstructor = await loadSettingsConstructor();
       const panel = new SettingsConstructor();
       await panel.init(makeSettingsDefinitions(), {
@@ -4876,7 +4891,7 @@
 
   GM_registerMenuCommand(`⚙️ ${tr('action.settings')}`, openSettingsPanel);
 
-  /** MAIN UTILS */
+  /** MAIN UTILS **/
 
   const SELECTORS_IMAGE_CONTAINER_SIMPLIFIED = [
     'div[open]:has(a[href*="users/"])', // user profile popup
@@ -5208,8 +5223,6 @@
     }
   }
 
-  /** MAIN STYLES **/
-
   const formatChildSelectorList = (parentSelector, childSelector) => {
     const parent = normalizeSelectorList(parentSelector);
     return splitSelectorList(childSelector).map(selector => {
@@ -5229,7 +5242,9 @@
 
   const SELECTORS_DATE_ORIGINAL = `:is(${CONFIG.SELECTORS_DATE}):not([data-pixiv_utils_duplicate_date])`;
 
-  const mainStyle = /*css*/`
+  const mainStyle = settingsStyle + /*css*/`
+  /** MAIN STYLE **/
+
   .flex:has(+ .pixiv_utils_edit_bookmark_container) {
     flex-grow: 1;
   }
@@ -5845,48 +5860,152 @@
     if (!cachedCsrfToken) throw new Error('Could not obtain Pixiv CSRF token.');
   };
 
-  // Toast queue (alert-like, no overlapping/lost calls).
-  const toastQueue = [];
-  let activeToast = null;
-  const presentNextToast = () => {
-    if (activeToast || !toastQueue.length) return;
-    const request = toastQueue.shift();
-    const toast = document.createElement('div');
-    toast.className = `pixiv-utils-toast${request.primary ? ' pixiv-utils-toast-primary' : ''}`;
-    toast.textContent = request.message;
-    toast.setAttribute('role', 'status');
-    (document.querySelector('.pixiv-utils-alert') || document.body || document.documentElement).append(toast);
-    activeToast = toast;
-    let timer = null;
-    const dismiss = () => {
-      if (timer) clearTimeout(timer);
-      toast.remove();
-      if (activeToast === toast) {
-        activeToast = null;
-        presentNextToast();
-      }
-    };
-    if (request.duration > 0) timer = setTimeout(dismiss, request.duration);
-    request.dismiss = dismiss;
+  // Toasts: a capped visible stack fed by a FIFO queue. Each visible toast
+  // owns its expiration timer (started only once it is actually displayed),
+  // and an exiting toast keeps its slot until the exit transition finishes,
+  // so the visible maximum holds even mid-animation.
+  const MAX_VISIBLE_TOASTS = 3;
+  const TOAST_TRANSITION_MS = 180;
+  const TOAST_EXIT_FALLBACK_MS = TOAST_TRANSITION_MS + 70;
+  let toastStack = null;
+  const pendingToasts = [];
+  const visibleToasts = [];
+
+  const prefersReducedMotion = () =>
+    typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const ensureToastStack = () => {
+    if (!toastStack) {
+      toastStack = document.createElement('div');
+      toastStack.className = 'pixiv-utils-toast-stack';
+    }
+    // Preserve the old per-toast placement: toasts live inside an open
+    // dialog (top layer) when there is one, otherwise on the page. Repeated
+    // appends also re-attach a stack detached together with a dialog.
+    const host = document.querySelector('.pixiv-utils-alert') || document.body || document.documentElement;
+    if (toastStack.parentElement !== host) host.append(toastStack);
+    return toastStack;
   };
-  const enqueueToast = (message, options = {}) => {
-    const request = {
+
+  const rehomeToastStack = () => {
+    if (!toastStack) return;
+    const host = document.body || document.documentElement;
+    if (toastStack.parentElement !== host) host.append(toastStack);
+  };
+
+  // FLIP: measure the stack before mutating it, then animate the survivors
+  // from their previous positions so insertions push older toasts upward and
+  // removals let the rest settle down smoothly.
+  const animateStackChange = (mutate, leaving = null) => {
+    const items = toastStack ? [...toastStack.children].filter(element => element !== leaving) : [];
+    const before = items.map(element => element.getBoundingClientRect());
+    mutate();
+    if (prefersReducedMotion()) return;
+    items.forEach((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const dx = before[index].left - rect.left;
+      const dy = before[index].top - rect.top;
+      if (!dx && !dy) return;
+      element.style.transition = 'none';
+      element.style.translate = `${dx}px ${dy}px`;
+      element.getBoundingClientRect();
+      element.style.transition = '';
+      element.style.translate = '';
+    });
+  };
+
+  const startExpiration = toast => {
+    if (!(toast.duration > 0)) return;
+    toast.timer = setTimeout(() => {
+      toast.timer = null;
+      if (toast.state !== 'visible') return;
+      beginExit(toast);
+    }, toast.duration);
+  };
+
+  const finishExit = toast => {
+    if (toast.state !== 'exiting') return;
+    toast.state = 'dismissed';
+    if (toast.exitCleanup) {
+      toast.exitCleanup();
+      toast.exitCleanup = null;
+    }
+    if (toast.exitFallback) {
+      clearTimeout(toast.exitFallback);
+      toast.exitFallback = null;
+    }
+    const element = toast.element;
+    toast.element = null;
+    const index = visibleToasts.indexOf(toast);
+    if (index >= 0) visibleToasts.splice(index, 1);
+    if (element) animateStackChange(() => element.remove(), element);
+    promotePendingToasts();
+  };
+
+  const beginExit = toast => {
+    if (toast.state !== 'visible') return;
+    toast.state = 'exiting';
+    if (toast.timer) {
+      clearTimeout(toast.timer);
+      toast.timer = null;
+    }
+    const element = toast.element;
+    if (!element || prefersReducedMotion()) {
+      finishExit(toast);
+      return;
+    }
+    const onTransitionEnd = event => {
+      if (event.target === element) finishExit(toast);
+    };
+    toast.exitCleanup = () => element.removeEventListener('transitionend', onTransitionEnd);
+    element.addEventListener('transitionend', onTransitionEnd);
+    element.classList.add('is-exiting');
+    // Fallback for environments where transitionend never fires (hidden
+    // documents): finishExit's state guard makes that race harmless.
+    toast.exitFallback = setTimeout(() => {
+      toast.exitFallback = null;
+      finishExit(toast);
+    }, TOAST_EXIT_FALLBACK_MS);
+  };
+
+  const makeToastVisible = toast => {
+    toast.state = 'visible';
+    const stack = ensureToastStack();
+    const element = document.createElement('div');
+    element.className = `pixiv-utils-toast${toast.primary ? ' pixiv-utils-toast-primary' : ''}`;
+    element.textContent = toast.message;
+    element.setAttribute('role', 'status');
+    element.classList.add('pixiv-utils-toast-enter');
+    toast.element = element;
+    visibleToasts.push(toast);
+    animateStackChange(() => stack.append(element));
+    // Flush the enter state before stripping the class; otherwise the
+    // transition would have no computed start value (empty-stack inserts).
+    element.getBoundingClientRect();
+    element.classList.remove('pixiv-utils-toast-enter');
+    startExpiration(toast);
+  };
+
+  const promotePendingToasts = () => {
+    while (visibleToasts.length < MAX_VISIBLE_TOASTS && pendingToasts.length) {
+      makeToastVisible(pendingToasts.shift());
+    }
+  };
+
+  const showToast = (message, options = {}) => {
+    const toast = {
       message: String(message),
       primary: Boolean(options.primary),
-      duration: options.duration === undefined ? 2500 : Number(options.duration)
+      duration: options.duration === undefined ? 2500 : Number(options.duration),
+      state: 'queued',
+      element: null,
+      timer: null,
+      exitFallback: null,
+      exitCleanup: null
     };
-    toastQueue.push(request);
-    presentNextToast();
-    return () => {
-      const index = toastQueue.indexOf(request);
-      if (index >= 0) {
-        toastQueue.splice(index, 1);
-        return;
-      }
-      if (request.dismiss) request.dismiss();
-    };
+    pendingToasts.push(toast);
+    promotePendingToasts();
   };
-  const showToast = (message, options) => enqueueToast(message, options);
 
   const BOOKMARK_API = {
     illust: {
@@ -6200,8 +6319,6 @@
       if (existing.open) return;
       existing.remove();
     }
-
-    addSettingsStyleOnce();
 
     const dialog = document.createElement('dialog');
     dialog.className = 'pixiv-utils-alert pixiv-utils-edit-bookmark-panel';
@@ -6546,9 +6663,9 @@
     window.addEventListener('detectnavigate', closeOnNavigate);
     dialog.addEventListener('close', () => {
       window.removeEventListener('detectnavigate', closeOnNavigate);
-      if (activeToast && dialog.contains(activeToast)) {
-        (document.body || document.documentElement).append(activeToast);
-      }
+      // Toasts shown while the dialog was open live inside it (top layer);
+      // move the stack back to the page before the dialog goes away.
+      rehomeToastStack();
       dialog.remove();
     });
     createTagButton.addEventListener('click', (event) => {
@@ -8719,7 +8836,7 @@
     });
   };
 
-  /** SENTINEL */
+  /** SENTINEL **/
 
   waitPageLoaded().then(() => {
     // A single reusable tooltip serves all elements through event delegation.
