@@ -2,7 +2,7 @@
 // @name               Share Tweet Copy
 // @name:zh-CN         推文复制分享
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.0.0
+// @version            1.0.1
 // @description        Copy tweets on Twitter/X in a clean, quote-ready format for easy sharing.
 // @description:zh-CN  一键复制 Twitter/X 推文为整洁、可直接引用的格式，方便分享。
 // @author             GinWU, Bobby Wibowo
@@ -26,6 +26,9 @@
 
   /**
    * Change Log
+   *
+   * Version 1.0.1 (2026-11-23)
+   *  - Make the tweet length and line limits configurable via ENV_MAX_TWEET_WEIGHT and ENV_MAX_TWEET_LINES; negative values disable a limit, and invalid values fall back to the defaults.
    *
    * Version 1.0.0 (2026-11-23) - changes in this fork:
    *  - Migrate tweet DOM handling to X's new @container/post-actions layout (timeline and status-page variants); replace the MutationObserver with a pinned remote Sentinel.js dependency.
@@ -221,11 +224,27 @@
    * @type {Object}
    * @property {string} MODE 'DEV' || 'PROD'
    * @property {string} USER_TEMPLATE
+   * @property {number|string} MAX_TWEET_WEIGHT
+   * @property {number|string} MAX_TWEET_LINES
    */
   const ENV = {
     MODE: GM_getValue('ENV_MODE', 'PROD'),
-    USER_TEMPLATE: GM_getValue('ENV_USER_TEMPLATE')
+    USER_TEMPLATE: GM_getValue('ENV_USER_TEMPLATE'),
+    MAX_TWEET_WEIGHT: GM_getValue('ENV_MAX_TWEET_WEIGHT'),
+    MAX_TWEET_LINES: GM_getValue('ENV_MAX_TWEET_LINES')
   };
+
+  function parseLimit (value, fallback) {
+    const parsed = typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() ? Number(value.trim()) : NaN;
+    if (!Number.isFinite(parsed)) return fallback;
+    if (parsed < 0) return Infinity;
+    return parsed > 0 ? parsed : fallback;
+  }
+
+  const MAX_TWEET_WEIGHT = parseLimit(ENV.MAX_TWEET_WEIGHT, 440);
+  const MAX_TWEET_LINES = parseLimit(ENV.MAX_TWEET_LINES, 15);
 
   if (ENV.MODE !== 'PROD') {
     console.log(`share-tweet-copy: ${ENV.MODE}`);
@@ -409,8 +428,6 @@
    * @returns {string} tweetText
    */
   function handleTweetText (tweetText, folded) {
-    const MAX_TWEET_WEIGHT = 440;
-    const MAX_TWEET_LINES = 15;
     const isLight = cp => cp <= 0x10FF || (cp >= 0x2000 && cp <= 0x200D) || (cp >= 0x2010 && cp <= 0x201F) || (cp >= 0x2032 && cp <= 0x2037);
     const isHeavyGrapheme = segment => [...segment].some(char => !isLight(char.codePointAt(0)));
     const isWordChar = token => token?.weight === 1 && /^[\p{L}\p{N}]/u.test(token.text);
