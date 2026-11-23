@@ -135,8 +135,8 @@
     transform: translate(-50%, -50%);
   }
 
-  .checkmark,
-  .failedmark {
+  .copy-tweet-button .checkmark,
+  .copy-tweet-button .failedmark {
     display: none;
   }
 
@@ -230,7 +230,7 @@
   /**
    * User-defined template for formatting tweet data.
    */
-  const UserTemplate = ENV.USER_TEMPLATE || [
+  const defaultTemplate = [
     '{{username}} ({{userId}})',
     '',
     '{{tweetText}}',
@@ -239,6 +239,9 @@
     '',
     '{{link}}'
   ].join('\n');
+  const UserTemplate = typeof ENV.USER_TEMPLATE === 'string' && ENV.USER_TEMPLATE
+    ? ENV.USER_TEMPLATE
+    : defaultTemplate;
 
   const createTooltip = () => {
     const element = document.createElement('div');
@@ -320,6 +323,14 @@
       return;
     }
 
+    const nameElement = tweetElement.querySelector(
+      '.\\@container\\/post-actions:not(.flex-col) > div:nth-child(2), ' +
+      '.\\@container\\/post-actions div[id^="base-ui-"] + div'
+    );
+    if (!nameElement) {
+      return;
+    }
+
     const copyButton = document.createElement('button');
     copyButton.className = 'copy-tweet-button';
 
@@ -350,13 +361,7 @@
       </span>
     `;
 
-    const nameElement = tweetElement.querySelector(
-      '.\\@container\\/post-actions:not(.flex-col) > div:nth-child(2), ' +
-      '.\\@container\\/post-actions div[id^="base-ui-"] + div'
-    );
-    if (nameElement) {
-      nameElement.prepend(copyButton);
-    }
+    nameElement.prepend(copyButton);
 
     copyButton.addEventListener('click', e => handleTweetCopyClick({ e, tweetElement }));
     copyButton.addEventListener('mouseenter', () => showHoverTooltip(copyButton));
@@ -609,8 +614,10 @@
    */
   function copyTextToClipboard ({ tweetElement, text }) {
     navigator.clipboard.writeText(text).then(function () {
-      console.log('Tweet copied to clipboard:');
-      console.log(text);
+      if (ENV.MODE !== 'PROD') {
+        console.log('Tweet copied to clipboard:');
+        console.log(text);
+      }
     }).catch(function (error) {
       handleCopyError({ tweetElement, error });
     });
