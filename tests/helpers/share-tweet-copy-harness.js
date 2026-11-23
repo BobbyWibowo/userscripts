@@ -113,6 +113,11 @@ export const buildTweet = ({
     ? '-me-0.5 flex shrink-0 items-center gap-1 whitespace-nowrap'
     : '-me-[5px] flex shrink-0 items-center gap-1 whitespace-nowrap';
   const statusPath = statusHref || '/testuser/status/1234567890';
+  const mediaMarkup = media === 'video'
+    ? '<div class="flex flex-col gap-3 empty:hidden"><div class="relative overflow-hidden after:pointer-events-none after:absolute after:inset-0 after:z-10 after:rounded-[inherit] after:border after:border-normal rounded-md"><div class="w-full" data-press-control="" style="aspect-ratio: 0.75 / 1;"><div class="relative isolate z-0 flex aspect-video h-full w-full overflow-hidden bg-black tabular-nums"><video height="100%" width="100%" poster="https://pbs.twimg.com/media/EXAMPLE?format=webp&amp;name=medium" playsinline="" class="h-full w-full object-cover"></video></div></div></div></div>'
+    : media
+      ? `<div class="flex flex-col gap-3 empty:hidden"><div class="relative overflow-hidden rounded-md"><a class="x-link block h-full w-full cursor-zoom-in" aria-label="Image" data-engagement-action="media" href="${statusPath}/photo/1"><img alt="" class="w-full"></a></div></div>`
+      : '';
   article.innerHTML = `
     ${statusHref ? `<a aria-hidden="true" class="absolute inset-0 pointer-events-none" href="${statusHref}" tabindex="-1"></a>` : ''}
     <div class="flex gap-2">
@@ -140,7 +145,7 @@ export const buildTweet = ({
         </div>
       </div>
     </div>
-    ${media ? `<div class="flex flex-col gap-3 empty:hidden"><div class="relative overflow-hidden rounded-md"><a class="x-link block h-full w-full cursor-zoom-in" aria-label="Image" data-engagement-action="media" href="${statusPath}/photo/1"><img alt="" class="w-full"></a></div></div>` : ''}
+    ${mediaMarkup}
   `;
   document.querySelector('[data-navigation-stop]').appendChild(article);
   return article;

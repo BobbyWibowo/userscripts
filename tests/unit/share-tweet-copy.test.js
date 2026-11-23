@@ -53,6 +53,12 @@ describe('Share Tweet Copy', () => {
     );
   });
 
+  it('counts video media through data-press-control', async () => {
+    const api = await loadShareTweetCopy();
+    await clickCopy(await openTweet(api, { media: 'video' }));
+    expect(api.copiedText()).toContain('📷 1 media');
+  });
+
   it('honors a custom USER_TEMPLATE from GM_getValue', async () => {
     const api = await loadShareTweetCopy({ settings: { ENV_USER_TEMPLATE: '{{userId}} :: {{link}}' } });
     await clickCopy(await openTweet(api));
