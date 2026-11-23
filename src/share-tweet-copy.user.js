@@ -11,6 +11,7 @@
 // @homepage           https://github.com/BobbyWibowo/userscripts
 // @supportURL         https://github.com/BobbyWibowo/userscripts/issues
 // @icon               https://www.google.com/s2/favicons?sz=64&domain=x.com
+// @run-at             document-end
 // @match              https://twitter.com/*
 // @match              https://x.com/*
 // @grant              GM_addStyle
