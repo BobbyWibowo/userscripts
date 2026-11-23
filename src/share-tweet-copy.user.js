@@ -526,11 +526,8 @@
    */
   function findMediaCount ({ tweetElement }) {
     const cameraEmoji = '\u{1F4F7}';
-
-    // FIXME: bad design, this a build-in template, but need to number of judgments.
-    // ===
     const tweetMedia = tweetElement.querySelectorAll('[data-engagement-action="media"], [data-press-control]')?.length || 0;
-    const cardLink = tweetElement.querySelectorAll('div[data-testid^="card"] a[href*="https://t.co"]')?.length || 0; // FIXME findMediaCount:cardLink
+    const cardLink = tweetElement.querySelectorAll('a.group\\/article-card')?.length || 0;
     const mediaCount = tweetMedia + cardLink;
     let mediaWord = 'media';
     if (!mediaCount) {
@@ -540,7 +537,6 @@
       mediaWord += 's';
     }
     return `${cameraEmoji} ${mediaCount} ${mediaWord}`;
-    // ===
   }
 
   /**
