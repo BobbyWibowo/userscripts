@@ -187,6 +187,19 @@ describe('Share Tweet Copy', () => {
     expect(api.copiedText()).toContain('...');
   });
 
+  it('counts punctuation after a URL at its own weight', async () => {
+    const api = await loadShareTweetCopy();
+    const url = 'https://example.com/abcdefgh';
+    await clickCopy(await openTweet(api, { textHtml: `${'a'.repeat(416)} ${url}` }));
+    expect(api.copiedText()).not.toContain('...');
+
+    await clickCopy(await openTweet(api, { textHtml: `${'a'.repeat(416)} ${url}.` }));
+    expect(api.copiedText()).toContain('...');
+
+    await clickCopy(await openTweet(api, { textHtml: `${'a'.repeat(415)} ${url}。` }));
+    expect(api.copiedText()).toContain('...');
+  });
+
   it('keeps only 15 non-empty lines', async () => {
     const api = await loadShareTweetCopy();
     const textHtml = Array.from({ length: 16 }, (_, index) => `line${index + 1}`).join('\n');
@@ -203,85 +216,79 @@ describe('Share Tweet Copy', () => {
     expect(api.copiedText()).toContain('Short ...');
   });
 
-  it('portals two tooltips to body with root-level z-index and instant result states', async () => {
+  it('creates one tooltip per button with no arrow and above placement', async () => {
     const api = await loadShareTweetCopy();
-    const tooltips = api.tooltips();
-    expect(tooltips).toHaveLength(2);
-    expect(tooltips.every(tooltip => tooltip.parentElement === document.body)).toBe(true);
+    const article = buildTweet();
+    api.fire(article);
+    const button = article.querySelector('.copy-tweet-button');
+    const tooltip = button.querySelector('.tooltip');
+    expect(tooltip).not.toBeNull();
+    expect(button.querySelectorAll('.tooltip')).toHaveLength(1);
+    expect(document.querySelectorAll('.copy-tweet-tooltip')).toHaveLength(0);
+    expect(tooltip.dataset.textInitial).toBe('Copy to clipboard');
+    expect(tooltip.dataset.textEnd).toBe('Copied');
+    expect(tooltip.dataset.textFailed).toBe('Copy failed, open the console for details!');
 
     const css = api.styles.join('\n');
-    expect(css).toContain('position: fixed;\n    z-index: 50;');
+    expect(css).toContain('.copy-tweet-button .tooltip {\n    box-sizing: border-box;\n    position: absolute;\n    bottom: calc(100% + var(--tooltip-offset));');
+    expect(css).toContain('width: max-content;');
+    expect(css).toContain('.copy-tweet-button.copy-failed:focus:not(:focus-visible) .tooltip::before');
+    expect(css).toContain('.copy-tweet-button .tooltip.is-below {\n    bottom: auto;\n    top: calc(100% + var(--tooltip-offset));\n  }');
+    expect(css).toContain('max-width: calc(100vw - var(--tooltip-offset) - var(--tooltip-offset));');
+    expect(css).toContain('overflow-wrap: anywhere;');
+    expect(css).not.toContain('white-space: nowrap;');
     expect(css).toContain('transition: opacity var(--tooltip-transition-duration) ease;');
-    expect(css).toContain('.copy-tweet-tooltip.is-end,\n  .copy-tweet-tooltip.is-failed {\n    transition: none;\n  }');
+    expect(css).toContain('.copy-tweet-button:focus:not(:focus-visible) .tooltip,\n  .copy-tweet-button.copy-failed .tooltip {\n    transition: none;\n  }');
+    expect(css).not.toContain('::after');
     expect(css).toContain('.copy-tweet-button .checkmark,\n  .copy-tweet-button .failedmark {\n    display: none;\n  }');
     expect(css).not.toContain('\n  .checkmark,\n  .failedmark {');
   });
 
-  it('positions the hover tooltip above, below, and inside horizontal edges', async () => {
+  it('flips the tooltip below near the viewport top and clamps it horizontally', async () => {
     const api = await loadShareTweetCopy();
-    const [hoverTooltip] = api.tooltips();
-    stubTooltipRects(api.tooltips(), tooltip => tooltip.classList.contains('is-end') ? 60 : 180);
     const button = await openTweet(api);
+    const tooltip = button.querySelector('.tooltip');
+    stubTooltipRects([tooltip]);
     const hover = () => button.dispatchEvent(new MouseEvent('mouseenter'));
 
     stubButtonRect(button, { top: 200, left: 400 });
     hover();
-    expect(hoverTooltip.style.top).toBe('172px');
-    expect(hoverTooltip.style.left).toBe('322px');
+    expect(tooltip.classList.contains('is-below')).toBe(false);
+    expect(tooltip.style.getPropertyValue('--tooltip-shift')).toBe('0px');
 
     stubButtonRect(button, { top: 4, left: 400 });
     hover();
-    expect(hoverTooltip.style.top).toBe('36px');
+    expect(tooltip.classList.contains('is-below')).toBe(true);
 
     stubButtonRect(button, { top: 200, left: 0 });
     hover();
-    expect(hoverTooltip.style.left).toBe('8px');
+    expect(tooltip.style.getPropertyValue('--tooltip-shift')).toBe('86px');
 
-    const rightEdge = window.innerWidth - 180 - 8;
     stubButtonRect(button, { top: 200, left: window.innerWidth });
     hover();
-    expect(hoverTooltip.style.left).toBe(`${rightEdge}px`);
+    expect(Number.parseFloat(tooltip.style.getPropertyValue('--tooltip-shift'))).toBeLessThanOrEqual(0);
   });
 
-  it('keeps the pinned Copied tooltip while hovering others, then clears on outside click', async () => {
+  it('gives every tweet its own tooltip so copied and hovered tooltips coexist', async () => {
     const api = await loadShareTweetCopy();
-    const [hoverTooltip, pinnedTooltip] = api.tooltips();
-    stubTooltipRects(api.tooltips(), tooltip => tooltip.classList.contains('is-end') ? 60 : 180);
     const first = await openTweet(api);
     const second = await openTweet(api);
-    stubButtonRect(first);
-    stubButtonRect(second, { top: 200, left: 700 });
-
-    first.focus();
-    await clickCopy(first);
-    expect(pinnedTooltip.classList.contains('is-end')).toBe(true);
-    expect(pinnedTooltip.classList.contains('is-visible')).toBe(true);
-    expect(hoverTooltip.classList.contains('is-visible')).toBe(false);
-
+    expect(first.querySelector('.tooltip')).not.toBe(second.querySelector('.tooltip'));
     second.dispatchEvent(new MouseEvent('mouseenter'));
-    expect(pinnedTooltip.classList.contains('is-visible')).toBe(true);
-    expect(hoverTooltip.classList.contains('is-visible')).toBe(true);
-
-    second.dispatchEvent(new MouseEvent('mouseleave'));
-    expect(hoverTooltip.classList.contains('is-visible')).toBe(false);
-    expect(pinnedTooltip.classList.contains('is-visible')).toBe(true);
-
-    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
-    expect(pinnedTooltip.classList.contains('is-visible')).toBe(false);
+    await clickCopy(first);
+    expect(first.querySelector('.tooltip').dataset.textEnd).toBe('Copied');
+    expect(second.querySelector('.tooltip').dataset.textInitial).toBe('Copy to clipboard');
   });
 
-  it('marks the pinned tooltip failed on clipboard rejection and clears it on retry', async () => {
+  it('marks the clicked button failed on clipboard rejection and clears it on retry', async () => {
     const api = await loadShareTweetCopy({ failClipboard: true });
-    const [, pinnedTooltip] = api.tooltips();
     const button = await openTweet(api);
 
     await clickCopy(button);
     expect(button.classList.contains('copy-failed')).toBe(true);
-    expect(pinnedTooltip.classList.contains('is-failed')).toBe(true);
 
     api.setFailClipboard(false);
     await clickCopy(button);
     expect(button.classList.contains('copy-failed')).toBe(false);
-    expect(pinnedTooltip.classList.contains('is-failed')).toBe(false);
   });
 });

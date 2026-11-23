@@ -73,7 +73,6 @@ export const loadShareTweetCopy = async ({ settings = {}, failClipboard = false 
     errors: () => consoleSpies[1].mock.calls,
     setFailClipboard: value => { failClipboard = value; },
     selectors: () => sentinelCallbacks.map(entry => entry.selector),
-    tooltips: () => [...document.querySelectorAll('.copy-tweet-tooltip')],
     fire: article => sentinelCallbacks.forEach(entry => entry.callback(article))
   };
 };
@@ -87,6 +86,8 @@ export const cleanupShareTweetCopy = () => {
   consoleSpies = [];
   document.body.innerHTML = '';
   document.querySelectorAll('base').forEach(element => element.remove());
+  Object.defineProperty(window, 'scrollX', { value: 0, configurable: true });
+  Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
   delete globalThis.GM_addStyle;
   delete globalThis.GM_getValue;
   delete globalThis.sentinel;
