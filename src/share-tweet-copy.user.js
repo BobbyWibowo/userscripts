@@ -145,7 +145,7 @@
     --button-outline-color: #9f9f9f;
   }
 
-  html[style*="color-scheme: dark"] .copy-tweet-button {
+  html[data-theme="dark"] .copy-tweet-button {
     --button-bg: #353434;
     --button-hover-bg: #464646;
     --button-text-color: #ccc;
@@ -192,7 +192,7 @@
     transition: opacity var(--tooltip-transition-duration) ease;
   }
 
-  html[style*="color-scheme: dark"] .copy-tweet-tooltip {
+  html[data-theme="dark"] .copy-tweet-tooltip {
     --tooltip-bg: #f4f3f3;
     --tooltip-text-color: #111;
   }
