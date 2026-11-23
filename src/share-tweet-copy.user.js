@@ -526,9 +526,11 @@
    */
   function findMediaCount ({ tweetElement }) {
     const cameraEmoji = '\u{1F4F7}';
-    const tweetMedia = tweetElement.querySelectorAll('[data-engagement-action="media"], [data-press-control]')?.length || 0;
-    const cardLink = tweetElement.querySelectorAll('a.group\\/article-card')?.length || 0;
-    const mediaCount = tweetMedia + cardLink;
+    const mediaSelector = '[data-engagement-action="media"], [data-press-control], a.group\\/article-card';
+    const mediaCount = [...tweetElement.querySelectorAll(mediaSelector)].filter(element => {
+      const frame = element.closest('div[data-slot="embedded-tweet-frame"]');
+      return !frame || !tweetElement.contains(frame);
+    }).length;
     let mediaWord = 'media';
     if (!mediaCount) {
       return '';
