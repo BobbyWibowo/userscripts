@@ -15,7 +15,10 @@
 // @match              https://x.com/*
 // @grant              GM_addStyle
 // @grant              GM_getValue
+// @require            https://cdn.jsdelivr.net/npm/sentinel-js@0.0.7/dist/sentinel.min.js#sha256-S8rx06n8uSoJCmTdVlxdMN8x+vDYoC+++ssWvEj4M6s=
 // ==/UserScript==
+
+/* global sentinel */
 
 (function () {
   'use strict';
@@ -173,10 +176,7 @@
     position: relative;
     outline: var(--button-outline-width) solid transparent;
     transition: all 0.2s ease;
-  }
-
-  *:has(+ .copy-tweet-button) {
-    margin-right: 8px !important;
+    margin-right: 8px;
   }
 
   .tooltip {
@@ -350,8 +350,6 @@
     const copyButton = document.createElement('button');
     copyButton.className = 'copy-tweet-button';
 
-    handleTempStyleStatusPage({ copyButton });
-
     copyButton.innerHTML = /*html*/`
       <span data-text-initial="Copy to clipboard" data-text-end="Copied" data-text-failed="Copy failed, open the console for details!" class="tooltip"></span>
       <span>
@@ -380,9 +378,12 @@
       </span>
     `;
 
-    const nameElement = tweetElement.querySelector('[data-testid="User-Name"]');
+    const nameElement = tweetElement.querySelector(
+      '.\\@container\\/post-actions:not(.flex-col) > div:nth-child(2), ' +
+      '.\\@container\\/post-actions div[id^="base-ui-"] + div'
+    );
     if (nameElement) {
-      nameElement.appendChild(copyButton);
+      nameElement.prepend(copyButton);
     }
 
     copyButton.addEventListener('click', e => handleTweetCopyClick({ e, tweetElement }));
@@ -424,7 +425,7 @@
    * @returns {string} User Name.
    */
   function findUserName ({ tweetElement }) {
-    const username = tweetElement.querySelector('div[data-testid="User-Name"]')?.firstChild;
+    const username = tweetElement.querySelector('.\\@container\\/post-actions a[href^="/"]')?.firstChild;
     if (!username) {
       return '';
     }
@@ -444,8 +445,8 @@
    * @returns {string} User ID.
    */
   function findUserID ({ tweetElement }) {
-    const links = tweetElement.querySelectorAll('a[href^="/"][role="link"][tabindex="-1"]');
-    const userIDElement = links[links.length - 1];
+    const links = tweetElement.querySelectorAll('.\\@container\\/post-actions a[href^="/"]');
+    const userIDElement = links[1];
 
     return userIDElement ? userIDElement.textContent : '';
   }
@@ -518,7 +519,7 @@
     }
 
     text = text.trimEnd();
-    return truncated || folded ? text + '...' : text;
+    return truncated || folded ? text + ' ...' : text;
   }
 
   /**
@@ -528,7 +529,10 @@
    * @returns {string} TweetText
    */
   function findTweetText ({ tweetElement }) {
-    const tweetTextDOM = tweetElement.querySelector('div[data-testid="tweetText"]');
+    const tweetTextDOM = tweetElement.querySelector(
+      '.\\@container\\/post-actions:not(.flex-col) ~ div.text-primary, ' +
+      '.\\@container\\/post-actions > div:first-child > :nth-child(1 of div.text-primary)'
+    );
     if (!tweetTextDOM) {
       return '';
     }
@@ -541,13 +545,18 @@
       const textNode = document.createTextNode(altText);
       img.parentNode.replaceChild(textNode, img);
     });
-    // X shortens long link text by hiding the rest of the URL and appending a visible "…".
-    clone.querySelectorAll('a span[aria-hidden="true"]').forEach(span => {
-      if (span.textContent === '…') {
-        span.remove();
-      }
+    // X shortens long link text
+    clone.querySelectorAll('a[target="_blank"]').forEach(a => {
+      const titleText = a.title || '';
+      const textNode = document.createTextNode(titleText);
+      a.parentNode.replaceChild(textNode, a);
     });
-    const folded = !!tweetTextDOM.nextElementSibling?.matches('[data-testid="tweet-text-show-more-link"]');
+    const foldedElement = clone.querySelector('button[type="button"]');
+    const folded = Boolean(foldedElement);
+    // Remove "Show more" text in long tweet
+    if (foldedElement) {
+      foldedElement.remove();
+    }
 
     return handleTweetText(clone.textContent, folded);
   }
@@ -563,9 +572,9 @@
 
     // FIXME: bad design, this a build-in template, but need to number of judgments.
     // ===
-    const tweetPhoto = tweetElement.querySelectorAll('div[data-testid="tweetPhoto"]')?.length || 0;
-    const cardLink = tweetElement.querySelectorAll('div[data-testid^="card"] a[href*="https://t.co"]')?.length || 0;
-    const mediaCount = tweetPhoto + cardLink;
+    const tweetMedia = tweetElement.querySelectorAll('[data-engagement-action="media"], [data-press-control]')?.length || 0;
+    const cardLink = tweetElement.querySelectorAll('div[data-testid^="card"] a[href*="https://t.co"]')?.length || 0; // FIXME findMediaCount:cardLink
+    const mediaCount = tweetMedia + cardLink;
     let mediaWord = 'media';
     if (!mediaCount) {
       return '';
@@ -617,43 +626,14 @@
    */
   function copyTextToClipboard ({ tweetElement, text }) {
     navigator.clipboard.writeText(text).then(function () {
-      console.log('Tweet copied to clipboard');
+      console.log('Tweet copied to clipboard:');
       console.log(text);
-      console.log('===');
     }).catch(function (error) {
       handleCopyError({ tweetElement, error });
     });
   }
 
-  // FIXME Temporary solution to solve the problem of /status/ web style misalignment
-  const handleTempStyleStatusPage = ({ copyButton }) => {
-    let executed = false;
-
-    if (window.location.href.indexOf('/status/') > 0 && !executed) {
-      executed = true;
-
-      const tempStyle = /*css*/`
-        position: absolute;
-        top: -2px;
-        right: calc(-1 * (var(--button-diameter) + 8px));
-      `;
-
-      copyButton.setAttribute('style', tempStyle);
-    }
-  };
-
-  /**
-   * Observes DOM mutations to add a copy button to new tweets.
-   */
-  const observer = new MutationObserver(function (mutations) {
-    const articles = document.querySelectorAll('article[role="article"]');
-    articles.forEach(function (tweetElement) {
-      if (!tweetElement.querySelector('.copy-tweet-button')) {
-        addCopyButtonToTweet({ tweetElement });
-      }
-    });
+  sentinel.on('div[data-navigation-stop] article', element => {
+    addCopyButtonToTweet({ tweetElement: element });
   });
-
-  // Start observing
-  observer.observe(document.body, { childList: true, subtree: true });
 })();
