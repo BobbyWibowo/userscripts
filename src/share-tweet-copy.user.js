@@ -30,7 +30,8 @@
    * Version x.x.x (2026-11-23) - changes in this fork:
    *  - Migrate tweet DOM handling to X's new @container/post-actions layout (timeline and status-page variants); replace the MutationObserver with a pinned remote Sentinel.js dependency.
    *  - Harden extraction: canonical status links (?s=20, /photo/1, /history), null-safe username and link handling, anchor-text fallback when a shortened link has no title, and DOM-based <br> to newline conversion.
-   *  - Rebuild tooltips as body-level portaled components: fixed positioning with viewport clamping, arrow removed, persistent copied/failure tooltip alongside transient hover tooltips, instant result states, opacity-only hover fade, and scroll/resize repositioning.
+   *  - Rework the copy tooltip: remove the arrow, show it above the button (below when near the viewport top), and keep it inside the viewport.
+   *  - Count keycap emoji sequences (1️⃣, #️⃣, *️⃣) with X's weight-2 rule when measuring the 440-character budget.
    *  - Detect dark mode via the data-theme attribute.
    *
    * Version 0.1 (2023-12-13) until 0.4.8 (2026-10-03).
