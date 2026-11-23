@@ -446,6 +446,7 @@
     const MAX_TWEET_WEIGHT = 440;
     const MAX_TWEET_LINES = 15;
     const isLight = cp => cp <= 0x10FF || (cp >= 0x2000 && cp <= 0x200D) || (cp >= 0x2010 && cp <= 0x201F) || (cp >= 0x2032 && cp <= 0x2037);
+    const isHeavyGrapheme = segment => [...segment].some(char => !isLight(char.codePointAt(0)));
     const isWordChar = token => token?.weight === 1 && /^[\p{L}\p{N}]/u.test(token.text);
 
     let text = tweetText.normalize('NFC');
@@ -462,7 +463,7 @@
     const segmenter = new Intl.Segmenter();
     const tokens = text.split(/(https?:\/\/\S+)/).flatMap((part, i) => i % 2
       ? [{ text: part, weight: 23 }]
-      : [...segmenter.segment(part)].map(({ segment }) => ({ text: segment, weight: isLight(segment.codePointAt(0)) ? 1 : 2 })));
+      : [...segmenter.segment(part)].map(({ segment }) => ({ text: segment, weight: isHeavyGrapheme(segment) ? 2 : 1 })));
 
     let weight = 0;
     let index = 0;
