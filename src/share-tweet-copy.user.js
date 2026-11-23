@@ -607,7 +607,10 @@
       return '';
     }
     const clone = tweetTextDOM.cloneNode(true);
-    clone.innerHTML = tweetTextDOM.innerHTML.replace('><br><font', '>\n\n<font');
+    clone.querySelectorAll('br').forEach(br => {
+      const beforeTranslation = br.nextElementSibling?.tagName === 'FONT';
+      br.replaceWith(document.createTextNode(beforeTranslation ? '\n\n' : '\n'));
+    });
     // Support copy the emoji, There are system compatibility issues that cannot be fully resolved.
     // Consider using a third-party emoji library to solve this problem.
     clone.querySelectorAll('img').forEach(img => {
