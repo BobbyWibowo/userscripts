@@ -26,107 +26,15 @@
   /**
    * Change Log
    *
-   * Version 0.4.8(2026-10-03)
-   *  - Count length by X's official rule (twitter-text v3): a URL counts 23, an emoji sequence is counted as a whole (weight 2), and the same count is used for both checking and cutting.
-   *  - Raise the limit from 280 to 440 (about 220 CJK characters, or 440 Latin characters).
-   *  - Cut at a line break or sentence-ending punctuation first, fall back to a space.
-   *  - Line limit changes from "10 lines, blank lines included" to "15 lines, only non-empty lines".
-   *  - Add the ellipsis only when content is actually missing. Tweets folded by X ("Show more") count as missing too.
-   *  - Fix the extra "…" after long links, the handling of 3+ consecutive newlines, and the failed mark not being cleared.
+   * Version x.x.x (2026-11-23) - changes in this fork:
+   *  - Migrate tweet DOM handling to X's new @container/post-actions layout (timeline and status-page variants); replace the MutationObserver with a pinned remote Sentinel.js dependency.
+   *  - Harden extraction: canonical status links (?s=20, /photo/1, /history), null-safe username and link handling, anchor-text fallback when a shortened link has no title, and DOM-based <br> to newline conversion.
+   *  - Rebuild tooltips as body-level portaled components: fixed positioning with viewport clamping, arrow removed, persistent copied/failure tooltip alongside transient hover tooltips, instant result states, opacity-only hover fade, and scroll/resize repositioning.
+   *  - Detect dark mode via the data-theme attribute.
    *
-   * Version 0.4.7(2026-09-18)
-   *  - Unify userscript metadata: English @name with @name:zh-CN, add @description:zh-CN, @license, @homepageURL.
-   *  - Point GitHub URLs at GinWU05.
+   * Version 0.1 (2023-12-13) until 0.4.8 (2026-10-03).
+   *  - https://github.com/GinWU05/tampermonkey-user.js/blob/8c688fe724b159042051356b80182f8b1813ceae/share-tweet-copy/script.user.js#L24-L128
    *
-   * Version 0.4.6(2024-09-19)
-   *  - fix dark mode style
-   *
-   * Version 0.4.5(2024-05-31)
-   * - fix find tweet link with edit history.
-   *
-   * Version 0.4.4(2024-05-25)
-   * - fix find tweet link
-   *
-   * Version 0.4.3(2024-05-17)
-   * - fix match https://x.com
-   *
-   * Version 0.4.2(2024-05-17)
-   *  - math https://x.com
-   *
-   * Version 0.4.1(2024-04-24)
-   *  - dev.user.js (dev mode) support set up USER_TEMPLATE environment variable.
-   *
-   * Version 0.4.0 (2024-04-23)
-   *  - Tweets are measured by character count, and if the character count exceeds the limit, it is replaced with an ellipsis;
-   *  - If the number of line breaks in a tweet exceeds the limit, it is replaced with an ellipsis.
-   *  - support environment variable
-   *
-   * Version 0.3.16 (2024-04-17)
-   *  - Fix username's emoji cannot be copied
-   *
-   * Version 0.3.15 (2024-01-24)
-   *  - Fix margin for copy-tweet-button
-   *
-   * Version 0.3.14 (2024-01-24)
-   *  - Fix button style on status page.
-   *
-   * Version 0.3.13 (2023-01-11)
-   *  - Fix add newline between original and translated text in Immersive Translate.
-   *
-   * Version 0.3.12 (2023-12-29)
-   *  - Fix media static error result count, add card link count.
-   *
-   * Version 0.3.11 (2023-12-29)
-   *  - Fix media static error result count.
-   *
-   * Version 0.3.10 (2023-12-29)
-   *  - temp update status page style
-   *  - update failedmark icon svg
-   *
-   * Version 0.3.9 (2023-12-29)
-   *  - fix copy result is undefined
-   *
-   * Version 0.3.8 (2023-12-29)
-   *  - notify about copy failed
-   *
-   * Version 0.3.7 (2023-12-29)
-   *  - recover homepage and supportURL config.
-   *
-   * Version 0.3.6 (2023-12-29)
-   *  - Media count support static git, video, and more media card.
-   *
-   * Version 0.3.5 (2023-12-25)
-   *  - Rename script path of github repo.
-   *
-   * Version 0.3.4 (2023-12-25)
-   *  - Update media count default template.
-   *
-   * Version 0.3.3 (2023-12-25)
-   *  - Chore indent use 2 spaces.
-   *  - Feat remove multiple blank lines.
-   *
-   * Version 0.3.2 (2023-12-24)
-   *  - Chore indent use 2 spaces.
-   *
-   * Version 0.3.1 (2023-12-23)
-   *  - Fixed issue with copying reposted tweets: now correctly retrieves user name.
-   *  - Optimized the teewText format, when copy the context with `@usernmae` not line feed.
-   *  - Fxied copy emoji. Pre-condition: The user's system supports displaying that emoji.
-   *  - Feature: Statistics the pic total count, for base feature.
-   *
-   *
-   * Version 0.3.0 (2023-12-23)
-   *   - Public the script to Greasy Fork.
-   *   - Delete updateURL, donwupdateURL.
-   *
-   * Version 0.2 (2023-12-13)
-   *   - Added styles for the copy-tweet button, including support for dark mode.
-   *   - Implemented a tooltip to show the result of the copy action.
-   *   - Enhanced dark mode support for better user experience in various lighting conditions.
-   *
-   * Version 0.1 (2023-12-13)
-   *   - Initial release.
-   *   - Basic functionality to copy tweet text to clipboard with a simple template.
    */
 
   /**
