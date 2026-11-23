@@ -2,7 +2,7 @@
 // @name               Share Tweet Copy
 // @name:zh-CN         推文复制分享
 // @namespace          https://github.com/BobbyWibowo
-// @version            0.4.8
+// @version            1.0.0
 // @description        Copy tweets on Twitter/X in a clean, quote-ready format for easy sharing.
 // @description:zh-CN  一键复制 Twitter/X 推文为整洁、可直接引用的格式，方便分享。
 // @author             GinWU, Bobby Wibowo
@@ -27,10 +27,10 @@
   /**
    * Change Log
    *
-   * Version x.x.x (2026-11-23) - changes in this fork:
+   * Version 1.0.0 (2026-11-23) - changes in this fork:
    *  - Migrate tweet DOM handling to X's new @container/post-actions layout (timeline and status-page variants); replace the MutationObserver with a pinned remote Sentinel.js dependency.
-   *  - Harden extraction: canonical status links (?s=20, /photo/1, /history), null-safe username and link handling, anchor-text fallback when a shortened link has no title, and DOM-based <br> to newline conversion.
-   *  - Rework the copy tooltip: remove the arrow, show it above the button (below when near the viewport top), and keep it inside the viewport.
+   *  - Harden extraction: canonical status links (?s=20, /photo/1, /history), null-safe username and link handling, anchor-text fallback when a shortened link has no title, DOM-based <br> to newline conversion, and trailing punctuation after links counted at its own weight.
+   *  - Rework the copy tooltip: remove the arrow, show it above the button (below when near the viewport top), keep it inside the viewport, and wrap long messages on narrow screens.
    *  - Count keycap emoji sequences (1️⃣, #️⃣, *️⃣) with X's weight-2 rule when measuring the 440-character budget.
    *  - Detect dark mode via the data-theme attribute.
    *
