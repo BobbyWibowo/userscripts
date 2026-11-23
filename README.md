@@ -24,7 +24,4 @@
 - **Works with X's new UI**: copy buttons appear on both the main timeline and the tweet detail overlay, using the newer post-actions layout. Dynamic tweets are tracked with Sentinel.js instead of a broad MutationObserver.
 - **Reliable copied links**: status URLs with query strings (`?s=20`), photo paths or `/history` are reduced to one canonical link, and missing usernames or links no longer produce broken output.
 - **X-accurate length limits**: text is measured with X's twitter-text v3 weights (URLs count as 23 characters, emoji sequences count as 2, including keycaps, and trailing link punctuation counts at its own weight) against a 440-weight, 15-non-empty-line budget. Set `ENV_MAX_TWEET_WEIGHT` or `ENV_MAX_TWEET_LINES` in your userscript manager to change them; a negative value removes a limit, and invalid values fall back to the defaults.
-- **Cleaner text**: line breaks and blank lines are preserved, links without a title keep their own text, and the ellipsis is only added when content was actually cut off or folded by X behind "Show more".
-- **Accurate media counts**: photos, videos and link-preview cards are counted, while media belonging to quoted/embedded tweets is excluded.
-- **Better copy feedback**: the tooltip has no arrow, appears above the button (below it near the top of the screen), stays inside the viewport, wraps on narrow screens, and shows Copied/failure states instantly.
-- **Dark mode**: follows X's `data-theme` attribute for button and tooltip colors.
+- **Better copy feedback**: the tooltip appears above the button (below it near the top of the screen), stays inside the viewport, and wraps on narrow screens.
