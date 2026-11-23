@@ -39,7 +39,7 @@
    */
 
   /**
-   * Defines the styles for the copy button and its portaled tooltips.
+   * Defines the styles for the copy button and its tooltip.
    * This includes support for dark mode and styling for various states like hover and focus.
    */
   const copyBtnStyle = /*css*/`
@@ -52,6 +52,17 @@
     --button-diameter: 24px;
     --button-outline-width: 2px;
     --button-outline-color: #9f9f9f;
+    --tooltip-bg: #333333;
+    --tooltip-border-radius: 4px;
+    --tooltip-font-family: sans-serif;
+    --tooltip-font-size: 11px;
+    --tooltip-text-color: #fff;
+    --tooltip-padding-inline: 8px;
+    --tooltip-padding-block: 4px;
+    --tooltip-line-height: 12px;
+    --tooltip-offset: 12px;
+    --tooltip-shift: 0px;
+    --tooltip-transition-duration: 0.15s;
   }
 
   html[data-theme="dark"] .copy-tweet-button {
@@ -60,6 +71,8 @@
     --button-text-color: #ccc;
     --button-outline-color: #999;
     --button-hover-text-color: #8bb9fe;
+    --tooltip-bg: #b2b2b2;
+    --tooltip-text-color: #000;
   }
 
   .copy-tweet-button {
@@ -77,54 +90,55 @@
     margin-right: 8px;
   }
 
-  .copy-tweet-tooltip {
-    --tooltip-bg: #1d2129;
-    --tooltip-border-radius: 4px;
-    --tooltip-font-family: JetBrains Mono, Consolas, Menlo, Roboto Mono, monospace;
-    --tooltip-font-size: 12px;
-    --tooltip-text-color: #fff;
-    --tooltip-padding-x: 7px;
-    --tooltip-padding-y: 7px;
-    --tooltip-offset: 8px;
-    --tooltip-transition-duration: 0.3s;
-    position: fixed;
-    z-index: 50;
+  .copy-tweet-button .tooltip {
+    box-sizing: border-box;
+    position: absolute;
+    bottom: calc(100% + var(--tooltip-offset));
+    left: 50%;
+    transform: translateX(calc(-50% + var(--tooltip-shift)));
     opacity: 0;
     visibility: hidden;
-    white-space: nowrap;
-    font: var(--tooltip-font-size) var(--tooltip-font-family);
+    width: max-content;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    max-width: calc(100vw - var(--tooltip-offset) - var(--tooltip-offset));
+    font-family: var(--tooltip-font-family);
+    font-size: var(--tooltip-font-size);
     color: var(--tooltip-text-color);
     background: var(--tooltip-bg);
-    padding: var(--tooltip-padding-y) var(--tooltip-padding-x);
+    padding-inline: var(--tooltip-padding-inline);
+    padding-block: var(--tooltip-padding-block);
+    line-height: var(--tooltip-line-height);
     border-radius: var(--tooltip-border-radius);
     pointer-events: none;
     transition: opacity var(--tooltip-transition-duration) ease;
   }
 
-  html[data-theme="dark"] .copy-tweet-tooltip {
-    --tooltip-bg: #f4f3f3;
-    --tooltip-text-color: #111;
+  .copy-tweet-button .tooltip.is-below {
+    bottom: auto;
+    top: calc(100% + var(--tooltip-offset));
   }
 
-  .copy-tweet-tooltip.is-visible {
+  .copy-tweet-button:hover .tooltip,
+  .copy-tweet-button:focus .tooltip {
     opacity: 1;
     visibility: visible;
   }
 
-  .copy-tweet-tooltip.is-end,
-  .copy-tweet-tooltip.is-failed {
+  .copy-tweet-button:focus:not(:focus-visible) .tooltip,
+  .copy-tweet-button.copy-failed .tooltip {
     transition: none;
   }
 
-  .copy-tweet-tooltip::before {
+  .copy-tweet-button .tooltip::before {
     content: attr(data-text-initial);
   }
 
-  .copy-tweet-tooltip.is-end::before {
+  .copy-tweet-button:focus:not(:focus-visible) .tooltip::before {
     content: attr(data-text-end);
   }
 
-  .copy-tweet-tooltip.is-failed::before {
+  .copy-tweet-button.copy-failed:focus:not(:focus-visible) .tooltip::before {
     content: attr(data-text-failed);
   }
 
@@ -243,75 +257,18 @@
     ? ENV.USER_TEMPLATE
     : defaultTemplate;
 
-  const createTooltip = () => {
-    const element = document.createElement('div');
-    element.className = 'copy-tweet-tooltip';
-    element.dataset.textInitial = 'Copy to clipboard';
-    element.dataset.textEnd = 'Copied';
-    element.dataset.textFailed = 'Copy failed, open the console for details!';
-    (document.body || document.documentElement).appendChild(element);
-    return element;
-  };
-
-  const hoverTooltip = createTooltip();
-  const pinnedTooltip = createTooltip();
-  let hoverButton = null;
-  let pinnedButton = null;
-
-  function placeTooltip (tooltip, button) {
-    const failed = button.classList.contains('copy-failed');
-    tooltip.classList.toggle('is-failed', failed);
-    tooltip.classList.toggle('is-end', !failed && tooltip === pinnedTooltip);
-    const offset = parseFloat(getComputedStyle(tooltip).getPropertyValue('--tooltip-offset')) || 8;
-    const rect = button.getBoundingClientRect();
-    const size = tooltip.getBoundingClientRect();
-    const below = rect.top - size.height - offset < offset;
-    const centered = rect.left + rect.width / 2 - size.width / 2;
-    tooltip.style.left = `${Math.max(offset, Math.min(centered, window.innerWidth - size.width - offset))}px`;
-    tooltip.style.top = `${below ? rect.bottom + offset : rect.top - size.height - offset}px`;
-    tooltip.classList.add('is-visible');
+  function positionTooltip (button) {
+    const tooltip = button.querySelector('.tooltip');
+    if (!tooltip) return;
+    const edgeGap = parseFloat(getComputedStyle(button).getPropertyValue('--tooltip-offset')) || 8;
+    const buttonRect = button.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const placeBelow = buttonRect.top - tooltipRect.height - edgeGap < edgeGap;
+    tooltip.classList.toggle('is-below', placeBelow);
+    const desiredLeft = buttonRect.left + buttonRect.width / 2 - tooltipRect.width / 2;
+    const shift = Math.max(edgeGap, Math.min(desiredLeft, window.innerWidth - tooltipRect.width - edgeGap)) - desiredLeft;
+    tooltip.style.setProperty('--tooltip-shift', `${shift}px`);
   }
-
-  function showHoverTooltip (button) {
-    hideHoverTooltip();
-    if (button === pinnedButton) return;
-    hoverButton = button;
-    placeTooltip(hoverTooltip, button);
-  }
-
-  function hideHoverTooltip (button) {
-    if (button && hoverButton !== button) return;
-    hoverButton = null;
-    hoverTooltip.classList.remove('is-visible');
-  }
-
-  function pinTooltip (button) {
-    pinnedButton = button;
-    placeTooltip(pinnedTooltip, button);
-  }
-
-  function unpinTooltip () {
-    pinnedButton = null;
-    pinnedTooltip.classList.remove('is-visible');
-  }
-
-  const repositionTooltip = () => {
-    if (hoverButton) {
-      if (hoverButton.isConnected) placeTooltip(hoverTooltip, hoverButton);
-      else hideHoverTooltip();
-    }
-    if (pinnedButton) {
-      if (pinnedButton.isConnected) placeTooltip(pinnedTooltip, pinnedButton);
-      else unpinTooltip();
-    }
-  };
-  window.addEventListener('scroll', repositionTooltip, true);
-  window.addEventListener('resize', repositionTooltip);
-  document.addEventListener('pointerdown', event => {
-    if (event.target.closest?.('.copy-tweet-button')) return;
-    hideHoverTooltip();
-    unpinTooltip();
-  });
 
   /**
    * Adds a copy button to a tweet element.
@@ -335,6 +292,10 @@
     copyButton.className = 'copy-tweet-button';
 
     copyButton.innerHTML = /*html*/`
+      <span class="tooltip"
+        data-text-initial="Copy to clipboard"
+        data-text-end="Copied"
+        data-text-failed="Copy failed, open the console for details!"></span>
       <span>
         <svg xml:space="preserve" style="enable-background:new 0 0 512 512" viewBox="0 0 6.35 6.35" y="0" x="0"
           height="14" width="14" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1"
@@ -364,10 +325,8 @@
     nameElement.prepend(copyButton);
 
     copyButton.addEventListener('click', e => handleTweetCopyClick({ e, tweetElement }));
-    copyButton.addEventListener('mouseenter', () => showHoverTooltip(copyButton));
-    copyButton.addEventListener('mouseleave', () => hideHoverTooltip(copyButton));
-    copyButton.addEventListener('focus', () => showHoverTooltip(copyButton));
-    copyButton.addEventListener('blur', () => hideHoverTooltip(copyButton));
+    copyButton.addEventListener('mouseenter', () => positionTooltip(copyButton));
+    copyButton.addEventListener('focus', () => positionTooltip(copyButton));
   }
 
   /**
@@ -379,8 +338,7 @@
   function handleTweetCopyClick ({ e, tweetElement }) {
     e.stopPropagation();
     e.currentTarget.classList.remove('copy-failed');
-    pinTooltip(e.currentTarget);
-    hideHoverTooltip();
+    positionTooltip(e.currentTarget);
 
     try {
       const text = formatTweet({ tweetElement });
@@ -397,8 +355,10 @@
    */
   function handleCopyError ({ tweetElement, error = new Error() }) {
     const copyTweetButton = tweetElement.querySelector('.copy-tweet-button');
-    copyTweetButton?.classList.add('copy-failed');
-    if (copyTweetButton && pinnedButton === copyTweetButton) placeTooltip(pinnedTooltip, copyTweetButton);
+    if (copyTweetButton) {
+      copyTweetButton.classList.add('copy-failed');
+      positionTooltip(copyTweetButton);
+    }
     console.error('Could not copy tweet: ', error);
   }
 
