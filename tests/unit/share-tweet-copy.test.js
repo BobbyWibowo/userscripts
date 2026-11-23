@@ -8,6 +8,11 @@ import {
   stubTooltipRects
 } from '../helpers/share-tweet-copy-harness.js';
 
+const cssRule = (css, selector) => {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+};
+
 describe('Share Tweet Copy', () => {
   afterEach(() => cleanupShareTweetCopy());
 
@@ -230,18 +235,31 @@ describe('Share Tweet Copy', () => {
     expect(tooltip.dataset.textFailed).toBe('Copy failed, open the console for details!');
 
     const css = api.styles.join('\n');
-    expect(css).toContain('.copy-tweet-button .tooltip {\n    box-sizing: border-box;\n    position: absolute;\n    bottom: calc(100% + var(--tooltip-offset));');
-    expect(css).toContain('width: max-content;');
-    expect(css).toContain('.copy-tweet-button.copy-failed:focus:not(:focus-visible) .tooltip::before');
-    expect(css).toContain('.copy-tweet-button .tooltip.is-below {\n    bottom: auto;\n    top: calc(100% + var(--tooltip-offset));\n  }');
-    expect(css).toContain('max-width: calc(100vw - var(--tooltip-offset) - var(--tooltip-offset));');
-    expect(css).toContain('overflow-wrap: anywhere;');
-    expect(css).not.toContain('white-space: nowrap;');
-    expect(css).toContain('transition: opacity var(--tooltip-transition-duration) ease;');
-    expect(css).toContain('.copy-tweet-button:focus:not(:focus-visible) .tooltip,\n  .copy-tweet-button.copy-failed .tooltip {\n    transition: none;\n  }');
+    const tooltipRule = cssRule(css, '.copy-tweet-button .tooltip');
+    for (const declaration of [
+      'box-sizing: border-box;',
+      'position: absolute;',
+      'bottom: calc(100% + var(--tooltip-offset));',
+      'transform: translateX(calc(-50% + var(--tooltip-shift)));',
+      'width: max-content;',
+      'white-space: normal;',
+      'overflow-wrap: anywhere;',
+      'max-width: calc(100vw - var(--tooltip-offset) - var(--tooltip-offset));',
+      'transition: opacity var(--tooltip-transition-duration) ease;'
+    ]) {
+      expect(tooltipRule, `tooltip rule should contain ${declaration}`).toContain(declaration);
+    }
+    expect(tooltipRule).not.toContain('white-space: nowrap;');
+
+    const belowRule = cssRule(css, '.copy-tweet-button .tooltip.is-below');
+    expect(belowRule).toContain('bottom: auto;');
+    expect(belowRule).toContain('top: calc(100% + var(--tooltip-offset));');
+
+    expect(css).toMatch(/\.copy-tweet-button:focus:not\(:focus-visible\) \.tooltip\s*,\s*\.copy-tweet-button\.copy-failed \.tooltip\s*\{[^}]*transition:\s*none;/);
+    expect(css).toMatch(/\.copy-tweet-button\.copy-failed:focus:not\(:focus-visible\) \.tooltip::before\s*\{[^}]*content:\s*attr\(data-text-failed\);/);
     expect(css).not.toContain('::after');
-    expect(css).toContain('.copy-tweet-button .checkmark,\n  .copy-tweet-button .failedmark {\n    display: none;\n  }');
-    expect(css).not.toContain('\n  .checkmark,\n  .failedmark {');
+    expect(css).toMatch(/\.copy-tweet-button \.checkmark\s*,\s*\.copy-tweet-button \.failedmark\s*\{[^}]*display:\s*none;/);
+    expect(css).not.toMatch(/(^|\n)\s*\.checkmark\s*,\s*\.failedmark\s*\{/);
   });
 
   it('flips the tooltip below near the viewport top and clamps it horizontally', async () => {
