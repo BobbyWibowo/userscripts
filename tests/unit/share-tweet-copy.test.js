@@ -201,6 +201,52 @@ describe('Share Tweet Copy', () => {
     expect(api.copiedText()).toContain('...');
   });
 
+  it('honors configured weight and line limits', async () => {
+    const api = await loadShareTweetCopy({
+      settings: { ENV_MAX_TWEET_WEIGHT: 10, ENV_MAX_TWEET_LINES: 2 }
+    });
+    await clickCopy(await openTweet(api, { textHtml: 'abcdefghijklmnop' }));
+    expect(api.copiedText()).toContain('...');
+
+    await clickCopy(await openTweet(api, { textHtml: 'one\ntwo\nthree' }));
+    expect(api.copiedText()).toContain('two ...');
+    expect(api.copiedText()).not.toContain('three');
+  });
+
+  it('treats negative limits as no limit', async () => {
+    const api = await loadShareTweetCopy({
+      settings: { ENV_MAX_TWEET_WEIGHT: -1, ENV_MAX_TWEET_LINES: '-5' }
+    });
+    const text = `${'a'.repeat(500)}\n${Array.from({ length: 20 }, (_, index) => `line${index + 1}`).join('\n')}`;
+    await clickCopy(await openTweet(api, { textHtml: text }));
+    expect(api.copiedText()).not.toContain('...');
+    expect(api.copiedText()).toContain('line20');
+  });
+
+  it('treats zero limits as defaults', async () => {
+    const api = await loadShareTweetCopy({
+      settings: { ENV_MAX_TWEET_WEIGHT: 0, ENV_MAX_TWEET_LINES: '0' }
+    });
+    await clickCopy(await openTweet(api, { textHtml: 'a'.repeat(441) }));
+    expect(api.copiedText()).toContain('...');
+
+    const text = Array.from({ length: 16 }, (_, index) => `line${index + 1}`).join('\n');
+    await clickCopy(await openTweet(api, { textHtml: text }));
+    expect(api.copiedText()).toContain('line15 ...');
+  });
+
+  it('falls back to default limits for invalid settings', async () => {
+    const api = await loadShareTweetCopy({
+      settings: { ENV_MAX_TWEET_WEIGHT: 'Infinity', ENV_MAX_TWEET_LINES: 'abc' }
+    });
+    await clickCopy(await openTweet(api, { textHtml: 'a'.repeat(441) }));
+    expect(api.copiedText()).toContain('...');
+
+    const text = Array.from({ length: 16 }, (_, index) => `line${index + 1}`).join('\n');
+    await clickCopy(await openTweet(api, { textHtml: text }));
+    expect(api.copiedText()).toContain('line15 ...');
+  });
+
   it('counts a URL as 23 characters regardless of its literal length', async () => {
     const api = await loadShareTweetCopy();
     const url = 'https://example.com/abcdefgh';
