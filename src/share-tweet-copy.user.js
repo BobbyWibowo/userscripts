@@ -547,8 +547,8 @@
     });
     // X shortens long link text
     clone.querySelectorAll('a[target="_blank"]').forEach(a => {
-      const titleText = a.title || '';
-      const textNode = document.createTextNode(titleText);
+      const linkText = a.title || a.textContent;
+      const textNode = document.createTextNode(linkText);
       a.parentNode.replaceChild(textNode, a);
     });
     const foldedElement = clone.querySelector('button[type="button"]');
