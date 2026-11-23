@@ -59,6 +59,34 @@ describe('Share Tweet Copy', () => {
     expect(api.copiedText()).toContain('📷 1 media');
   });
 
+  it('falls back to the default template when USER_TEMPLATE is not a string', async () => {
+    const api = await loadShareTweetCopy({ settings: { ENV_USER_TEMPLATE: 42 } });
+    await clickCopy(await openTweet(api));
+    expect(api.copiedText()).toContain('Test User (@testuser)');
+    expect(api.errors()).toEqual([]);
+  });
+
+  it('logs copied text only outside PROD mode', async () => {
+    const prod = await loadShareTweetCopy();
+    await clickCopy(await openTweet(prod));
+    expect(prod.logs()).toEqual([]);
+    cleanupShareTweetCopy();
+
+    const dev = await loadShareTweetCopy({ settings: { ENV_MODE: 'DEV' } });
+    await clickCopy(await openTweet(dev));
+    expect(dev.logs().some(call => call.includes('Tweet copied to clipboard:'))).toBe(true);
+    expect(dev.logs().some(call => call.some(arg => String(arg).includes('Test User (@testuser)')))).toBe(true);
+  });
+
+  it('does not create a button when no name container is present', async () => {
+    const api = await loadShareTweetCopy();
+    const article = buildTweet();
+    article.querySelector('.\\@container\\/post-actions').remove();
+    api.fire(article);
+    expect(article.querySelector('.copy-tweet-button')).toBeNull();
+    expect(api.errors()).toEqual([]);
+  });
+
   it('honors a custom USER_TEMPLATE from GM_getValue', async () => {
     const api = await loadShareTweetCopy({ settings: { ENV_USER_TEMPLATE: '{{userId}} :: {{link}}' } });
     await clickCopy(await openTweet(api));
@@ -185,6 +213,8 @@ describe('Share Tweet Copy', () => {
     expect(css).toContain('position: fixed;\n    z-index: 50;');
     expect(css).toContain('transition: opacity var(--tooltip-transition-duration) ease;');
     expect(css).toContain('.copy-tweet-tooltip.is-end,\n  .copy-tweet-tooltip.is-failed {\n    transition: none;\n  }');
+    expect(css).toContain('.copy-tweet-button .checkmark,\n  .copy-tweet-button .failedmark {\n    display: none;\n  }');
+    expect(css).not.toContain('\n  .checkmark,\n  .failedmark {');
   });
 
   it('positions the hover tooltip above, below, and inside horizontal edges', async () => {

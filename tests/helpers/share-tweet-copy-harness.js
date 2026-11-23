@@ -69,6 +69,7 @@ export const loadShareTweetCopy = async ({ settings = {}, failClipboard = false 
   return {
     styles,
     copiedText: () => clipboardWrite.mock.calls.at(-1)?.[0] ?? '',
+    logs: () => consoleSpies[0].mock.calls,
     errors: () => consoleSpies[1].mock.calls,
     setFailClipboard: value => { failClipboard = value; },
     selectors: () => sentinelCallbacks.map(entry => entry.selector),
