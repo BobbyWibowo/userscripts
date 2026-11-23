@@ -64,6 +64,25 @@ describe('Share Tweet Copy', () => {
     expect(api.copiedText()).toContain('📷 1 media');
   });
 
+  it('excludes media inside embedded tweets but counts the main tweet media', async () => {
+    const api = await loadShareTweetCopy();
+    await clickCopy(await openTweet(api, { media: true, embeddedMedia: true }));
+    expect(api.copiedText()).toContain('📷 1 media');
+    expect(api.copiedText()).not.toContain('2 medias');
+  });
+
+  it('counts its own media when the tweet itself is inside an embedded frame', async () => {
+    const api = await loadShareTweetCopy();
+    const frame = document.createElement('div');
+    frame.dataset.slot = 'embedded-tweet-frame';
+    document.querySelector('[data-navigation-stop]').appendChild(frame);
+    const article = buildTweet({ media: true });
+    frame.appendChild(article);
+    api.fire(article);
+    await clickCopy(article.querySelector('.copy-tweet-button'));
+    expect(api.copiedText()).toContain('📷 1 media');
+  });
+
   it('falls back to the default template when USER_TEMPLATE is not a string', async () => {
     const api = await loadShareTweetCopy({ settings: { ENV_USER_TEMPLATE: 42 } });
     await clickCopy(await openTweet(api));
