@@ -424,7 +424,7 @@
    * @returns {string} User Name.
    */
   function findUserName ({ tweetElement }) {
-    const username = tweetElement.querySelector('div[data-testid="User-Name"]').firstChild;
+    const username = tweetElement.querySelector('div[data-testid="User-Name"]')?.firstChild;
     if (!username) {
       return '';
     }
@@ -584,11 +584,11 @@
    * @returns {string} tweet link.
    */
   const findLink = ({ tweetElement }) => {
-    const StatusLink = [...tweetElement.querySelectorAll('a[href*="/status/"]')]
-      ?.map(a => a.href)
-      ?.find(link => /\/status\/\w+(\/history)?$/.test(link))
-      ?.replace(/\/history$/, '');
-    return StatusLink;
+    for (const link of tweetElement.querySelectorAll('a[href*="/status/"]')) {
+      const match = link.href.match(/^(.*\/status\/\d+)/);
+      if (match) return match[1];
+    }
+    return '';
   };
 
   /**
