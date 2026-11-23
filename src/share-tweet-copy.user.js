@@ -464,11 +464,19 @@
       truncated = true;
     }
 
-    // A URL is a single token, so a cut never lands inside it.
+    // A URL is one token, so a cut never lands inside it; trailing punctuation is counted separately.
+    const trailingPunctuation = /[.,;:!?\])}>"'。！？，、；：）】》…]+$/u;
     const segmenter = new Intl.Segmenter();
-    const tokens = text.split(/(https?:\/\/\S+)/).flatMap((part, i) => i % 2
-      ? [{ text: part, weight: 23 }]
-      : [...segmenter.segment(part)].map(({ segment }) => ({ text: segment, weight: isHeavyGrapheme(segment) ? 2 : 1 })));
+    const textTokens = value => [...segmenter.segment(value)].map(({ segment }) => ({
+      text: segment,
+      weight: isHeavyGrapheme(segment) ? 2 : 1
+    }));
+    const tokens = text.split(/(https?:\/\/\S+)/).flatMap((part, i) => {
+      if (i % 2 === 0) return textTokens(part);
+      const punctuation = part.match(trailingPunctuation)?.[0] ?? '';
+      const url = punctuation ? part.slice(0, -punctuation.length) : part;
+      return [{ text: url, weight: 23 }, ...textTokens(punctuation)];
+    });
 
     let weight = 0;
     let index = 0;
