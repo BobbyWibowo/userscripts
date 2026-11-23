@@ -122,6 +122,18 @@ describe('Share Tweet Copy', () => {
     }
   });
 
+  it('counts keycap emoji as two characters', async () => {
+    const api = await loadShareTweetCopy();
+    for (const keycap of ['1️⃣', '#️⃣', '*️⃣']) {
+      await clickCopy(await openTweet(api, { textHtml: keycap.repeat(220) }));
+      expect(api.copiedText()).not.toContain('...');
+      await clickCopy(await openTweet(api, { textHtml: keycap.repeat(221) }));
+      expect(api.copiedText()).toContain('...');
+    }
+    await clickCopy(await openTweet(api, { textHtml: '1'.repeat(440) }));
+    expect(api.copiedText()).not.toContain('...');
+  });
+
   it('applies twitter-text weights at the 440-character boundary', async () => {
     const api = await loadShareTweetCopy();
     await clickCopy(await openTweet(api, { textHtml: 'a'.repeat(440) }));
