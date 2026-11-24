@@ -2,7 +2,7 @@
 // @name               Share Tweet Copy
 // @name:zh-CN         推文复制分享
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.0.1
+// @version            1.0.2
 // @description        Copy tweets on Twitter/X in a clean, quote-ready format for easy sharing.
 // @description:zh-CN  一键复制 Twitter/X 推文为整洁、可直接引用的格式，方便分享。
 // @author             GinWU, Bobby Wibowo
@@ -26,6 +26,10 @@
 
   /**
    * Change Log
+   *
+   * Version 1.0.2 (2026-11-24)
+   *  - Harden length handling: fractional limit values are rounded down, CJK text written directly after a link is counted correctly, and copying still works in browsers without Intl.Segmenter.
+   *  - Use a single ellipsis character when text is cut off or folded by X.
    *
    * Version 1.0.1 (2026-11-23)
    *  - Make the tweet length and line limits configurable via ENV_MAX_TWEET_WEIGHT and ENV_MAX_TWEET_LINES; negative values disable a limit, and invalid values fall back to the defaults.
