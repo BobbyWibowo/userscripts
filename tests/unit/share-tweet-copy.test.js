@@ -117,6 +117,28 @@ describe('Share Tweet Copy', () => {
     expect(api.copiedText()).toBe('@testuser :: https://x.com/testuser/status/1234567890');
   });
 
+  it('finds username and user ID in a single query per tweet', async () => {
+    const api = await loadShareTweetCopy({
+      settings: { ENV_USER_TEMPLATE: '{{username}} ({{userId}}) {{username}} {{userId}}' }
+    });
+    const article = buildTweet();
+    api.fire(article);
+    const button = article.querySelector('.copy-tweet-button');
+    const original = Element.prototype.querySelectorAll;
+    let userLinkQueries = 0;
+    Element.prototype.querySelectorAll = function (selector, ...args) {
+      if (String(selector).includes('a[href^="/"]')) userLinkQueries += 1;
+      return original.call(this, selector, ...args);
+    };
+    try {
+      await clickCopy(button);
+    } finally {
+      Element.prototype.querySelectorAll = original;
+    }
+    expect(userLinkQueries).toBe(1);
+    expect(api.copiedText()).toBe('Test User (@testuser) Test User @testuser');
+  });
+
   it('never emits undefined placeholders when the status link is missing', async () => {
     const api = await loadShareTweetCopy();
     await clickCopy(await openTweet(api, { statusHref: null }));
@@ -178,27 +200,27 @@ describe('Share Tweet Copy', () => {
     const api = await loadShareTweetCopy();
     for (const keycap of ['1️⃣', '#️⃣', '*️⃣']) {
       await clickCopy(await openTweet(api, { textHtml: keycap.repeat(220) }));
-      expect(api.copiedText()).not.toContain('...');
+      expect(api.copiedText()).not.toContain('…');
       await clickCopy(await openTweet(api, { textHtml: keycap.repeat(221) }));
-      expect(api.copiedText()).toContain('...');
+      expect(api.copiedText()).toContain('…');
     }
     await clickCopy(await openTweet(api, { textHtml: '1'.repeat(440) }));
-    expect(api.copiedText()).not.toContain('...');
+    expect(api.copiedText()).not.toContain('…');
   });
 
   it('applies twitter-text weights at the 440-character boundary', async () => {
     const api = await loadShareTweetCopy();
     await clickCopy(await openTweet(api, { textHtml: 'a'.repeat(440) }));
-    expect(api.copiedText()).not.toContain('...');
+    expect(api.copiedText()).not.toContain('…');
 
     await clickCopy(await openTweet(api, { textHtml: 'a'.repeat(441) }));
-    expect(api.copiedText()).toContain('...');
+    expect(api.copiedText()).toContain('…');
 
     await clickCopy(await openTweet(api, { textHtml: '😀'.repeat(220) }));
-    expect(api.copiedText()).not.toContain('...');
+    expect(api.copiedText()).not.toContain('…');
 
     await clickCopy(await openTweet(api, { textHtml: '😀'.repeat(221) }));
-    expect(api.copiedText()).toContain('...');
+    expect(api.copiedText()).toContain('…');
   });
 
   it('honors configured weight and line limits', async () => {
@@ -206,10 +228,10 @@ describe('Share Tweet Copy', () => {
       settings: { ENV_MAX_TWEET_WEIGHT: 10, ENV_MAX_TWEET_LINES: 2 }
     });
     await clickCopy(await openTweet(api, { textHtml: 'abcdefghijklmnop' }));
-    expect(api.copiedText()).toContain('...');
+    expect(api.copiedText()).toContain('…');
 
     await clickCopy(await openTweet(api, { textHtml: 'one\ntwo\nthree' }));
-    expect(api.copiedText()).toContain('two ...');
+    expect(api.copiedText()).toContain('two…');
     expect(api.copiedText()).not.toContain('three');
   });
 
@@ -219,7 +241,7 @@ describe('Share Tweet Copy', () => {
     });
     const text = `${'a'.repeat(500)}\n${Array.from({ length: 20 }, (_, index) => `line${index + 1}`).join('\n')}`;
     await clickCopy(await openTweet(api, { textHtml: text }));
-    expect(api.copiedText()).not.toContain('...');
+    expect(api.copiedText()).not.toContain('…');
     expect(api.copiedText()).toContain('line20');
   });
 
@@ -228,11 +250,11 @@ describe('Share Tweet Copy', () => {
       settings: { ENV_MAX_TWEET_WEIGHT: 0, ENV_MAX_TWEET_LINES: '0' }
     });
     await clickCopy(await openTweet(api, { textHtml: 'a'.repeat(441) }));
-    expect(api.copiedText()).toContain('...');
+    expect(api.copiedText()).toContain('…');
 
     const text = Array.from({ length: 16 }, (_, index) => `line${index + 1}`).join('\n');
     await clickCopy(await openTweet(api, { textHtml: text }));
-    expect(api.copiedText()).toContain('line15 ...');
+    expect(api.copiedText()).toContain('line15…');
   });
 
   it('falls back to default limits for invalid settings', async () => {
@@ -240,41 +262,71 @@ describe('Share Tweet Copy', () => {
       settings: { ENV_MAX_TWEET_WEIGHT: 'Infinity', ENV_MAX_TWEET_LINES: 'abc' }
     });
     await clickCopy(await openTweet(api, { textHtml: 'a'.repeat(441) }));
-    expect(api.copiedText()).toContain('...');
+    expect(api.copiedText()).toContain('…');
 
     const text = Array.from({ length: 16 }, (_, index) => `line${index + 1}`).join('\n');
     await clickCopy(await openTweet(api, { textHtml: text }));
-    expect(api.copiedText()).toContain('line15 ...');
+    expect(api.copiedText()).toContain('line15…');
   });
 
   it('counts a URL as 23 characters regardless of its literal length', async () => {
     const api = await loadShareTweetCopy();
     const url = 'https://example.com/abcdefgh';
     await clickCopy(await openTweet(api, { textHtml: `${'a'.repeat(416)} ${url}` }));
-    expect(api.copiedText()).not.toContain('...');
+    expect(api.copiedText()).not.toContain('…');
 
     await clickCopy(await openTweet(api, { textHtml: `${'a'.repeat(417)} ${url}` }));
-    expect(api.copiedText()).toContain('...');
+    expect(api.copiedText()).toContain('…');
   });
 
   it('counts punctuation after a URL at its own weight', async () => {
     const api = await loadShareTweetCopy();
     const url = 'https://example.com/abcdefgh';
     await clickCopy(await openTweet(api, { textHtml: `${'a'.repeat(416)} ${url}` }));
-    expect(api.copiedText()).not.toContain('...');
+    expect(api.copiedText()).not.toContain('…');
 
     await clickCopy(await openTweet(api, { textHtml: `${'a'.repeat(416)} ${url}.` }));
-    expect(api.copiedText()).toContain('...');
+    expect(api.copiedText()).toContain('…');
 
     await clickCopy(await openTweet(api, { textHtml: `${'a'.repeat(415)} ${url}。` }));
-    expect(api.copiedText()).toContain('...');
+    expect(api.copiedText()).toContain('…');
+  });
+
+  it('floors fractional configured limits', async () => {
+    const api = await loadShareTweetCopy({
+      settings: { ENV_MAX_TWEET_WEIGHT: 10.9, ENV_MAX_TWEET_LINES: 2.9 }
+    });
+    await clickCopy(await openTweet(api, { textHtml: 'one\ntwo\nthree' }));
+    expect(api.errors()).toEqual([]);
+    expect(api.copiedText()).toContain('two…');
+    expect(api.copiedText()).not.toContain('three');
+  });
+
+  it('falls back to code points when Intl.Segmenter is unavailable', async () => {
+    const original = Intl.Segmenter;
+    Object.defineProperty(Intl, 'Segmenter', { value: undefined, configurable: true, writable: true });
+    try {
+      const api = await loadShareTweetCopy();
+      await clickCopy(await openTweet(api, { textHtml: 'hello 世界' }));
+      expect(api.errors()).toEqual([]);
+      expect(api.copiedText()).toContain('hello 世界');
+    } finally {
+      Object.defineProperty(Intl, 'Segmenter', { value: original, configurable: true, writable: true });
+    }
+  });
+
+  it('counts CJK text directly after a URL at its own weight', async () => {
+    const api = await loadShareTweetCopy();
+    await clickCopy(await openTweet(api, { textHtml: `${'a'.repeat(416)} https://t.co/abc中文` }));
+    expect(api.copiedText()).toContain('…');
+    expect(api.copiedText()).toContain('abc');
   });
 
   it('keeps only 15 non-empty lines', async () => {
     const api = await loadShareTweetCopy();
     const textHtml = Array.from({ length: 16 }, (_, index) => `line${index + 1}`).join('\n');
     await clickCopy(await openTweet(api, { textHtml }));
-    expect(api.copiedText()).toContain('line15 ...');
+    expect(api.copiedText()).toContain('line15…');
     expect(api.copiedText()).not.toContain('line16');
   });
 
@@ -283,7 +335,7 @@ describe('Share Tweet Copy', () => {
     await clickCopy(await openTweet(api, {
       textHtml: 'Short <button type="button">Show more</button>'
     }));
-    expect(api.copiedText()).toContain('Short ...');
+    expect(api.copiedText()).toContain('Short…');
   });
 
   it('creates one tooltip per button with no arrow and above placement', async () => {
