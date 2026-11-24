@@ -382,6 +382,27 @@
     console.error('Could not copy tweet: ', error);
   }
 
+  const USER_LINK_SELECTOR = '.\\@container\\/post-actions a[href^="/"]';
+  const userDetails = new WeakMap();
+
+  function findUserDetails (tweetElement) {
+    const cached = userDetails.get(tweetElement);
+    if (cached) return cached;
+    const links = tweetElement.querySelectorAll(USER_LINK_SELECTOR);
+    const nameElement = links[0]?.firstChild?.cloneNode(true);
+    if (nameElement?.nodeType === 1) {
+      nameElement.querySelectorAll('img').forEach(img => {
+        img.parentNode.replaceChild(document.createTextNode(img.alt || ''), img);
+      });
+    }
+    const details = {
+      username: nameElement?.textContent ?? '',
+      userId: links[1]?.textContent ?? ''
+    };
+    userDetails.set(tweetElement, details);
+    return details;
+  }
+
   /**
    * Finds the user name from a tweet element.
    * @param {Object} param - Object containing the tweet element.
@@ -389,17 +410,7 @@
    * @returns {string} User Name.
    */
   function findUserName ({ tweetElement }) {
-    const username = tweetElement.querySelector('.\\@container\\/post-actions a[href^="/"]')?.firstChild;
-    if (!username) {
-      return '';
-    }
-    const clone = username.cloneNode(true);
-    clone.querySelectorAll('img').forEach(img => {
-      const altText = img.alt || '';
-      const textNode = document.createTextNode(altText);
-      img.parentNode.replaceChild(textNode, img);
-    });
-    return clone.textContent;
+    return findUserDetails(tweetElement).username;
   }
 
   /**
@@ -409,10 +420,7 @@
    * @returns {string} User ID.
    */
   function findUserID ({ tweetElement }) {
-    const links = tweetElement.querySelectorAll('.\\@container\\/post-actions a[href^="/"]');
-    const userIDElement = links[1];
-
-    return userIDElement ? userIDElement.textContent : '';
+    return findUserDetails(tweetElement).userId;
   }
 
   /**
