@@ -240,11 +240,15 @@
       : typeof value === 'string' && value.trim() ? Number(value.trim()) : NaN;
     if (!Number.isFinite(parsed)) return fallback;
     if (parsed < 0) return Infinity;
-    return parsed > 0 ? parsed : fallback;
+    const limit = Math.floor(parsed);
+    return limit > 0 ? limit : fallback;
   }
 
   const MAX_TWEET_WEIGHT = parseLimit(ENV.MAX_TWEET_WEIGHT, 440);
   const MAX_TWEET_LINES = parseLimit(ENV.MAX_TWEET_LINES, 15);
+  const segmenter = typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function'
+    ? new Intl.Segmenter()
+    : null;
 
   if (ENV.MODE !== 'PROD') {
     console.log(`share-tweet-copy: ${ENV.MODE}`);
@@ -452,12 +456,12 @@
 
     // A URL is one token, so a cut never lands inside it; trailing punctuation is counted separately.
     const trailingPunctuation = /[.,;:!?\])}>"'。！？，、；：）】》…]+$/u;
-    const segmenter = new Intl.Segmenter();
-    const textTokens = value => [...segmenter.segment(value)].map(({ segment }) => ({
-      text: segment,
-      weight: isHeavyGrapheme(segment) ? 2 : 1
-    }));
-    const tokens = text.split(/(https?:\/\/\S+)/).flatMap((part, i) => {
+    const textTokens = value => (segmenter
+      ? [...segmenter.segment(value)].map(({ segment }) => segment)
+      : Array.from(value)
+    ).map(segment => ({ text: segment, weight: isHeavyGrapheme(segment) ? 2 : 1 }));
+    const urlPattern = /(https?:\/\/[^\s\u{1100}-\u{1FFF}\u{200E}-\u{200F}\u{2020}-\u{2031}\u{2038}-\u{10FFFF}]+)/u;
+    const tokens = text.split(urlPattern).flatMap((part, i) => {
       if (i % 2 === 0) return textTokens(part);
       const punctuation = part.match(trailingPunctuation)?.[0] ?? '';
       const url = punctuation ? part.slice(0, -punctuation.length) : part;
