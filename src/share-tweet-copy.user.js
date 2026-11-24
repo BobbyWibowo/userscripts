@@ -498,7 +498,7 @@
     }
 
     text = text.trimEnd();
-    return truncated || folded ? text + ' ...' : text;
+    return truncated || folded ? text + '\u2026' : text;
   }
 
   /**
