@@ -278,6 +278,8 @@
     `,
 
     SELECTORS_IMAGE_BOOKMARKED: /*css*/`
+      /* desktop */
+      [data-ga4-label="bookmark_button"] svg.text-\\[\\#ff4060\\],
       /* mobile */
       .works-bookmark-button svg path[fill="#FF4060"],
       div[class*="style_works-bookmark-button__"] svg path[fill="#FF4060"]
