@@ -6208,7 +6208,7 @@
     }
     bookmarkStateCache.clear();
     try { if (typeof PIXIV_DATA_CACHE !== 'undefined') PIXIV_DATA_CACHE.clear(); } catch (_) {}
-    showToast(tr('toast.cachesCleared') || 'Caches cleared ✓', { success: true });
+    showToast(tr('toast.cachesCleared'), { success: true });
   });
 
   // Drop the cached state of one bookmark so the next read refetches it.
