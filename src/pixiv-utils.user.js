@@ -5947,7 +5947,6 @@
     // Mark as observing.
     element.dataset.pixiv_utils_observing = true;
 
-    const MutationObserver = window.MutationObserver || window.WebKitMutationObserver || window.MozMutationObserver;
     const observer = new MutationObserver((mutations, observer) => {
       callback.call(this, mutations, observer);
     });
