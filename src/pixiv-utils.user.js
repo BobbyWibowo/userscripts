@@ -3631,12 +3631,13 @@
         position.addEventListener('change', () => {
           const count = items.children.length;
           const raw = position.value.trim();
-          if (!/^\d+$/.test(raw)) { refreshList(items); return; }
-          const index = Number(raw);
-          if (!Number.isSafeInteger(index) || index < 1 || index > count) {
-            refreshList(items);
-            return;
-          }
+          // Signed integers are shorthands for the ends of the list: zero and
+          // negatives mean the first slot, oversized values the last one.
+          // refreshList writes the clamped position back into every input.
+          if (!/^-?\d+$/.test(raw)) { refreshList(items); return; }
+          const parsed = Number(raw);
+          if (Number.isNaN(parsed)) { refreshList(items); return; }
+          const index = Math.min(Math.max(parsed, 1), count);
           state.moveItem(item, index - 1);
           refreshList(items);
         });
