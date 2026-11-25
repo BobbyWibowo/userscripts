@@ -35,7 +35,7 @@ describe('pixiv-utils toast manager', () => {
     expect(toast).not.toBeNull();
     expect(toast.textContent).not.toBe('');
     expect(toast.getAttribute('role')).toBe('status');
-    expect(toast.classList.contains('pixiv-utils-toast-primary')).toBe(true);
+    expect(toast.classList.contains('pixiv-utils-toast-success')).toBe(true);
     expect(toast.parentElement.classList.contains('pixiv-utils-toast-stack')).toBe(true);
 
     // The toast keeps its slot while the exit runs...
@@ -102,5 +102,20 @@ describe('pixiv-utils toast manager', () => {
     // ...and gone once its own duration has elapsed.
     await vi.advanceTimersByTimeAsync(450);
     expect(toastMessages()).toHaveLength(0);
+  });
+
+  it('uses the accent look by default and defines success/warning/error variants', async () => {
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const css = pixiv.styles.join('\n');
+
+    // The former "primary" styling is now the base (default) toast look.
+    expect(css).toMatch(/\.pixiv-utils-toast \{[^}]*background: var\(--pixiv-utils-ui-accent, #0096fa\);[^}]*color: #fff;[^}]*border: none;/);
+    expect(css).not.toContain('.pixiv-utils-toast-primary');
+
+    // Variants only change colors; shape and motion come from the base rule.
+    expect(css).toContain('.pixiv-utils-toast-success {\n    background: #b1cc29;\n    color: #1a1a1a;\n  }');
+    expect(css).toContain('.pixiv-utils-toast-warning {\n    background: #ffaf0f;\n    color: #1a1a1a;\n  }');
+    expect(css).toContain('.pixiv-utils-toast-error {\n    background: #ff2b00;\n    color: #fff;\n  }');
+    expect(pixiv.console.error).toEqual([]);
   });
 });
