@@ -23,6 +23,7 @@ if (!('close' in HTMLDialogElement.prototype)) {
 
 // Tab order matches settingsTab()/makeSettingsDefinitions().
 const TAB_NAMES = ['General', 'Bookmarks', 'Filtering', 'Users', 'Highlights', 'Tooltips', 'UTags', 'Advanced'];
+const LIST_LABELS = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'];
 
 /**
  * Minimal gmConfig stand-in.
@@ -71,6 +72,42 @@ const createFakeGmConfig = () => {
       const content = document.createElement('div');
       content.className = 'gc-bd';
       content.innerHTML = `<div style="height: 2000px">${TAB_NAMES[activeIndex]} content</div>`;
+      const list = document.createElement('div');
+      list.className = 'gc-list';
+      const items = document.createElement('div');
+      items.className = 'gc-list-items';
+      for (const label of LIST_LABELS) {
+        const item = document.createElement('div');
+        item.className = 'gc-li';
+        item.dataset.label = label;
+        const head = document.createElement('div');
+        head.className = 'gc-li-h';
+        const title = document.createElement('span');
+        title.className = 'gc-li-t';
+        title.textContent = label;
+        head.append(title);
+        for (const [glyph, move] of [
+          ['↑', () => {
+            const previous = item.previousElementSibling;
+            if (previous) items.insertBefore(item, previous);
+          }],
+          ['↓', () => {
+            const next = item.nextElementSibling;
+            if (next) items.insertBefore(next, item);
+          }]
+        ]) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'gc-ib';
+          button.textContent = glyph;
+          button.addEventListener('click', move);
+          head.append(button);
+        }
+        item.append(head);
+        items.append(item);
+      }
+      list.append(items);
+      content.append(list);
       body.append(tabs, content);
       this._body = body;
       this._tabs = tabs;
@@ -323,6 +360,166 @@ describe('settings panel session view memory', () => {
     expect(order.indexOf('ADD_IMAGE_ARTIST')).toBeLessThan(order.indexOf('LINK_COMMENT_USERNAMES'));
     expect(order.indexOf('LINK_COMMENT_USERNAMES')).toBeLessThan(order.indexOf('PIXIV_BLOCKED_USERS'));
 
+    instances.at(-1).close();
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  const stubListLayout = (body, itemsContainer) => {
+    const bodyTop = 100;
+    const bodyBottom = 200;
+    const listTop = 150;
+    const itemHeight = 40;
+    body.getBoundingClientRect = () => ({
+      top: bodyTop,
+      bottom: bodyBottom,
+      height: bodyBottom - bodyTop,
+      left: 0,
+      right: 300,
+      width: 300
+    });
+    for (const item of itemsContainer.children) {
+      item.getBoundingClientRect = () => {
+        const index = [...itemsContainer.children].indexOf(item);
+        const top = listTop + index * itemHeight - body.scrollTop;
+        return {
+          top,
+          bottom: top + itemHeight,
+          height: itemHeight,
+          left: 0,
+          right: 300,
+          width: 300
+        };
+      };
+    }
+  };
+
+  const setupOrderedList = async () => {
+    const { FakeGmConfig, instances } = createFakeGmConfig();
+    globalThis.gmConfig = FakeGmConfig;
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    await openSettings(pixiv);
+    const parts = panelParts();
+    const itemsContainer = parts.body.querySelector('.gc-list-items');
+    const items = [...itemsContainer.children];
+    expect(items).toHaveLength(LIST_LABELS.length);
+    stubListLayout(parts.body, itemsContainer);
+    const controlFor = item => item.querySelector('.pixiv-utils-list-position');
+    return { pixiv, instances, parts, itemsContainer, items, controlFor };
+  };
+
+  it('follows a list item moved out of view and remembers the new scroll offset', async () => {
+    const { pixiv, instances, parts, itemsContainer, items, controlFor } = await setupOrderedList();
+    const moved = items[0];
+
+    parts.body.scrollTop = 0;
+    parts.body.dispatchEvent(new Event('scroll'));
+
+    // A one-step move (number spinner or arrow key equivalent) nudges the
+    // scrollport to uncover the item but gets no highlight, just like the
+    // list's own ↑/↓ buttons.
+    controlFor(moved).value = '2';
+    controlFor(moved).dispatchEvent(new Event('change'));
+    expect(parts.body.scrollTop).toBe(38);
+    expect(moved.classList.contains('pixiv-utils-moved-highlight')).toBe(false);
+
+    // Moving it out of view below scrolls further and gets the outline.
+    controlFor(moved).value = '6';
+    controlFor(moved).dispatchEvent(new Event('change'));
+    expect([...itemsContainer.children][5]).toBe(moved);
+    const revealed = 150 + 5 * 40 + 40 - 200 + 8;
+    expect(parts.body.scrollTop).toBe(revealed);
+
+    // The moved item gets the focus-like outline until the next click.
+    expect(pixiv.styles.join('\n')).toContain('.gc-p .gc-li.pixiv-utils-moved-highlight {');
+    expect(moved.classList.contains('pixiv-utils-moved-highlight')).toBe(true);
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(moved.classList.contains('pixiv-utils-moved-highlight')).toBe(false);
+
+    // No manual scroll event after the move: reopening still restores the
+    // auto-scrolled offset for this tab.
+    instances.at(-1).close();
+    await openSettings(pixiv);
+    await settleFrames();
+    expect(document.querySelector('.gc-b').scrollTop).toBe(revealed);
+    instances.at(-1).close();
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('reveals an item moved by the list arrow buttons without a highlight', async () => {
+    const { pixiv, instances, parts, itemsContainer, items } = await setupOrderedList();
+    const moved = items[1];
+
+    // Item 1 starts fully visible; one ↑ step leaves only its top edge hidden.
+    parts.body.scrollTop = 60;
+    parts.body.dispatchEvent(new Event('scroll'));
+    const arrowUp = moved.querySelector('.gc-li-h > .gc-ib');
+    expect(arrowUp.textContent).toBe('↑');
+
+    arrowUp.click();
+    await flush(1); // MutationObserver callback
+    expect([...itemsContainer.children][0]).toBe(moved);
+    const revealed = 150 - 100 - 8;
+    expect(parts.body.scrollTop).toBe(revealed);
+    expect(moved.classList.contains('pixiv-utils-moved-highlight')).toBe(false);
+
+    instances.at(-1).close();
+    await openSettings(pixiv);
+    await settleFrames();
+    expect(document.querySelector('.gc-b').scrollTop).toBe(revealed);
+    instances.at(-1).close();
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('scrolls back up when a list item moves above the visible area', async () => {
+    const { pixiv, instances, parts, itemsContainer, items, controlFor } = await setupOrderedList();
+    const moved = items[5];
+
+    parts.body.scrollTop = 100;
+    parts.body.dispatchEvent(new Event('scroll'));
+
+    controlFor(moved).value = '1';
+    controlFor(moved).dispatchEvent(new Event('change'));
+    expect([...itemsContainer.children][0]).toBe(moved);
+    const revealed = 150 - 100 - 8;
+    expect(parts.body.scrollTop).toBe(revealed);
+    expect(moved.classList.contains('pixiv-utils-moved-highlight')).toBe(true);
+
+    // Closing without any click also clears the highlight and its listener.
+    instances.at(-1).close();
+    expect(moved.classList.contains('pixiv-utils-moved-highlight')).toBe(false);
+    await openSettings(pixiv);
+    await settleFrames();
+    expect(document.querySelector('.gc-b').scrollTop).toBe(revealed);
+    instances.at(-1).close();
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('highlights a multi-step index move even when both positions are visible', async () => {
+    const { pixiv, instances, parts, itemsContainer, items, controlFor } = await setupOrderedList();
+    const moved = items[0];
+
+    // Widen the simulated scrollport so both the old and new slots are fully
+    // visible: this move must highlight without changing the scroll offset.
+    parts.body.getBoundingClientRect = () => ({
+      top: 100,
+      bottom: 300,
+      height: 200,
+      left: 0,
+      right: 300,
+      width: 300
+    });
+    parts.body.scrollTop = 0;
+    parts.body.dispatchEvent(new Event('scroll'));
+
+    controlFor(moved).value = '3';
+    controlFor(moved).dispatchEvent(new Event('change'));
+    expect([...itemsContainer.children][2]).toBe(moved);
+    expect(parts.body.scrollTop).toBe(0);
+    expect(moved.classList.contains('pixiv-utils-moved-highlight')).toBe(true);
+
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(moved.classList.contains('pixiv-utils-moved-highlight')).toBe(false);
     instances.at(-1).close();
     expect(pixiv.console.error).toEqual([]);
   });
