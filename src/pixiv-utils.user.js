@@ -3423,21 +3423,61 @@
 
     let state = panel._pixivListOrderState;
     if (!state) {
-      state = { observers: new Map(), dragging: null, touchDrag: null, dropTarget: null };
+      state = { observers: new Map(), dragging: null, touchDrag: null, dropTarget: null, highlight: null, arrowMovedItem: null };
       panel._pixivListOrderState = state;
       const clearDropTarget = () => {
         state.dropTarget?.classList.remove('pixiv-utils-drop-before', 'pixiv-utils-drop-after');
         state.dropTarget = null;
       };
+      // Highlight a just-moved item until the next pointerdown so its new
+      // position is obvious after the scroll jump. Dismiss on pointerdown,
+      // not click: clicking away commits the index change on blur, earlier.
+      const clearHighlight = () => {
+        if (!state.highlight) return;
+        state.highlight.classList.remove('pixiv-utils-moved-highlight');
+        state.highlight = null;
+        document.removeEventListener('pointerdown', clearHighlight, true);
+      };
+      const highlightMovedItem = item => {
+        clearHighlight();
+        state.highlight = item;
+        item.classList.add('pixiv-utils-moved-highlight');
+        document.addEventListener('pointerdown', clearHighlight, { capture: true, once: true });
+      };
       const draggedListItem = event => event.target.closest?.('.gc-li');
+      // Follow a moved item whenever any part of it lies outside the scrollport;
+      // a one-step move can leave only a sliver hidden. Keep the current tab's
+      // remembered offset in sync even when no scroll event is dispatched.
+      const keepMovedItemVisible = item => {
+        const body = dialog.querySelector(':scope > form > .gc-b');
+        if (!body || !item.isConnected) return;
+        const itemBox = item.getBoundingClientRect();
+        const bodyBox = body.getBoundingClientRect();
+        if (!itemBox.height || !bodyBox.height) return;
+        let delta = 0;
+        if (itemBox.top < bodyBox.top) delta = itemBox.top - bodyBox.top - 8;
+        else if (itemBox.bottom > bodyBox.bottom) delta = itemBox.bottom - bodyBox.bottom + 8;
+        if (!delta) return;
+        body.scrollTop += delta;
+        if (settingsActiveTabIndex !== null) {
+          settingsTabScrollPositions.set(settingsActiveTabIndex, body.scrollTop);
+        }
+      };
       const moveItem = (item, index) => {
         const items = item.parentElement;
         if (!items?.classList.contains('gc-list-items')) return;
         const siblings = [...items.children].filter(node => node !== item);
+        const from = [...items.children].indexOf(item);
         const destination = Math.min(Math.max(index, 0), siblings.length);
-        if ([...items.children].indexOf(item) === destination) return;
+        if (from === destination) return;
         items.insertBefore(item, siblings[destination] ?? null);
         refreshList(items);
+        // Highlight jumps of two or more slots even when both positions are
+        // fully visible: the instantaneous reorder is hard to follow otherwise.
+        // A single step (spinner, arrow keys, list ↑/↓, adjacent drag) needs no
+        // highlight, even when the scrollport nudges to uncover the item.
+        if (Math.abs(destination - from) > 1) highlightMovedItem(item);
+        keepMovedItemVisible(item);
         // gmConfig's own list-item input listener calls _onListChange() for
         // the correct field, including parent records for nested lists.
         item.dispatchEvent(new Event('input', { bubbles: true }));
@@ -3516,6 +3556,16 @@
         state.dragging = null;
         clearDropTarget();
       };
+      // gmConfig's own ↑/↓ buttons reorder with insertBefore, bypassing
+      // moveItem. Capture the click so the observer can reveal the item after.
+      const onListArrowClick = event => {
+        const button = event.target.closest?.('.gc-li-h > .gc-ib');
+        if (!button || !/^[↑↓]$/.test(button.textContent.trim())) return;
+        const item = button.closest('.gc-li');
+        if (item?.parentElement?.classList.contains('gc-list-items')) {
+          state.arrowMovedItem = item;
+        }
+      };
       dialog.addEventListener('dragstart', onDragStart);
       dialog.addEventListener('dragover', onDragOver);
       dialog.addEventListener('drop', onDrop);
@@ -3524,7 +3574,9 @@
       dialog.addEventListener('pointermove', onPointerMove);
       dialog.addEventListener('pointerup', onPointerUp);
       dialog.addEventListener('pointercancel', onPointerUp);
+      dialog.addEventListener('click', onListArrowClick, true);
       state.cleanup = () => {
+        clearHighlight();
         onDragEnd();
         state.touchDrag?.item.classList.remove('pixiv-utils-dragging');
         state.touchDrag = null;
@@ -3538,8 +3590,10 @@
         dialog.removeEventListener('pointermove', onPointerMove);
         dialog.removeEventListener('pointerup', onPointerUp);
         dialog.removeEventListener('pointercancel', onPointerUp);
+        dialog.removeEventListener('click', onListArrowClick, true);
       };
       state.moveItem = moveItem;
+      state.keepVisible = keepMovedItemVisible;
     }
 
     const refreshList = items => {
@@ -3601,9 +3655,15 @@
       if (!state.observers.has(items)) {
         // Observe only direct item add/remove/reorder mutations, not title
         // changes within items; avoids repeat work on every keystroke.
-        const observer = new MutationObserver(() => {
+        const observer = new MutationObserver(records => {
           initListOrderControls(panel); // install for newly added nested lists
           refreshList(items);
+          const arrowItem = state.arrowMovedItem;
+          state.arrowMovedItem = null;
+          if (arrowItem && records.some(record =>
+            record.target === items && [...record.addedNodes].includes(arrowItem))) {
+            state.keepVisible(arrowItem);
+          }
         });
         observer.observe(items, { childList: true });
         state.observers.set(items, observer);
@@ -4261,6 +4321,13 @@
   .gc-p :is(input, select, textarea, button):focus-visible {
     outline: 2px solid var(--pixiv-utils-ui-accent);
     outline-offset: 2px;
+  }
+  /* A just-reordered item keeps the focus-box outline until the next click,
+     so a scroll jump cannot hide where the item landed. */
+  .gc-p .gc-li.pixiv-utils-moved-highlight {
+    outline: 2px solid var(--pixiv-utils-ui-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
   /* Keep the outer dialog height constant across tabs; scroll only its content. */
   .gc-p {
