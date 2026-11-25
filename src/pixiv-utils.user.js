@@ -874,7 +874,7 @@
       'message.resetConfirm': 'Reset all settings to their defaults?',
       'message.openError': 'Failed to open settings: {error}',
       'message.validation': '{key}: {error}',
-      'message.discardChanges': 'Discard unsaved changes?',
+      'toast.settingsUnsaved': 'Your settings changes are still unsaved.',
       'toast.cachesCleared': 'Caches cleared ✓',
       'toast.blockedItemsShown': 'Blocked items are now visible ✓',
       'toast.blockedItemsHidden': 'Blocked items are now hidden ✓',
@@ -1129,7 +1129,7 @@
       'message.resetConfirm': 'すべての設定を既定値に戻しますか？',
       'message.openError': '設定画面を開けませんでした：{error}',
       'message.validation': '{key}：{error}',
-      'message.discardChanges': '未保存の変更を破棄しますか？',
+      'toast.settingsUnsaved': '設定の変更はまだ保存されていません。',
       'toast.cachesCleared': 'キャッシュを消去しました ✓',
       'toast.blockedItemsShown': 'ブロックした作品を表示しました ✓',
       'toast.blockedItemsHidden': 'ブロックした作品を非表示にしました ✓',
@@ -1384,7 +1384,7 @@
       'message.resetConfirm': '确定要将所有设置恢复为默认值吗？',
       'message.openError': '无法打开设置界面：{error}',
       'message.validation': '{key}：{error}',
-      'message.discardChanges': '要放弃未保存的更改吗？',
+      'toast.settingsUnsaved': '设置更改尚未保存。',
       'toast.cachesCleared': '缓存已清除 ✓',
       'toast.blockedItemsShown': '已显示屏蔽的作品 ✓',
       'toast.blockedItemsHidden': '已隐藏屏蔽的作品 ✓',
@@ -1639,7 +1639,7 @@
       'message.resetConfirm': '確定將所有設定恢復至預設值？',
       'message.openError': '無法開啟設定：{error}',
       'message.validation': '{key}：{error}',
-      'message.discardChanges': '捨棄未儲存的更改？',
+      'toast.settingsUnsaved': '設定變更尚未儲存。',
       'toast.cachesCleared': '已清除快取 ✓',
       'toast.blockedItemsShown': '封鎖的作品現已顯示 ✓',
       'toast.blockedItemsHidden': '封鎖的作品現已隱藏 ✓',
@@ -1894,7 +1894,7 @@
       'message.resetConfirm': '確定要將所有設定還原為預設值嗎？',
       'message.openError': '無法開啟設定介面：{error}',
       'message.validation': '{key}：{error}',
-      'message.discardChanges': '要捨棄尚未儲存的變更嗎？',
+      'toast.settingsUnsaved': '設定變更尚未儲存。',
       'toast.cachesCleared': '快取已清除 ✓',
       'toast.blockedItemsShown': '已顯示遭封鎖的作品 ✓',
       'toast.blockedItemsHidden': '已隱藏遭封鎖的作品 ✓',
@@ -3691,9 +3691,15 @@
         if (!(key in ENV_DEFAULTS)) continue; // backup buttons have no storage key
         const stored = GM_getValue(key, ENV_DEFAULTS[key]);
         this._storedOriginals[key] = stored;
-        const uiValue = settingToEditor(key, settingOrDefault(key, stored));
-        field.value = uiValue;
-        this._initialEditorValues[key] = JSON.stringify(uiValue);
+        const persistedValue = settingToEditor(key, settingOrDefault(key, stored));
+        this._initialEditorValues[key] = JSON.stringify(persistedValue);
+        // Unsaved edits from a previous dismissal take precedence for this
+        // session. The persisted value stays above as the save baseline, so
+        // Save still commits them. init() renders controls from field.value,
+        // so restoring here needs no second pass after the panel is created.
+        field.value = Object.hasOwn(settingsPendingValues ?? {}, key)
+          ? settingsPendingValues[key]
+          : persistedValue;
       }
       this._clean = this._json();
     }
@@ -3833,6 +3839,11 @@
   .pixiv-utils-toast-primary {
     background: var(--pixiv-utils-ui-accent, #0096fa);
     color: #fff;
+    border: none;
+  }
+  .pixiv-utils-toast-warning {
+    background: #ffaf0f;
+    color: #1a1a1a;
     border: none;
   }
   @media (prefers-reduced-motion: reduce) {
@@ -4830,6 +4841,13 @@
 
   let settingsPanel = null;
   let settingsOpening = false;
+  // Editor values kept after a dismissal, restored (without saving) on reopen.
+  let settingsPendingValues = null;
+  // A panel's _initialEditorValues is the persisted value per key (updated on
+  // save). Reverting live values to that state means there is nothing pending.
+  const hasUnsavedEditorValues = (panel, values) =>
+    Object.entries(panel?._initialEditorValues ?? {}).some(([key, persistedJson]) =>
+      JSON.stringify(values?.[key]) !== persistedJson);
   // Session-only memory of the settings panel view: the tab that was active
   // when it was last closed and each tab's scroll offset. Module-level so a
   // fresh panel instance restores the previous view instead of resetting it.
@@ -4928,7 +4946,12 @@
         title: settingsPanelTitle(),
         width: 'min(900px, 96vw)',
         closeOnSave: false, // Keep the Reload page button available after Save.
-        onBeforeClose: () => showConfirm(tr('message.discardChanges')),
+        onBeforeClose: values => {
+          // Dismissing is always allowed. Keep live values only when they
+          // really differ from what is persisted, so reverting an edit to its
+          // original state does not leave a stale pending snapshot.
+          settingsPendingValues = hasUnsavedEditorValues(panel, values) ? values : null;
+        },
         onBeforeSave: values => {
           for (const [key, highlighted] of [
             ['PIXIV_BLOCKED_TAGS', false],
@@ -4974,7 +4997,9 @@
             panel._chromeObserver = observer;
           }
         },
-        onClose: () => {
+        onClose: save => {
+          if (save) settingsPendingValues = null;
+          else if (settingsPendingValues) showToast(tr('toast.settingsUnsaved'), { warning: true });
           panel._chromeObserver?.disconnect();
           panel._chromeObserver = null;
           disposeListOrderControls(panel);
@@ -5001,7 +5026,10 @@
           button.addEventListener('click', () => location.reload());
           return button;
         },
-        onSave: () => { showAlert(tr('message.save')); },
+        onSave: () => {
+          settingsPendingValues = null;
+          showAlert(tr('message.save'));
+        },
         onReset: () => {
           const locale = resolveSettingsLocale(ENV_DEFAULTS.SETTINGS_LANGUAGE);
           if (locale !== settingsUiLocale) {
@@ -6002,10 +6030,10 @@
       toastStack = document.createElement('div');
       toastStack.className = 'pixiv-utils-toast-stack';
     }
-    // Preserve the old per-toast placement: toasts live inside an open
-    // dialog (top layer) when there is one, otherwise on the page. Repeated
-    // appends also re-attach a stack detached together with a dialog.
-    const host = document.querySelector('.pixiv-utils-alert') || document.body || document.documentElement;
+    // Preserve the old per-toast placement: toasts live inside an OPEN
+    // dialog (top layer) when there is one, otherwise on the page. A reused
+    // prompt dialog stays in the DOM after closing, so [open] matters here.
+    const host = document.querySelector('.pixiv-utils-alert[open]') || document.body || document.documentElement;
     if (toastStack.parentElement !== host) host.append(toastStack);
     return toastStack;
   };
@@ -6095,7 +6123,7 @@
     toast.state = 'visible';
     const stack = ensureToastStack();
     const element = document.createElement('div');
-    element.className = `pixiv-utils-toast${toast.primary ? ' pixiv-utils-toast-primary' : ''}`;
+    element.className = `pixiv-utils-toast${toast.primary ? ' pixiv-utils-toast-primary' : ''}${toast.warning ? ' pixiv-utils-toast-warning' : ''}`;
     element.textContent = toast.message;
     element.setAttribute('role', 'status');
     element.classList.add('pixiv-utils-toast-enter');
@@ -6119,6 +6147,7 @@
     const toast = {
       message: String(message),
       primary: Boolean(options.primary),
+      warning: Boolean(options.warning),
       duration: options.duration === undefined ? TOAST_DEFAULT_DURATION : Number(options.duration),
       state: 'queued',
       element: null,
