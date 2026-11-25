@@ -3819,9 +3819,10 @@
   .pixiv-utils-toast {
     padding: 10px 14px;
     border-radius: var(--pixiv-utils-ui-radius, 8px);
-    background: var(--pixiv-utils-ui-surface, Canvas);
-    color: var(--pixiv-utils-ui-text, CanvasText);
-    border: 1px solid var(--pixiv-utils-ui-border, rgba(0,0,0,0.2));
+    /* Default look was previously the "primary" variant. */
+    background: var(--pixiv-utils-ui-accent, #0096fa);
+    color: #fff;
+    border: none;
     box-shadow: var(--pixiv-utils-ui-shadow, 0 12px 36px rgba(0, 0, 0, 0.24));
     font: inherit;
     font-size: 14px;
@@ -3836,23 +3837,21 @@
     opacity: 0;
     translate: 0 6px;
   }
-  .pixiv-utils-toast-primary {
-    background: var(--pixiv-utils-ui-accent, #0096fa);
-    color: #fff;
-    border: none;
+  /* Variants change only colors; shape and motion stay with the base rule. */
+  .pixiv-utils-toast-success {
+    background: #b1cc29;
+    color: #1a1a1a;
   }
   .pixiv-utils-toast-warning {
     background: #ffaf0f;
     color: #1a1a1a;
-    border: none;
+  }
+  .pixiv-utils-toast-error {
+    background: #ff2b00;
+    color: #fff;
   }
   @media (prefers-reduced-motion: reduce) {
     .pixiv-utils-toast { transition: none; }
-  }
-  .pixiv-utils-toast-primary {
-    background: var(--pixiv-utils-ui-accent, #0096fa);
-    color: #fff;
-    border: none;
   }
   .pixiv-utils-edit-bookmark-panel .pixiv-utils-edit-bookmark-tags {
     display: grid;
@@ -6123,7 +6122,12 @@
     toast.state = 'visible';
     const stack = ensureToastStack();
     const element = document.createElement('div');
-    element.className = `pixiv-utils-toast${toast.primary ? ' pixiv-utils-toast-primary' : ''}${toast.warning ? ' pixiv-utils-toast-warning' : ''}`;
+    element.className = [
+      'pixiv-utils-toast',
+      toast.success && 'pixiv-utils-toast-success',
+      toast.warning && 'pixiv-utils-toast-warning',
+      toast.error && 'pixiv-utils-toast-error'
+    ].filter(Boolean).join(' ');
     element.textContent = toast.message;
     element.setAttribute('role', 'status');
     element.classList.add('pixiv-utils-toast-enter');
@@ -6146,8 +6150,9 @@
   const showToast = (message, options = {}) => {
     const toast = {
       message: String(message),
-      primary: Boolean(options.primary),
+      success: Boolean(options.success),
       warning: Boolean(options.warning),
+      error: Boolean(options.error),
       duration: options.duration === undefined ? TOAST_DEFAULT_DURATION : Number(options.duration),
       state: 'queued',
       element: null,
@@ -6203,7 +6208,7 @@
     }
     bookmarkStateCache.clear();
     try { if (typeof PIXIV_DATA_CACHE !== 'undefined') PIXIV_DATA_CACHE.clear(); } catch (_) {}
-    showToast(tr('toast.cachesCleared') || 'Caches cleared ✓', { primary: true });
+    showToast(tr('toast.cachesCleared') || 'Caches cleared ✓', { success: true });
   });
 
   // Drop the cached state of one bookmark so the next read refetches it.
@@ -6783,7 +6788,7 @@
         const removed = originalBookmarkTags.filter(tag => !selectedTags.includes(tag));
         const result = await applyBookmarkTags(id, isNovel, added, removed, selectedPrivate);
         if (result.changed) {
-          showToast(tr('toast.bookmarkUpdated'), { primary: true });
+          showToast(tr('toast.bookmarkUpdated'), { success: true });
         }
         dialog.close();
       } catch (error) {
@@ -7686,7 +7691,7 @@
     updateToggleBlockedMenuCommand();
     showToast(
       tr(blockedItemsRevealed ? 'toast.blockedItemsShown' : 'toast.blockedItemsHidden'),
-      { primary: true }
+      { success: true }
     );
   };
 
