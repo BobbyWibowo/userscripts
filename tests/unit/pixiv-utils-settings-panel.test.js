@@ -138,15 +138,21 @@ const createFakeGmConfig = () => {
 
     async open () {
       this.isOpen = true;
+      this._base = JSON.stringify(this._vals());
       document.body.appendChild(this._dlg);
       this._options.onOpen?.();
     }
 
-    close () {
+    _dirty () {
+      return JSON.stringify(this._vals()) !== this._base;
+    }
+
+    close (save = false) {
       if (!this.isOpen) return;
+      if (!save && this._dirty()) this._options.onBeforeClose?.(this._vals());
       this.isOpen = false;
       this._dlg.remove();
-      this._options.onClose?.();
+      this._options.onClose?.(save);
     }
 
     async reinit (definitions, title) {
@@ -548,6 +554,79 @@ describe('settings panel session view memory', () => {
       expect([...itemsContainer.children][LIST_LABELS.length - 1]).toBe(moved);
       expect(controlFor(moved).value).toBe(String(LIST_LABELS.length));
     }
+    instances.at(-1).close();
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('keeps unsaved edits across dismissal and only persists them on save', async () => {
+    const { FakeGmConfig, instances } = createFakeGmConfig();
+    globalThis.gmConfig = FakeGmConfig;
+    const pixiv = await loadPixivUtils({
+      settings: { SETTINGS_LANGUAGE: 'en', SELECTORS_TAG_BUTTON: ['div.foo'] }
+    });
+
+    await openSettings(pixiv);
+    const first = instances.at(-1);
+    first._fields.SELECTORS_TAG_BUTTON.value = 'div.foo\ndiv.bar';
+
+    // Dismiss without saving: no confirm dialog, a warning toast, and the
+    // original stored value still untouched.
+    first.close();
+    expect(document.querySelector('dialog.gc-p')).toBeNull();
+    expect(document.querySelector('.pixiv-utils-alert')).toBeNull();
+    expect(pixiv.storage.values.get('SELECTORS_TAG_BUTTON')).toEqual(['div.foo']);
+    expect(pixiv.styles.join('\n')).toContain('.pixiv-utils-toast-warning {');
+    const warning = document.querySelector('.pixiv-utils-toast-warning');
+    expect(warning).not.toBeNull();
+    expect(warning.textContent).toContain('unsaved');
+
+    // Reopening restores the pending edits, and another dismissal retains them.
+    await openSettings(pixiv);
+    const second = instances.at(-1);
+    expect(second._fields.SELECTORS_TAG_BUTTON.value).toBe('div.foo\ndiv.bar');
+    second.close();
+    expect(document.querySelectorAll('.pixiv-utils-toast-warning')).toHaveLength(2);
+    await openSettings(pixiv);
+    const third = instances.at(-1);
+    expect(third._fields.SELECTORS_TAG_BUTTON.value).toBe('div.foo\ndiv.bar');
+
+    // Only an explicit save writes to storage and clears the pending state.
+    await third.save();
+    expect(pixiv.storage.values.get('SELECTORS_TAG_BUTTON')).toEqual(['div.foo', 'div.bar']);
+    // gmConfig fires onSave from _persist() even when closeOnSave is false.
+    third._options.onSave();
+    const warningsBeforeDismiss = document.querySelectorAll('.pixiv-utils-toast-warning').length;
+    third.close();
+    expect(document.querySelectorAll('.pixiv-utils-toast-warning')).toHaveLength(warningsBeforeDismiss);
+    await openSettings(pixiv);
+    expect(instances.at(-1)._fields.SELECTORS_TAG_BUTTON.value).toBe('div.foo\ndiv.bar');
+    instances.at(-1).close();
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('drops the pending snapshot when edits are reverted after reopening', async () => {
+    const { FakeGmConfig, instances } = createFakeGmConfig();
+    globalThis.gmConfig = FakeGmConfig;
+    const pixiv = await loadPixivUtils({
+      settings: { SETTINGS_LANGUAGE: 'en', SELECTORS_TAG_BUTTON: ['div.foo'] }
+    });
+
+    await openSettings(pixiv);
+    instances.at(-1)._fields.SELECTORS_TAG_BUTTON.value = 'div.foo\ndiv.bar';
+    instances.at(-1).close();
+    expect(document.querySelectorAll('.pixiv-utils-toast-warning')).toHaveLength(1);
+
+    // Reopen with the pending edit, then revert it to the persisted value.
+    await openSettings(pixiv);
+    const reopened = instances.at(-1);
+    expect(reopened._fields.SELECTORS_TAG_BUTTON.value).toBe('div.foo\ndiv.bar');
+    reopened._fields.SELECTORS_TAG_BUTTON.value = 'div.foo';
+    reopened.close();
+
+    // No second warning: nothing is pending anymore.
+    expect(document.querySelectorAll('.pixiv-utils-toast-warning')).toHaveLength(1);
+    await openSettings(pixiv);
+    expect(instances.at(-1)._fields.SELECTORS_TAG_BUTTON.value).toBe('div.foo');
     instances.at(-1).close();
     expect(pixiv.console.error).toEqual([]);
   });

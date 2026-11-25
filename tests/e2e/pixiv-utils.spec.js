@@ -412,3 +412,49 @@ test('fades the settings dialog open and closes it on cancel', async ({ page }) 
   await page.locator('.gc-f > button', { hasText: 'Cancel' }).click();
   await expect(page.locator('.gc-p')).toHaveCount(0);
 });
+
+test('restores dismissed settings edits and warns that they are unsaved', async ({ page }) => {
+  await openFixture(page, { SETTINGS_LANGUAGE: 'en' });
+  await openSettings(page);
+  await page.locator('.gc-tb > button', { hasText: 'Advanced' }).click();
+
+  const field = page.locator('.gc-p input[type="number"]:visible').first();
+  await expect(field).toBeVisible();
+  await field.fill('2500');
+
+  // Dismissing with edits must not show the discard confirmation.
+  await page.locator('.gc-f > button', { hasText: 'Cancel' }).click();
+  await expect(page.locator('.gc-p')).toHaveCount(0);
+  await expect(page.locator('.pixiv-utils-alert')).toHaveCount(0);
+  const warning = page.locator('.pixiv-utils-toast-warning');
+  await expect(warning).toBeVisible();
+  await expect(warning).toContainText('unsaved');
+
+  // The uncommitted value is still in the editor after reopening.
+  await openSettings(page);
+  await expect(page.locator('.gc-p input[type="number"]:visible').first()).toHaveValue('2500');
+});
+
+test('warns about edits made after a save in the same session', async ({ page }) => {
+  await openFixture(page, { SETTINGS_LANGUAGE: 'en' });
+  await openSettings(page);
+  await page.locator('.gc-tb > button', { hasText: 'Advanced' }).click();
+  const field = page.locator('.gc-p input[type="number"]:visible').first();
+
+  await field.fill('2500');
+  await page.locator('.gc-f > button', { hasText: 'Save' }).click();
+  await expect(page.locator('.pixiv-utils-alert')).toBeVisible();
+  await page.locator('.pixiv-utils-alert-ok').click();
+  await expect(page.locator('.pixiv-utils-alert')).toBeHidden();
+  // closeOnSave is false, so the settings panel stays open after saving.
+  await expect(page.locator('.gc-p')).toBeVisible();
+
+  await field.fill('2600');
+  await page.locator('.gc-f > button', { hasText: 'Cancel' }).click();
+  await expect(page.locator('.gc-p')).toHaveCount(0);
+  await expect(page.locator('.pixiv-utils-toast-warning')).toBeVisible();
+
+  // The later edits are still pending, not saved.
+  await openSettings(page);
+  await expect(page.locator('.gc-p input[type="number"]:visible').first()).toHaveValue('2600');
+});
