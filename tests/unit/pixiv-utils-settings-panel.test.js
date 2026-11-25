@@ -523,4 +523,32 @@ describe('settings panel session view memory', () => {
     instances.at(-1).close();
     expect(pixiv.console.error).toEqual([]);
   });
+
+  it('clamps zero and negative index values to the first slot', async () => {
+    const { pixiv, instances, itemsContainer, items, controlFor } = await setupOrderedList();
+    const moved = items[4];
+
+    for (const shorthand of ['0', '-3', '-999999999999999999999']) {
+      controlFor(moved).value = shorthand;
+      controlFor(moved).dispatchEvent(new Event('change'));
+      expect([...itemsContainer.children][0]).toBe(moved);
+      expect(controlFor(moved).value).toBe('1');
+    }
+    instances.at(-1).close();
+    expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('clamps oversized index values to the last slot', async () => {
+    const { pixiv, instances, itemsContainer, items, controlFor } = await setupOrderedList();
+    const moved = items[1];
+
+    for (const shorthand of [String(LIST_LABELS.length + 1), '999999999999999999999']) {
+      controlFor(moved).value = shorthand;
+      controlFor(moved).dispatchEvent(new Event('change'));
+      expect([...itemsContainer.children][LIST_LABELS.length - 1]).toBe(moved);
+      expect(controlFor(moved).value).toBe(String(LIST_LABELS.length));
+    }
+    instances.at(-1).close();
+    expect(pixiv.console.error).toEqual([]);
+  });
 });
