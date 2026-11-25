@@ -2,7 +2,7 @@
 // @name               Share Tweet Copy
 // @name:zh-CN         推文复制分享
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.0.2
+// @version            1.0.3
 // @description        Copy tweets on Twitter/X in a clean, quote-ready format for easy sharing.
 // @description:zh-CN  一键复制 Twitter/X 推文为整洁、可直接引用的格式，方便分享。
 // @author             GinWU, Bobby Wibowo
@@ -27,6 +27,9 @@
   /**
    * Change Log
    *
+   * Version 1.0.3 (2026-11-25)
+   *  - Keep X's layout selectors in one place, making future UI changes easier to maintain.
+   *
    * Version 1.0.2 (2026-11-24)
    *  - Harden length handling: fractional limit values are rounded down, CJK text written directly after a link is counted correctly, and copying still works in browsers without Intl.Segmenter.
    *  - Use a single ellipsis character when text is cut off or folded by X.
@@ -45,6 +48,45 @@
    *  - https://github.com/GinWU05/tampermonkey-user.js/blob/8c688fe724b159042051356b80182f8b1813ceae/share-tweet-copy/script.user.js#L24-L128
    *
    */
+
+  /**
+   * Structural selectors for X's current markup, grouped by purpose so layout
+   * changes only need fixing here. They are tagged for CSS syntax highlighting
+   * and written as multi-line templates, with one alternative per line; the
+   * helper below flattens them into valid selector lists at startup.
+   */
+  const normalizeSelector = selector => selector.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\s+/g, ' ').trim();
+
+  const SELECTORS = {
+    // Tweet articles watched by Sentinel; only these receive a copy button.
+    TWEET: normalizeSelector(/*css*/`
+      div[data-navigation-stop] article
+    `),
+
+    // Insertion points in X's two post-actions layouts (timeline and detail).
+    NAME_CONTAINER: normalizeSelector(/*css*/`
+      .\\@container\\/post-actions:not(.flex-col) > div:nth-child(2),
+      .\\@container\\/post-actions div[id^="base-ui-"] + div
+    `),
+
+    // First match is the display name, second match is the @handle.
+    USER_LINKS: normalizeSelector(/*css*/`
+      .\\@container\\/post-actions a[href^="/"]
+    `),
+
+    // Tweet body text in both post-actions layouts.
+    TWEET_TEXT: normalizeSelector(/*css*/`
+      .\\@container\\/post-actions:not(.flex-col) ~ div.text-primary,
+      .\\@container\\/post-actions > div:first-child > :nth-child(1 of div.text-primary)
+    `),
+
+    // Photo, video and link-preview card media attached to the tweet.
+    MEDIA: normalizeSelector(/*css*/`
+      [data-engagement-action="media"],
+      [data-press-control],
+      a.group\\/article-card
+    `)
+  };
 
   /**
    * Defines the styles for the copy button and its tooltip.
@@ -308,10 +350,7 @@
       return;
     }
 
-    const nameElement = tweetElement.querySelector(
-      '.\\@container\\/post-actions:not(.flex-col) > div:nth-child(2), ' +
-      '.\\@container\\/post-actions div[id^="base-ui-"] + div'
-    );
+    const nameElement = tweetElement.querySelector(SELECTORS.NAME_CONTAINER);
     if (!nameElement) {
       return;
     }
@@ -390,13 +429,12 @@
     console.error('Could not copy tweet: ', error);
   }
 
-  const USER_LINK_SELECTOR = '.\\@container\\/post-actions a[href^="/"]';
   const userDetails = new WeakMap();
 
   function findUserDetails (tweetElement) {
     const cached = userDetails.get(tweetElement);
     if (cached) return cached;
-    const links = tweetElement.querySelectorAll(USER_LINK_SELECTOR);
+    const links = tweetElement.querySelectorAll(SELECTORS.USER_LINKS);
     const nameElement = links[0]?.firstChild?.cloneNode(true);
     if (nameElement?.nodeType === 1) {
       nameElement.querySelectorAll('img').forEach(img => {
@@ -516,10 +554,7 @@
    * @returns {string} TweetText
    */
   function findTweetText ({ tweetElement }) {
-    const tweetTextDOM = tweetElement.querySelector(
-      '.\\@container\\/post-actions:not(.flex-col) ~ div.text-primary, ' +
-      '.\\@container\\/post-actions > div:first-child > :nth-child(1 of div.text-primary)'
-    );
+    const tweetTextDOM = tweetElement.querySelector(SELECTORS.TWEET_TEXT);
     if (!tweetTextDOM) {
       return '';
     }
@@ -559,8 +594,7 @@
    */
   function findMediaCount ({ tweetElement }) {
     const cameraEmoji = '\u{1F4F7}';
-    const mediaSelector = '[data-engagement-action="media"], [data-press-control], a.group\\/article-card';
-    const mediaCount = [...tweetElement.querySelectorAll(mediaSelector)].filter(element => {
+    const mediaCount = [...tweetElement.querySelectorAll(SELECTORS.MEDIA)].filter(element => {
       const frame = element.closest('div[data-slot="embedded-tweet-frame"]');
       return !frame || !tweetElement.contains(frame);
     }).length;
@@ -623,7 +657,7 @@
     });
   }
 
-  sentinel.on('div[data-navigation-stop] article', element => {
+  sentinel.on(SELECTORS.TWEET, element => {
     addCopyButtonToTweet({ tweetElement: element });
   });
 })();
