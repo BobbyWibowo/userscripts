@@ -167,58 +167,71 @@
 
     SELECTORS_IMAGE: /*css*/`
       /* desktop */
+      /* Thumbnails are matched without a src gate so cards are recognized at
+         insertion even before the lazy thumbnail fills in (hover-popup cards and
+         grid cards alike). The artwork link still scopes the match and doImage
+         re-runs a card once its real data is complete. */
       div[data-ga4-label="thumbnail"],
       ul > li:has(
-        a[href*="artworks/"] :is(img[src], figure),
+        a[href*="artworks/"] :is(img, figure),
         a[href*="novel/"],
-        a[href*="collections/"] img[src]
+        a[href*="collections/"] img
       ),
-      ul > div:not(.list-none):has(a[href*="artworks/"] img[src]):not(:has(
+      ul > div:not(.list-none):has(
+        a[href*="artworks/"] :is(img, figure),
+        a[href*="novel/"] :is(img, figure),
+        a[href*="collections/"] :is(img, figure)
+      ):not(:has(
         > ul,
         .gtm-illust-recommend-thumbnail-link,
         .gtm-illust-toppage-recommend-user-profile,
-        .gtm-dashboard-home-latest-works-edit-button
+        .gtm-dashboard-home-latest-works-edit-button,
+        a[href*="/contest/"]
       )),
 
       /* recommended works after bookmarking */
-      figcaption ul > div > div:has(a[href*="artworks/"] img[src]),
+      figcaption ul > div > div:has(a[href*="artworks/"] :is(img, figure)),
 
       /* recommended users on home's illustrations tab */
-      div:has(> div > div > div > a.gtm-illust-toppage-recommend-user-work[href*="artworks/"] img[src]),
+      div:has(> div > div > div > a.gtm-illust-toppage-recommend-user-work[href*="artworks/"] :is(img, figure)),
 
       /* recommended users on home's novels tab */
-      div:has(> div > div > div > div > a.gtm-novel-toppage-recommend-user-work[href*="/novel/"] img[src]),
+      div:has(> div > div > div > div > a.gtm-novel-toppage-recommend-user-work[href*="/novel/"] :is(img, figure)),
 
       /* expanded view's artist sidebar */
       nav:not([style]) > div:has(
-        a[href*="artworks/"] img[src],
+        a[href*="artworks/"] img,
         a[href*="novel/"]
       ),
 
       /* user profile popup */
-      div[open] a[href*="users/"] ~ div > div:has(a[href*="artworks/"] img[src]),
-      div[open] div:has(a[href*="users/"]) + div > div:has(a[href*="artworks/"] img[src]),
+      div[open] a[href*="users/"] ~ div > div:has(a[href*="artworks/"] img),
+      div[open] div:has(a[href*="users/"]) + div > div:has(a[href*="artworks/"] img),
 
       /* rankings page */
       ol > li:has(
-        a[href*="artworks/"] img[src],
-        a[href*="novel/"]
+        a[href*="artworks/"] :is(img, figure),
+        a[href*="novel/"] :is(img, figure)
       ),
 
       /* recommended users after following */
       body > div > div[style*="translateY"] ul li.inline-block > div > div
-        > div:has(a[href*="artworks/"] img[src]),
+        > div:has(a[href*="artworks/"] :is(img, figure)),
+
 
       /* mobile */
-      .works-item-illust:has(.thumb:not([src^="data"])),
+      /* Cards insert with a one-pixel data: placeholder that is replaced as the
+         card loads, so the thumbnail must not gate matching; the artwork data is
+         already readable from the Vue instance at insertion. */
+      .works-item-illust:has(.thumb),
       /* novel */
-      .works-item:not(.works-item-illust):has(.thumb:not([src^="data"])),
+      .works-item:not(.works-item-illust):has(.thumb),
       /* novels page's editor's picks */
       .works-item-novel-editor-recommend:has(.cover:not([style^="data"])),
       /* feed page */
       .stacclist > li.illust,
       /* discovery feed */
-      [class*="works-item-illust__"]:has([class*="style_thumb"]:not([src^="data"]))
+      [class*="works-item-illust__"]:has([class*="style_thumb"])
     `,
 
     SELECTORS_IMAGE_TITLE: /*css*/`
