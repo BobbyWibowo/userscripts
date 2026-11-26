@@ -7328,9 +7328,15 @@
         if (cached) return cached;
 
         if (itemNotLoaded) {
-          const awaited = await waitFor(() => !source.notLoaded, element);
-          if (!awaited) break;
-          readVuePixivData(source, data, true);
+          // Pixiv replaces the placeholder _props.item with a new loaded object
+          // instead of mutating it, so re-read the live prop on every check and
+          // use that object (the captured one can stay notLoaded forever).
+          const loaded = await waitFor(() => {
+            const current = element.__vue__?._props?.[key];
+            return current && !current.notLoaded ? current : null;
+          }, element);
+          if (!loaded) break;
+          readVuePixivData(loaded, data, true);
         }
       }
     } else {
