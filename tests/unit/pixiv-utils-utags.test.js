@@ -24,20 +24,6 @@ const utagsListener = pixiv => {
 };
 
 /**
- * The image registration is the fourth unconditional callback: home, own
- * profile, expanded-view controls, then images.
- */
-const imageListener = pixiv => {
-  const entry = pixiv.listeners.find(candidate =>
-    String(candidate.selector).includes('data-ga4-label="thumbnail"')
-  );
-
-  if (!entry) throw new Error('No image sentinel callback registered.');
-
-  return entry;
-};
-
-/**
  * Render one artwork card that carries a UTag marker, and attach the Vue
  * props the data extractor reads.
  */
@@ -98,7 +84,8 @@ describe('pixiv-utils UTags integration', () => {
     await fireUtags(pixiv, card);
 
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card)).not.toBeNull();
+    // The pure-CSS block adds no injected node.
+    expect(overlayOf(card)).toBeNull();
     // The moderation marker is what the toggle uses to find the element again.
     expect(card.getAttribute(MODERATION_MARKER)).toBe('true');
   });
@@ -132,11 +119,11 @@ describe('pixiv-utils UTags integration', () => {
 
     // The UTags sentinel never fires for this marker: the block can only
     // come from the re-apply loop inside doImage.
-    await pixiv.fireListener(imageListener(pixiv), card);
+    await pixiv.observeImageCard(card);
     await flush(4);
 
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card)).not.toBeNull();
+    expect(overlayOf(card)).toBeNull();
     expect(card.getAttribute(MODERATION_MARKER)).toBe('true');
   });
 
@@ -157,7 +144,7 @@ describe('pixiv-utils UTags integration', () => {
     card.insertAdjacentHTML('afterbegin', `
       <a href="/artworks/16112933"><img src="https://i.pximg.net/x.jpg" alt=""></a>`);
 
-    await pixiv.fireListener(imageListener(pixiv), card);
+    await pixiv.observeImageCard(card);
     await flush(4);
     expect(isBlocked(card)).toBe(false);
 
@@ -170,7 +157,7 @@ describe('pixiv-utils UTags integration', () => {
     await flush(4);
 
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card)).not.toBeNull();
+    expect(overlayOf(card)).toBeNull();
     expect(card.getAttribute(MODERATION_MARKER)).toBe('true');
   });
 });

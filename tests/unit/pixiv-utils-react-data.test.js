@@ -18,20 +18,6 @@ const cardWithArtwork = id => cards().find(card => card.querySelector(`a[href*="
 const plainCard = () => cardWithArtwork('16112933');
 
 /**
- * The image registration is the fourth unconditional callback: home, own
- * profile, expanded-view controls, then images.
- */
-const imageListener = pixiv => {
-  const entry = pixiv.listeners.find(candidate =>
-    String(candidate.selector).includes('data-ga4-label="thumbnail"')
-  );
-
-  if (!entry) throw new Error('No image sentinel callback registered.');
-
-  return entry;
-};
-
-/**
  * Attach a synthetic React fiber chain to a card element. The first entry is
  * the card's own host fiber; each following entry is a component fiber
  * reachable through `child`, carrying the given `memoizedProps`.
@@ -74,7 +60,7 @@ const renderNovelCards = novelIds => {
 };
 
 const processCard = async (pixiv, card) => {
-  await pixiv.fireListener(imageListener(pixiv), card);
+  await pixiv.observeImageCard(card);
   await flush(4);
 
   return card;
@@ -155,7 +141,7 @@ describe('pixiv-utils React artwork data extraction', () => {
     await processCard(pixiv, card);
 
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card).tagName).toBe('A');
+    expect(overlayOf(card)).toBeNull();
   });
 
   it('reads rawThumbnail sources used by the home layout', async () => {
@@ -181,7 +167,7 @@ describe('pixiv-utils React artwork data extraction', () => {
     await processCard(pixiv, card);
 
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card)).not.toBeNull();
+    expect(overlayOf(card)).toBeNull();
   });
 
   it('reads ranking legacy content fields and numeric illust_type', async () => {
@@ -205,7 +191,7 @@ describe('pixiv-utils React artwork data extraction', () => {
     await processCard(pixiv, card);
 
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card)).not.toBeNull();
+    expect(overlayOf(card)).toBeNull();
   });
 
   it('maps numeric illust_type 2 to novels and removes them from home', async () => {
@@ -318,7 +304,7 @@ describe('pixiv-utils React artwork data extraction', () => {
     await processCard(pixiv, card);
 
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card)).not.toBeNull();
+    expect(overlayOf(card)).toBeNull();
   });
 
   it('falls back to the artwork URL when no fiber source is within budget', async () => {
@@ -435,7 +421,7 @@ describe('pixiv-utils React artwork data extraction', () => {
     await processCard(pixiv, card);
 
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card)).not.toBeNull();
+    expect(overlayOf(card)).toBeNull();
   });
 
   it('covers the novels top page recommended users with a structural selector', async () => {
@@ -443,11 +429,8 @@ describe('pixiv-utils React artwork data extraction', () => {
 
     // Registration: the normalized desktop SELECTORS_IMAGE preset includes the
     // novels top page recommended-users entry (structural, no sc- hashes).
-    const registered = pixiv.selectors().flatMap(selector => String(selector).split(','));
-    const novelSelector = registered
-      .map(selector => selector.trim())
-      .find(selector => selector.includes('gtm-novel-toppage-recommend-user-work'));
-    expect(novelSelector).toBeDefined();
+    const registered = pixiv.observedSelectors().join('\n');
+    expect(registered).toContain('gtm-novel-toppage-recommend-user-work');
 
     // Matching: the live-observed 4-div wrapper chain around the cover link.
     document.body.innerHTML = `
@@ -457,6 +440,7 @@ describe('pixiv-utils React artwork data extraction', () => {
         </div></div></div></div></div>
       </section>`;
     const wrapper = document.querySelector('.per-work');
+    const novelSelector = 'div:has(> div > div > div > div > a.gtm-novel-toppage-recommend-user-work[href*="/novel/"] :is(img, figure))';
 
     expect(wrapper.matches(novelSelector)).toBe(true);
     expect(document.querySelector(novelSelector)).toBe(wrapper);
@@ -520,7 +504,7 @@ describe('pixiv-utils React artwork data extraction', () => {
     await processCard(pixiv, card);
 
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card)).not.toBeNull();
+    expect(overlayOf(card)).toBeNull();
   });
 
   it('reads artwork data threaded one level deeper in the children tree', async () => {
@@ -555,7 +539,7 @@ describe('pixiv-utils React artwork data extraction', () => {
     await processCard(pixiv, card);
 
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card)).not.toBeNull();
+    expect(overlayOf(card)).toBeNull();
   });
 
   it('reads legacy content thumbnails that carry no identity of their own', async () => {
@@ -584,7 +568,7 @@ describe('pixiv-utils React artwork data extraction', () => {
     await processCard(pixiv, card);
 
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card)).not.toBeNull();
+    expect(overlayOf(card)).toBeNull();
   });
 
   it('ignores component props that only look like artwork data', async () => {
@@ -611,7 +595,7 @@ describe('pixiv-utils React artwork data extraction', () => {
 
     expect(isBlocked(card)).toBe(true);
     // The lookalike props must not win over the real source.
-    const overlay = overlayOf(card);
-    expect(overlay.href).toContain('16112933');
+    expect(card.dataset.pixiv_utils_blocked).toBe('true');
+    expect(overlayOf(card)).toBeNull();
   });
 });

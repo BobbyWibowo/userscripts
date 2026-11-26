@@ -20,17 +20,6 @@ const isBlocked = card => card.hasAttribute(BLOCKED_ATTRIBUTE);
 const isModerationBlocked = card => card.hasAttribute(MODERATION_ATTRIBUTE);
 const overlayOf = card => card.querySelector(OVERLAY_SELECTOR);
 
-/** The image registration is the one whose selector mentions the thumbnail label. */
-const imageListener = pixiv => {
-  const entry = pixiv.listeners.find(candidate =>
-    String(candidate.selector).includes('data-ga4-label="thumbnail"')
-  );
-
-  if (!entry) throw new Error('No image sentinel callback registered.');
-
-  return entry;
-};
-
 /** The recommended-user registration is the one whose selector mentions the users-tab marker. */
 const recommendedUserListener = pixiv => {
   const entry = pixiv.listeners.find(candidate =>
@@ -70,7 +59,7 @@ const processCard = async (pixiv, card, props) => {
     return: null
   };
 
-  await pixiv.fireListener(imageListener(pixiv), card);
+  await pixiv.observeImageCard(card);
   await flush(4);
 
   return card;
@@ -109,13 +98,12 @@ describe('pixiv-utils blocked-items toggle', () => {
     const card = await processCard(pixiv, plainCard(), { id: '9201', tags: ['blocked-tag'] });
 
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card)).not.toBeNull();
+    expect(overlayOf(card)).toBeNull();
     expect(card.title).toContain('Blocked by:');
 
     await toggleBlockedItems(pixiv);
 
-    // The placeholder is detached, so the original thumbnail shows again.
-    expect(overlayOf(card)).toBeNull();
+    // The blocked styling is removed, so the original thumbnail shows again.
     expect(isBlocked(card)).toBe(false);
     // The moderation marker survives, so the item can be blocked again later.
     expect(isModerationBlocked(card)).toBe(true);
@@ -130,16 +118,14 @@ describe('pixiv-utils blocked-items toggle', () => {
     });
 
     const card = await processCard(pixiv, plainCard(), { id: '9202', tags: ['blocked-tag'] });
-    const artworkLink = card.querySelector('a[href*="artworks/"]');
 
     await toggleBlockedItems(pixiv);
-    expect(overlayOf(card)).toBeNull();
+    expect(isBlocked(card)).toBe(false);
 
     await toggleBlockedItems(pixiv);
 
-    expect(overlayOf(card)).not.toBeNull();
     expect(isBlocked(card)).toBe(true);
-    expect(overlayOf(card).previousElementSibling).toBe(artworkLink);
+    expect(overlayOf(card)).toBeNull();
     expect(pixiv.storage.get(TOGGLE_PREFERENCE)).toBe(false);
   });
 
@@ -229,7 +215,7 @@ describe('pixiv-utils blocked-items toggle', () => {
       child: null,
       return: null
     };
-    await pixiv.fireListener(imageListener(pixiv), card);
+    await pixiv.observeImageCard(card);
     await flush(4);
 
     expect(overlayOf(card)).toBeNull();

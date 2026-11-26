@@ -25,20 +25,6 @@ const overlayOf = card => card.querySelector(OVERLAY_SELECTOR);
 const artworkLinkOf = card => card.querySelector('a[href*="artworks/"]');
 
 /**
- * The image registration is the fourth unconditional callback: home, own
- * profile, expanded-view controls, then images.
- */
-const imageListener = pixiv => {
-  const entry = pixiv.listeners.find(candidate =>
-    String(candidate.selector).includes('data-ga4-label="thumbnail"')
-  );
-
-  if (!entry) throw new Error('No image sentinel callback registered.');
-
-  return entry;
-};
-
-/**
  * Attach React-style page metadata and run the image pipeline on one card.
  *
  * Desktop cards are React-backed, so the fixture carries a fiber instead of a
@@ -52,7 +38,7 @@ const processCard = async (pixiv, card, props) => {
     return: null
   };
 
-  await pixiv.fireListener(imageListener(pixiv), card);
+  await pixiv.observeImageCard(card);
   await flush(4);
 
   return card;
@@ -67,18 +53,17 @@ describe('pixiv-utils artwork blocking', () => {
     cleanupPixivUtils();
   });
 
-  it('blocks an artwork by artist ID and links the placeholder to it', async () => {
+  it('blocks an artwork by artist ID with the pure-CSS overlay marker', async () => {
     const pixiv = await loadPixivUtils({ settings: { PIXIV_BLOCKED_USERS: ['2222'] } });
     const card = await processCard(pixiv, plainCard(), { id: '9002', userId: '2222', tags: ['cat'] });
 
     expect(isBlocked(card)).toBe(true);
-
-    const overlay = overlayOf(card);
-
-    expect(overlay).not.toBeNull();
-    expect(overlay.tagName).toBe('A');
-    expect(overlay.href).toBe(artworkLinkOf(card).href);
-    expect(artworkLinkOf(card).nextElementSibling).toBe(overlay);
+    // The visual is drawn by CSS off data-pixiv_utils_blocked; no extra node is
+    // injected (so Pixiv's re-renders cannot drop it), and the original link is
+    // kept so the tile stays clickable.
+    expect(card.dataset.pixiv_utils_blocked).toBe('true');
+    expect(overlayOf(card)).toBeNull();
+    expect(artworkLinkOf(card)).not.toBeNull();
   });
 
   it('leaves other artworks of the same page untouched', async () => {
@@ -102,7 +87,7 @@ describe('pixiv-utils artwork blocking', () => {
 
     expect(isBlocked(literal)).toBe(true);
     expect(isBlocked(regexp)).toBe(true);
-    expect(overlayOf(literal)).not.toBeNull();
+    expect(literal.dataset.pixiv_utils_blocked).toBe('true');
   });
 
   it('does not match tag rules that do not apply', async () => {
@@ -199,6 +184,18 @@ describe('pixiv-utils artwork blocking', () => {
     expect(isBlocked(card)).toBe(true);
     // Removed artwork is hidden via display:none, not replaced by an overlay.
     expect(card.style.display).toBe('none');
+    expect(overlayOf(card)).toBeNull();
+  });
+
+  it('draws overlay-mode blocks with CSS off the marker, with no injected node', async () => {
+    // Overlay mode (what the expanded view's artist bottom thumbs use) instead of
+    // the inline removal path.
+    const pixiv = await loadPixivUtils({ settings: { PIXIV_BLOCKED_USERS: ['2222'], PIXIV_REMOVE_BLOCKED: false } });
+    const card = await processCard(pixiv, plainCard(), { id: '9015', userId: '2222', tags: ['cat'] });
+
+    expect(isBlocked(card)).toBe(true);
+    expect(card.dataset.pixiv_utils_blocked).toBe('true');
+    // No leftover injected overlay element from the old implementation.
     expect(overlayOf(card)).toBeNull();
   });
 });
