@@ -38,6 +38,15 @@
 (function () {
   'use strict';
 
+  // Script-generated UI (settings panel, edit-bookmark panel, alert/prompt
+  // dialog, toast stack, floating tooltip) never contains artwork cards. The
+  // shared image observer skips these subtrees so it does not scan them with the
+  // full SELECTORS_IMAGE preset list. Declared early so the lazily created
+  // singletons can register themselves as soon as they mount. Both checks are
+  // free when nothing is on screen (empty set, inactive flag).
+  const observedSkipRoots = new Set();
+  let observedSettingsActive = false;
+
   const _LOG_TIME_FORMAT = new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
@@ -2065,6 +2074,8 @@
         presentNextPrompt();
       });
       (document.body || document.documentElement).append(dialog);
+      // Reused singleton alert/prompt dialog: never contains artwork.
+      observedSkipRoots.add(dialog);
       customPromptDialog = dialog;
       customPromptMessage = messageNode;
       customPromptCancel = cancelButton;
@@ -4953,6 +4964,9 @@
   const openSettingsPanel = async () => {
     if (settingsOpening || settingsPanel?.isOpen) return;
     settingsOpening = true;
+    // Ignore the panel's DOM churn in the image observer from the very first
+    // construction node (cleared on close).
+    observedSettingsActive = true;
     try {
       settingsUiLocale = resolveSettingsLocale(getSetting('SETTINGS_LANGUAGE'));
       await waitPageLoaded();
@@ -5014,6 +5028,7 @@
           }
         },
         onClose: save => {
+          observedSettingsActive = false;
           if (save) settingsPendingValues = null;
           else if (settingsPendingValues) showToast(tr('toast.settingsUnsaved'), { warning: true });
           panel._chromeObserver?.disconnect();
@@ -5059,6 +5074,7 @@
       settingsPanel = panel;
       await panel.open();
     } catch (error) {
+      observedSettingsActive = false;
       console.error('[Pixiv Utils]: Failed to open settings:', error);
       showAlert(tr('message.openError', { error: error.message }));
     } finally { settingsOpening = false; }
@@ -6045,6 +6061,8 @@
     if (!toastStack) {
       toastStack = document.createElement('div');
       toastStack.className = 'pixiv-utils-toast-stack';
+      // Persistent toast host: its transient children never contain artwork.
+      observedSkipRoots.add(toastStack);
     }
     // Preserve the old per-toast placement: toasts live inside an OPEN
     // dialog (top layer) when there is one, otherwise on the page. A reused
@@ -6488,6 +6506,7 @@
     const existing = document.querySelector('.pixiv-utils-edit-bookmark-panel');
     if (existing) {
       if (existing.open) return;
+      observedSkipRoots.delete(existing);
       existing.remove();
     }
 
@@ -6633,6 +6652,9 @@
     };
     content.append(header, body, actions);
     dialog.append(content);
+    // Keep the image observer from scanning this panel's nodes (see
+    // isObservedSkipNode); cleared when the dialog is removed on close.
+    observedSkipRoots.add(dialog);
     (document.body || document.documentElement).append(dialog);
 
     const selected = new Set();
@@ -6834,6 +6856,7 @@
     window.addEventListener('detectnavigate', closeOnNavigate);
     dialog.addEventListener('close', () => {
       window.removeEventListener('detectnavigate', closeOnNavigate);
+      observedSkipRoots.delete(dialog);
       // Toasts shown while the dialog was open live inside it (top layer);
       // move the stack back to the page before the dialog goes away.
       rehomeToastStack();
@@ -7877,34 +7900,20 @@
       }
     }
 
-    // Skip if edit bookmark button already inserted, unless forced.
-    if (!options.forced &&
-      hasEditBookmarkButton(element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS), data.id, data.novel) &&
-      (!element.dataset.pixiv_utils_artist_added ||
-        element.querySelector('.pixiv_utils_image_artist_container'))) {
+    // Skip only when this card was already fully processed for the same artwork
+    // and the extracted data was complete. A card first seen before its fiber /
+    // Vue data hydrated (incomplete) is re-run once the real data arrives, so a
+    // moderation verdict is never frozen on URL-only fallback data.
+    const processedSignature = `${data.id}:${data.novel ? 'n' : 'i'}:${pixivData.complete ? 'c' : 'x'}`;
+    if (!options.forced && element.dataset.pixiv_utils_processed === processedSignature) {
       return false;
     }
+    element.dataset.pixiv_utils_processed = processedSignature;
 
-    // Init MutationObserver for dynamic images.
-    if (element.__vue__) {
-      if (!element.dataset.pixiv_utils_last_tx) {
-        initElementObserver(element, () => {
-          const lastGrid = element.dataset.pixiv_utils_last_grid === 'true';
-          if (element.dataset.tx !== element.dataset.pixiv_utils_last_tx ||
-            element.classList.contains('grid') !== lastGrid) {
-            options.forced = true;
-            // Do not defer with processNewElement() in case it is currently hidden.
-            doImage(element, options);
-          }
-        }, {
-          attributes: true,
-          // Monitor class tag to also detect list/grid view change.
-          attributeFilter: ['class', 'data-tx']
-        });
-      }
-      element.dataset.pixiv_utils_last_tx = element.dataset.tx;
-      element.dataset.pixiv_utils_last_grid = element.classList.contains('grid');
-    }
+    // Recycled Vue cards keep one node for another artwork. The shared observer
+    // (see the card-level registration in the boot section) re-runs doImage with
+    // `forced` when their identity or layout changes, so no per-card observer is
+    // created here.
 
     // Skip if already blocked, unless forced.
     if (element.dataset.pixiv_utils_blocked || isModerationBlocked(element)) {
@@ -8160,13 +8169,9 @@
     if (id !== null) {
       ensureEditBookmarkButton(element, id, isNovel, 'append');
 
-      // Re-process expanded view's artist bottom bar.
-      const images = document.querySelectorAll(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE);
-      for (const image of images) {
-        // These can be deferred with processNewElement() because they are not hidden even when blocked.
-        processNewElement(doImage, image, { forced: true, skipArtistTag: true });
-      }
-
+      // The artist bottom bar is covered by the shared observer: its cards are
+      // new nodes on every bar render (verified live), so no whole-bar re-scan
+      // is needed here.
       return true;
     }
 
@@ -8547,6 +8552,294 @@
     );
   };
 
+  /** SHARED MUTATION OBSERVER (insertion-based, no selector rules) **/
+
+  // Sentinel turns each selector into a CSS rule and reacts to animation events,
+  // which cannot re-check a card whose readiness arrives later (a Vue thumbnail
+  // swapping in, or a recycled card pointing at another artwork). One subtree
+  // MutationObserver instead matches insertions in the same task the DOM mutates,
+  // and re-runs a registration when a watched attribute of its target changes.
+  //
+  // Cost control: matching only ever runs over added subtrees (or a single
+  // mutated target), never the whole document; detached subtrees are skipped;
+  // insertions are tracked in a WeakSet so a node is registered once; queued
+  // records are drained in one microtask per batch.
+  const observedRegistrations = [];
+  const observedRescans = [];
+  const observedElements = new WeakSet();
+  let observedRecords = [];
+  let observedFlushScheduled = false;
+  let observedActive = false;
+  // Script-generated UI roots (declared near the top of the IIFE) are skipped so
+  // the observer never scans them with the full SELECTORS_IMAGE preset list.
+  // Settings is class-based because gmConfig builds the dialog internally.
+  const isObservedSkipNode = node => {
+    if (!node || node.nodeType !== 1) return false;
+    if (observedSkipRoots.size) {
+      for (const root of observedSkipRoots) {
+        if (root === node || root.contains(node)) return true;
+      }
+    }
+    if (observedSettingsActive) return Boolean(node.closest?.('.gc-p'));
+    return false;
+  };
+
+  const getObservedSelectorText = selector => typeof selector === 'string'
+    ? selector
+    : Array.isArray(selector) ? selector.join(', ') : String(selector);
+
+  const observeElements = (selector, callback, options = {}) => {
+    const registration = {
+      selector: getObservedSelectorText(selector),
+      callback,
+      // Optional separate handler for attribute mutations. Keeping it on the same
+      // registration lets one selector be scanned once per inserted node while
+      // still reacting to attribute changes in their own context.
+      attributeCallback: typeof options.attributeCallback === 'function' ? options.attributeCallback : null,
+      attributes: Array.isArray(options.attributes) ? options.attributes : null,
+      // When set, an inserted child also re-checks this many ancestor levels so a
+      // wrapper that only becomes matching once its content is added is handled.
+      ancestors: Number.isInteger(options.ancestors) ? options.ancestors : 0
+    };
+    observedRegistrations.push(registration);
+    // Rescans re-check every current match after a route change, for callbacks
+    // that read document-wide state instead of a single card.
+    if (options.rescan) observedRescans.push(registration);
+    return registration;
+  };
+
+  const collectObservedMatches = (node, selector, onlyTarget) => {
+    const matches = [];
+    try {
+      if (node.matches(selector)) matches.push(node);
+      if (!onlyTarget) {
+        for (const child of node.querySelectorAll(selector)) matches.push(child);
+      }
+    } catch (error) {
+      console.error('[Pixiv Utils]: invalid observed selector', selector, error);
+    }
+    return matches;
+  };
+
+  const dispatchObservedMatch = (registration, element, callback = registration.callback) => {
+    try {
+      const result = callback(element);
+      if (result && typeof result.then === 'function') {
+        result.catch(error => console.warn('[Pixiv Utils]: observer callback failed:', error));
+      }
+    } catch (error) {
+      console.warn('[Pixiv Utils]: observer callback failed:', error);
+    }
+  };
+
+  const processObservedMutation = (record, force = false) => {
+    if (!observedRegistrations.length) return;
+
+    // Ignore the script's own UI subtrees (settings panel, edit-bookmark panel).
+    if (isObservedSkipNode(record.target)) return;
+    if (record.type === 'childList') {
+      let addedElement = false;
+      let outsidePanel = false;
+      for (const node of record.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        addedElement = true;
+        if (!isObservedSkipNode(node)) { outsidePanel = true; break; }
+      }
+      if (addedElement && !outsidePanel) return;
+    }
+
+    // A mutation inside an initialized toggle-bookmarked section means Pixiv is
+    // rendering its cards or hydrating their bookmark state; re-apply the filter
+    // once the batch settles (see scheduleToggleReapply). Gated by
+    // toggleSectionsActive so pages without such sections pay nothing.
+    if (toggleSectionsActive && !toggleSectionMutated && isInToggleSection(record.target)) {
+      toggleSectionMutated = true;
+    }
+
+    if (record.type === 'attributes') {
+      const target = record.target;
+      if (!target.isConnected) return;
+      for (const registration of observedRegistrations) {
+        if (!registration.attributes || !registration.attributes.includes(record.attributeName)) continue;
+        const attributeCallback = registration.attributeCallback || registration.callback;
+        if (collectObservedMatches(target, registration.selector, true).length) {
+          dispatchObservedMatch(registration, target, attributeCallback);
+        }
+      }
+      return;
+    }
+
+    for (const node of record.addedNodes) {
+      if (node.nodeType !== 1 || !node.isConnected) continue;
+      for (const registration of observedRegistrations) {
+        const directMatches = collectObservedMatches(node, registration.selector, false);
+        for (const element of directMatches) {
+          if (!force && observedElements.has(element)) continue;
+          observedElements.add(element);
+          dispatchObservedMatch(registration, element);
+        }
+        // B: the inserted node or a descendant already matched, so the card was
+        // dispatched directly; no ancestor can be a *newly* matching wrapper.
+        if (directMatches.length) continue;
+        // A wrapper that only starts matching once a child is inserted (e.g. an
+        // artist popup card whose artwork link/image is added after the wrapper)
+        // must be re-evaluated by walking ancestors. A: stop at the first already
+        // dispatched ancestor, since everything above it was handled too. Both cuts
+        // make this far cheaper than watching per-image attribute churn.
+        if (!registration.ancestors) continue;
+        let ancestor = node.parentElement;
+        for (let depth = 0; ancestor && depth < registration.ancestors; depth++, ancestor = ancestor.parentElement) {
+          if (!force && observedElements.has(ancestor)) break;
+          if (!collectObservedMatches(ancestor, registration.selector, true).length) continue;
+          observedElements.add(ancestor);
+          dispatchObservedMatch(registration, ancestor);
+          break;
+        }
+      }
+    }
+  };
+
+  const flushObservedRecords = () => {
+    const records = observedRecords;
+    observedRecords = [];
+    observedFlushScheduled = false;
+    for (const record of records) processObservedMutation(record);
+    // Re-apply the toggle filter after a batch that touched an initialized toggle
+    // section (card render / bookmark-state hydration). Event-driven, so it keeps
+    // working however late the network-delayed re-render arrives; idle pages with
+    // no toggle section or no mutations never trigger it.
+    if (toggleSectionMutated) {
+      toggleSectionMutated = false;
+      scheduleToggleReapply();
+    }
+  };
+
+  const scheduleObservedFlush = () => {
+    if (observedFlushScheduled) return;
+    observedFlushScheduled = true;
+    queueMicrotask(flushObservedRecords);
+  };
+
+  const observedObserver = new MutationObserver(records => {
+    for (const record of records) observedRecords.push(record);
+    scheduleObservedFlush();
+  });
+
+  // A route change can adopt cards that existed before the observer saw them and
+  // re-render whole containers (the artist bar), so current matches are re-scanned
+  // after navigation handlers have run.
+  const rescanObservedElements = () => {
+    for (const registration of observedRescans) {
+      let matches;
+      try {
+        matches = document.querySelectorAll(registration.selector);
+      } catch (error) {
+        console.error('[Pixiv Utils]: invalid observed selector', registration.selector, error);
+        continue;
+      }
+      for (const element of matches) {
+        // A rescan exists to catch nodes the observer never finished (adopted by
+        // an SPA route change or lazily mounted, or dispatched while their data
+        // was still null). Anything already carrying a processed signature was
+        // completed, so re-running it here only costs layout (getBoundingClientRect
+        // / getComputedStyle) per card. The WeakSet is not enough: a card can be
+        // in it yet still have no signature, which is exactly what a rescan fixes.
+        if (element.dataset.pixiv_utils_processed) continue;
+        dispatchObservedMatch(registration, element);
+      }
+    }
+  };
+
+  // Recycled cards (Vue grid toggles, pagination) keep one node for several
+  // artworks, so they must be re-processed when identity or layout changes. The
+  // whole batch of attribute changes is drained once per microtask.
+  const recycledCandidates = new Set();
+  let recycledFlushScheduled = false;
+  const scheduleRecycledCheck = () => {
+    if (recycledFlushScheduled) return;
+    recycledFlushScheduled = true;
+    queueMicrotask(() => {
+      recycledFlushScheduled = false;
+      const candidates = [...recycledCandidates];
+      recycledCandidates.clear();
+      for (const element of candidates) {
+        if (!element.isConnected) continue;
+        const grid = element.classList.contains('grid');
+        if (element.dataset.pixiv_utils_last_tx === (element.dataset.tx ?? '') &&
+          element.dataset.pixiv_utils_last_grid === String(grid)) continue;
+        element.dataset.pixiv_utils_last_tx = element.dataset.tx ?? '';
+        element.dataset.pixiv_utils_last_grid = String(grid);
+        // Do not defer with processNewElement() in case the card is hidden.
+        doImage(element, { isHome, isOwnProfile, forced: true });
+      }
+    });
+  };
+
+  const rememberObservedIdentity = element => {
+    element.dataset.pixiv_utils_last_tx = element.dataset.tx ?? '';
+    element.dataset.pixiv_utils_last_grid = String(element.classList.contains('grid'));
+  };
+
+  // Card-level registrations. Called at boot and again after each route change.
+  // It is safe to call repeatedly: insertions are deduped by the WeakSet, and
+  // the rescans are idempotent because doImage skips a card that already has
+  // the button for its artwork.
+  const observeImages = () => {
+    // Rescan so cards rendered before boot (or adopted by a route change) are
+    // processed without waiting for a mutation. The ancestor walk handles cards
+    // whose wrapper is inserted empty and populated afterwards (hover popups).
+    // The same registration also carries the recycled-card attribute handler so
+    // SELECTORS_IMAGE is scanned once per inserted node instead of twice.
+    observeElements(CONFIG.SELECTORS_IMAGE, element => {
+      processNewElement(doImage, element, { isHome, isOwnProfile });
+      rememberObservedIdentity(element);
+    }, {
+      rescan: true,
+      ancestors: 8,
+      attributes: ['class', 'data-tx'],
+      attributeCallback: element => {
+        recycledCandidates.add(element);
+        scheduleRecycledCheck();
+      }
+    });
+    // The artist bar only changes as a whole (navigation), so it is re-scanned
+    // rather than tracked by attribute changes.
+    observeElements(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE, element => {
+      processNewElement(doImage, element, { isHome, isOwnProfile, skipArtistTag: true });
+      rememberObservedIdentity(element);
+    }, { rescan: true, ancestors: 8 });
+  };
+
+  // Binds the observer and registers the card callbacks exactly once, then
+  // re-scans current cards. Route changes call it again to rescan the new page.
+  const activateObservedImages = () => {
+    if (!observedActive) {
+      observedObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'data-tx']
+      });
+      observeImages();
+      observedActive = true;
+    }
+    rescanObservedElements();
+  };
+
+  // Deterministic handle for the unit-test harness. jsdom's :has() support is
+  // incomplete and its MutationObserver records cannot be staged, so tests
+  // deliver a childList record through the same processing path the real
+  // observer uses. Exposed on the page window alongside normal DOM expandos.
+  const observedTestWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+  observedTestWindow.__pixivUtilsObserved = {
+    selectors: () => observedRegistrations.map(registration => registration.selector),
+    disconnect: () => observedObserver.disconnect(),
+    // Reuse the production pipeline; force skips the WeakSet so a re-delivered
+    // element is processed again (tests deliver the same node more than once).
+    deliver: record => processObservedMutation(record, true)
+
+  };
+
   let imagesIntersectionObserver = null;
   // Track deferred work independently of the observer instance so SPA navigation
   // can transfer connected targets to the replacement instead of dropping them.
@@ -8684,6 +8977,8 @@
     arrowElement.setAttribute('aria-hidden', 'true');
     tooltip.append(content, arrowElement);
     document.body.append(tooltip);
+    // Reused singleton tooltip: its content churn never contains artwork.
+    observedSkipRoots.add(tooltip);
 
     let activeTarget = null;
     let activeMode = null;
@@ -9102,15 +9397,35 @@
       doExpandedViewControls(element);
     });
 
-    // Images
-    sentinel.on(CONFIG.SELECTORS_IMAGE, element => {
-      processNewElement(doImage, element, { isHome, isOwnProfile });
-    });
+    // Images and the expanded view's artist bottom images go through the shared
+    // MutationObserver (frame-1 matching, recycled-card re-checks, and route
+    // rescans) instead of Sentinel. This also runs the initial scan for cards
+    // that were rendered before the script booted.
+    activateObservedImages();
 
-    // Expanded view's artist bottom images
-    sentinel.on(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE, element => {
-      processNewElement(doImage, element, { isHome, isOwnProfile, skipArtistTag: true });
-    });
+    // After a route change, re-scan the current cards: route-adopted cards may
+    // have existed before the observer saw them, and the artist bar is rebuilt as
+    // a whole. Handlers run after detectnavigate, so a frame is allowed for them.
+    window.addEventListener('detectnavigate', () => requestAnimationFrame(() => activateObservedImages()));
+
+    // SPA pages lazily mount off-screen home sections (ranking, contests, newest
+    // by all, recommended users) while scrolling, and those nodes can be adopted
+    // without a matching insertion record (React reuses the container), so the
+    // observer never dispatches them. A rescan catches them the same way a route
+    // change does. It runs trailing: the first scroll event schedules a single
+    // timer that fires once the page has been idle for 300ms, and further events
+    // do not restart it, so one continuous scroll produces at most a handful of
+    // scans instead of one per throttle interval. The rescan itself is aligned to
+    // an animation frame so its DOM reads do not land mid-layout. Idempotent:
+    // doImage skips processed cards.
+    let scrollRescanTimer = null;
+    window.addEventListener('scroll', () => {
+      if (scrollRescanTimer !== null) return;
+      scrollRescanTimer = setTimeout(() => {
+        scrollRescanTimer = null;
+        requestAnimationFrame(() => rescanObservedElements());
+      }, 300);
+    }, { passive: true });
 
     // Multi View Entries
     sentinel.on(CONFIG.SELECTORS_MULTI_VIEW, element => {
@@ -9223,7 +9538,7 @@
       }
 
       element.click();
-      logDebug(`${id} keybind processed`, element);
+      logDebug('Keybind processed', { id, element });
     };
 
     document.addEventListener('keydown', event => {
