@@ -7853,13 +7853,13 @@
     if (options.isHome) {
       if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && data.novel) {
         element.style.setProperty('display', 'none', 'important');
-        logDebug('Novel recommendation removed from home', element);
+        logDebug('Novel recommendation removed from home', { element });
         return true;
       }
 
       if (CONFIG.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME && data.collections) {
         element.style.setProperty('display', 'none', 'important');
-        logDebug('Collections recommendation removed from home', element);
+        logDebug('Collections recommendation removed from home', { element });
         return true;
       }
     }
@@ -7995,7 +7995,7 @@
 
   const doBlockMultiView = (element, obj = {}) => {
     if (obj.skipReason) {
-      logDebug(`Multi view is blockable, but skipped (reason: ${obj.skipReason})`, element);
+      logDebug(`Multi view is blockable, but skipped (reason: ${obj.skipReason})`, { element });
       return false;
     }
 
@@ -8004,7 +8004,7 @@
     if (!entry) return false;
 
     hideElementByModeration(entry);
-    logDebug(`Multi view entry removed (${obj.options.hint})`, element);
+    logDebug(`Multi view entry removed (${obj.options.hint})`, { element });
 
     // Reveal immediately when blocked items are currently shown.
     if (blockedItemsRevealed) revealModerationBlock(entry);
@@ -8020,13 +8020,13 @@
     if (options.isHome) {
       if (CONFIG.REMOVE_NOVEL_RECOMMENDATIONS_FROM_HOME && data.novel) {
         element.parentNode.style.setProperty('display', 'none', 'important');
-        logDebug('Novel recommendation removed from home', element);
+        logDebug('Novel recommendation removed from home', { element });
         return true;
       }
 
       if (CONFIG.REMOVE_COLLECTIONS_RECOMMENDATIONS_FROM_HOME && data.collections) {
         element.parentNode.style.setProperty('display', 'none', 'important');
-        logDebug('Collections recommendation removed from home', element);
+        logDebug('Collections recommendation removed from home', { element });
         return true;
       }
     }
@@ -8057,7 +8057,7 @@
 
   const doBlockExpandedView = (element, obj = {}) => {
     if (obj.skipReason) {
-      logDebug(`Expanded view is blockable, but skipped (reason: ${obj.skipReason})`, element);
+      logDebug(`Expanded view is blockable, but skipped (reason: ${obj.skipReason})`, { element });
       return false;
     }
 
@@ -8065,7 +8065,7 @@
     markModerationBlocked(element, { mode: 'blur' });
 
     setModerationTooltip(obj.titleTarget, obj.evaluation, true);
-    logDebug(`Expanded view blocked (${obj.options.hint})`, element);
+    logDebug(`Expanded view blocked (${obj.options.hint})`, { element });
 
     // Reveal immediately when blocked items are currently shown.
     if (blockedItemsRevealed) revealModerationBlock(element);
@@ -8422,7 +8422,7 @@
     const blocked = PIXIV_BLOCKED_USERS_SET.has(match[1]);
     if (blocked) {
       hideElementByModeration(element);
-      logDebug(`Recommended user removed (${match[1]})`);
+      logDebug(`Recommended user removed (${match[1]})`, { element });
 
       // Reveal immediately when blocked items are currently shown.
       if (blockedItemsRevealed) revealModerationBlock(element);
@@ -8483,7 +8483,7 @@
       if (!entry) return false;
 
       hideElementByModeration(entry);
-      logDebug(`Multi view entry removed (UTag: ${utag})`, multiView);
+      logDebug(`Multi view entry removed (UTag: ${utag})`, { element: multiView, utag: element });
 
       // Reveal immediately when blocked items are currently shown.
       if (blockedItemsRevealed) revealModerationBlock(entry);
@@ -8493,7 +8493,7 @@
     const comment = element.closest(CONFIG.SELECTORS_COMMENT);
     if (comment) {
       hideElementByModeration(comment);
-      logDebug(`Comment removed (UTag: ${utag})`, comment);
+      logDebug(`Comment removed (UTag: ${utag})`, { element: comment, utag: element });
 
       // Reveal immediately when blocked items are currently shown.
       if (blockedItemsRevealed) revealModerationBlock(comment);
@@ -8503,7 +8503,7 @@
     const recommendedUserContainer = element.closest(CONFIG.SELECTORS_RECOMMENDED_USER_CONTAINER);
     if (recommendedUserContainer) {
       hideElementByModeration(recommendedUserContainer);
-      logDebug(`Recommended user removed (UTag: ${utag})`, recommendedUserContainer);
+      logDebug(`Recommended user removed (UTag: ${utag})`, { element: recommendedUserContainer, utag: element });
 
       // Reveal immediately when blocked items are currently shown.
       if (blockedItemsRevealed) revealModerationBlock(recommendedUserContainer);
@@ -8517,7 +8517,7 @@
         // Cosmetic only. This will not disable Pixiv's built-in "F" keybind.
         followButton.classList.add('disabled');
         followButton.disabled = true;
-        logDebug(`Follow button disabled (UTag: ${utag})`, followButtonContainer);
+        logDebug(`Follow button disabled (UTag: ${utag})`, { element: followButtonContainer, utag: element });
         // Return early since there will only be one follow button per container.
         return true;
       }
