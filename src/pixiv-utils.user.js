@@ -271,15 +271,6 @@
       div:has(> a[href*="/bookmark_detail"]),
       /* novels page's recommended works section */
       .gtm-novel-toppage-recommended-work-series,
-      /* novel grid's right-side texts */
-      .pixiv_utils_blocked_image_container
-        + div > :is(a, div):not(:has(a[href*="users/"])),
-      div:has(> div > .pixiv_utils_blocked_image_container)
-        ~ div:not(:has(a[href*="users/"])),
-      div:has(> div > .pixiv_utils_blocked_image_container)
-        ~ div > div > div:not(:has(a[href*="users/"])),
-      div:has(> div > div > .pixiv_utils_blocked_image_container)
-        + div > div > div:not(:has(a[href*="users/"])),
       /* mobile's novel grid's right-side texts */
       .detail > :is(.mb-4, .title, .display-tags, .line-clamp, .meta)
     `,
@@ -5654,36 +5645,46 @@
     }
   }
 
-  :not(#higher_specificity) :is(div, a):has(+ .pixiv_utils_blocked_image_container) {
-    display: none !important;
-  }
-
-  .pixiv_utils_blocked_image {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
+  /* Blocked-artwork placeholder drawn purely in CSS on the marked element. This
+     replaces the old injected overlay node, so there is nothing for Pixiv's
+     re-renders to drop. The icon is the same path Pixiv uses for its own mute,
+     applied as a centered CSS mask. */
+  [data-pixiv_utils_blocked] {
+    --pixiv-utils-mute-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%3E%3Cpath%20fill%3D'black'%20d%3D'M5.26763775%2C4%20L9.38623853%2C11.4134814%20L5%2C14.3684211%20L5%2C18%20L13.0454155%2C18%20L14.1565266%2C20%20L5%2C20%20C3.8954305%2C20%203%2C19.1045695%203%2C18%20L3%2C6%20C3%2C4.8954305%203.8954305%2C4%205%2C4%20L5.26763775%2C4%20Z%20M9.84347336%2C4%20L19%2C4%20C20.1045695%2C4%2021%2C4.8954305%2021%2C6%20L21%2C18%20C21%2C19.1045695%2020.1045695%2C20%2019%2C20%20L18.7323623%2C20%20L17.6212511%2C18%20L19%2C18%20L19%2C13%20L16%2C15%20L15.9278695%2C14.951913%20L9.84347336%2C4%20Z%20M16%2C7%20C14.8954305%2C7%2014%2C7.8954305%2014%2C9%20C14%2C10.1045695%2014.8954305%2C11%2016%2C11%20C17.1045695%2C11%2018%2C10.1045695%2018%2C9%20C18%2C7.8954305%2017.1045695%2C7%2016%2C7%20Z%20M7.38851434%2C1.64019979%20L18.3598002%2C21.3885143%20L16.6114857%2C22.3598002%20L5.64019979%2C2.61148566%20L7.38851434%2C1.64019979%20Z'%2F%3E%3C%2Fsvg%3E");
+    position: relative;
+    overflow: clip;
+    border-radius: 4px;
     color: rgb(92, 92, 92);
-    min-width: 90px;
-    aspect-ratio: 1 / 1;
   }
 
-  :is(${SELECTORS_IMAGE_SMALL}) .pixiv_utils_blocked_image {
-    min-width: 80px;
+  [data-pixiv_utils_blocked] :is(img, figure, canvas) {
+    visibility: hidden !important;
   }
 
-  .pixiv_utils_blocked_image svg {
-    fill: currentcolor;
+  [data-pixiv_utils_blocked]::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: currentcolor;
+    -webkit-mask: var(--pixiv-utils-mute-icon) center / 48px 48px no-repeat;
+    mask: var(--pixiv-utils-mute-icon) center / 48px 48px no-repeat;
+    pointer-events: none;
+    z-index: 1;
+    border-radius: inherit;
   }
 
-  .ranking-item .pixiv_utils_blocked_image {
+  :is(${SELECTORS_IMAGE_SMALL}) [data-pixiv_utils_blocked]::after {
+    -webkit-mask-size: 40px 40px;
+    mask-size: 40px 40px;
+  }
+
+  .ranking-item [data-pixiv_utils_blocked] {
     max-width: 150px;
     margin: 0 auto;
     border: 1px solid rgb(242, 242, 242);
   }
 
-  .works-item:not(.works-item-illust) .pixiv_utils_blocked_image {
-    min-width: 64px;
+  .works-item:not(.works-item-illust) [data-pixiv_utils_blocked] {
     max-width: 64px;
   }
 
@@ -5699,8 +5700,25 @@
   }
 
   /* Only use black background on desktop layout. */
-  body > div:not(#wrapper) .pixiv_utils_blocked_image,
+  body > div:not(#wrapper) [data-pixiv_utils_blocked],
   body > div:not(#wrapper) .ranking-item.muted .work img {
+    background: rgb(0, 0, 0);
+  }
+
+  /* Card-shaped matches (desktop grid/ranking cards, novel rows): the marker is
+     on the whole card, so the black placeholder background belongs on the
+     artwork/cover box, not the card. */
+  body > div:not(#wrapper) [data-pixiv_utils_blocked]:has(a[href*="/novel/show.php"]),
+  body > div:not(#wrapper) [data-pixiv_utils_blocked]:has(.group.relative > a[href*="/artworks/"] :is(img, figure)),
+  body > div:not(#wrapper) [data-pixiv_utils_blocked]:has(a[data-ga4-label="thumbnail_link"]),
+  body > div:not(#wrapper) [data-pixiv_utils_blocked]:has(.relative.z-0 > a[href*="/artworks/"] :is(img, figure)) {
+    background: none;
+  }
+
+  body > div:not(#wrapper) [data-pixiv_utils_blocked] > div > div:has(> div > a[href*="/novel/"]),
+  body > div:not(#wrapper) [data-pixiv_utils_blocked] .group.relative:has(> a[href*="/artworks/"] :is(img, figure)),
+  body > div:not(#wrapper) [data-pixiv_utils_blocked] a[data-ga4-label="thumbnail_link"],
+  body > div:not(#wrapper) [data-pixiv_utils_blocked] .relative.z-0:has(> a[href*="/artworks/"] :is(img, figure)) {
     background: rgb(0, 0, 0);
   }
 
@@ -5708,7 +5726,9 @@
     .series-title, .tag-container, .show-more-creator-works-button,
     .pqkmS, /* desktop: show more creator works button */
     ._illust-series-title-text,
-    :is(${CONFIG.SELECTORS_IMAGE_TITLE}):not(.pixiv_utils_blocked_image_container),
+    /* The following page's title link shares the thumbnail-link class, so never
+       hide the thumbnail anchor itself: it is what draws the placeholder. */
+    :is(${CONFIG.SELECTORS_IMAGE_TITLE}):not([data-ga4-label="thumbnail_link"]),
     :is(${CONFIG.SELECTORS_IMAGE_ARTIST_AVATAR}),
     :is(${CONFIG.SELECTORS_IMAGE_AUXILIARY_ELEMENTS}),
     :is(${CONFIG.SELECTORS_IMAGE_CONTROLS}) {
@@ -5718,6 +5738,133 @@
 
   [data-pixiv_utils_blocked] .pixiv_utils_image_artist_container {
     max-width: calc(100% - 10px);
+  }
+
+  /* Novel text blocks: hide the title/type/tags rows but keep the artist row.
+     Both the /novel list cards and /novel/bookmark_new.php cards mark a row
+     whose text block holds the artist link; only non-artist children are aux. */
+  [data-pixiv_utils_blocked] > div > div:has(a[href*="/novel/"]):has(a[href*="users/"])
+    > div > div:not(:has(a[href*="users/"])) {
+    display: none !important;
+  }
+
+  /* Card/row-shaped matches: the marker is on the whole card, so draw the
+     placeholder on the artwork/cover box instead of across the empty card. */
+  [data-pixiv_utils_blocked]:has(a[href*="/novel/show.php"]),
+  [data-pixiv_utils_blocked]:has(.group.relative > a[href*="/artworks/"] :is(img, figure)),
+  [data-pixiv_utils_blocked]:has(a[data-ga4-label="thumbnail_link"]),
+  [data-pixiv_utils_blocked]:has(.relative.z-0 > a[href*="/artworks/"] :is(img, figure)) {
+    color: inherit;
+  }
+
+  [data-pixiv_utils_blocked]:has(a[href*="/novel/show.php"])::after,
+  [data-pixiv_utils_blocked]:has(.group.relative > a[href*="/artworks/"] :is(img, figure))::after,
+  [data-pixiv_utils_blocked]:has(a[data-ga4-label="thumbnail_link"])::after,
+  [data-pixiv_utils_blocked]:has(.relative.z-0 > a[href*="/artworks/"] :is(img, figure))::after {
+    content: none;
+  }
+
+  [data-pixiv_utils_blocked] > div > div:has(> div > a[href*="/novel/"]),
+  [data-pixiv_utils_blocked] .group.relative:has(> a[href*="/artworks/"] :is(img, figure)),
+  [data-pixiv_utils_blocked] a[data-ga4-label="thumbnail_link"],
+  [data-pixiv_utils_blocked] .relative.z-0:has(> a[href*="/artworks/"] :is(img, figure)) {
+    position: relative;
+    overflow: clip;
+    border-radius: 4px;
+    color: rgb(92, 92, 92);
+  }
+
+  [data-pixiv_utils_blocked] > div > div:has(> div > a[href*="/novel/"]),
+  [data-pixiv_utils_blocked] .group.relative:has(> a[href*="/artworks/"] :is(img, figure)),
+  [data-pixiv_utils_blocked] a[data-ga4-label="thumbnail_link"],
+  [data-pixiv_utils_blocked] .relative.z-0:has(> a[href*="/artworks/"] :is(img, figure)) {
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-color: currentcolor;
+      -webkit-mask: var(--pixiv-utils-mute-icon) center / 48px 48px no-repeat;
+      mask: var(--pixiv-utils-mute-icon) center / 48px 48px no-repeat;
+      pointer-events: none;
+      z-index: 1;
+      border-radius: inherit;
+    }
+  }
+
+  /* Popular Projects (illustration top page, desktop): the artwork is an inline
+     anchor with an absolutely positioned thumbnail (lazy figure, then an img).
+     Keep the anchor rendered (the generic title rule would hide it) and keep the
+     thumbnail hit-testable but transparent, so the tile still navigates. Draw
+     the placeholder on the wrapper with pointer-events:none. The .group.relative
+     wrappers are excluded because home/ranking already cover them. */
+  body > div:not(#wrapper) [data-pixiv_utils_blocked]:has(div > a[href*="/artworks/"] > :is(img, figure)) {
+    background: none;
+    color: inherit;
+  }
+
+  body > div:not(#wrapper) [data-pixiv_utils_blocked]:has(div > a[href*="/artworks/"] > :is(img, figure))::after {
+    content: none;
+  }
+
+  body > div:not(#wrapper) [data-pixiv_utils_blocked] div:has(> a[href*="/artworks/"] > :is(img, figure)):not(.group.relative) > a[href*="/artworks/"] {
+    display: inline !important;
+  }
+
+  body > div:not(#wrapper) [data-pixiv_utils_blocked] div:has(> a[href*="/artworks/"] > :is(img, figure)):not(.group.relative) > a[href*="/artworks/"] > :is(img, figure) {
+    visibility: visible !important;
+    opacity: 0;
+  }
+
+  body > div:not(#wrapper) [data-pixiv_utils_blocked] div:has(> a[href*="/artworks/"] > :is(img, figure)):not(.group.relative) {
+    position: relative;
+    overflow: clip;
+    border-radius: 4px;
+    color: rgb(92, 92, 92);
+    background: rgb(0, 0, 0);
+  }
+
+  body > div:not(#wrapper) [data-pixiv_utils_blocked] div:has(> a[href*="/artworks/"] > :is(img, figure)):not(.group.relative)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: currentcolor;
+    -webkit-mask: var(--pixiv-utils-mute-icon) center / 48px 48px no-repeat;
+    mask: var(--pixiv-utils-mute-icon) center / 48px 48px no-repeat;
+    pointer-events: none;
+    z-index: 1;
+    border-radius: inherit;
+  }
+
+  /* Mobile novel rows: the marker is on the row, the 64px cover is the box. */
+  [data-pixiv_utils_blocked]:has(.works-item-novel-content) {
+    color: inherit;
+  }
+
+  [data-pixiv_utils_blocked]:has(.works-item-novel-content)::after {
+    content: none;
+  }
+
+  [data-pixiv_utils_blocked] .works-item-novel-content .cover-container .thumbnail:has(img.thumb) {
+    position: relative;
+    overflow: clip;
+    border-radius: 4px;
+    color: rgb(92, 92, 92);
+  }
+
+  [data-pixiv_utils_blocked] .works-item-novel-content .cover-container .thumbnail:has(img.thumb)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: currentcolor;
+    -webkit-mask: var(--pixiv-utils-mute-icon) center / 48px 48px no-repeat;
+    mask: var(--pixiv-utils-mute-icon) center / 48px 48px no-repeat;
+    pointer-events: none;
+    z-index: 1;
+    border-radius: inherit;
+  }
+
+  [data-pixiv_utils_blocked] .works-item-novel-content .item-container.novel-info {
+    display: none !important;
   }
 
   [data-pixiv_utils_blocked] .pixiv_utils_image_artist {
@@ -5868,20 +6015,6 @@
     to { opacity: 1; }
   }`
   : ''}
-  `;
-
-  const BLOCKED_IMAGE_HTML = /*html*/`
-  <div radius="4" class="pixiv_utils_blocked_image">
-    <svg viewBox="0 0 24 24" style="width: 48px; height: 48px;">
-      <path d="M5.26763775,4 L9.38623853,11.4134814 L5,14.3684211 L5,18 L13.0454155,18 L14.1565266,20 L5,20
-  C3.8954305,20 3,19.1045695 3,18 L3,6 C3,4.8954305 3.8954305,4 5,4 L5.26763775,4 Z M9.84347336,4 L19,4
-  C20.1045695,4 21,4.8954305 21,6 L21,18 C21,19.1045695 20.1045695,20 19,20 L18.7323623,20 L17.6212511,18
-  L19,18 L19,13 L16,15 L15.9278695,14.951913 L9.84347336,4 Z M16,7 C14.8954305,7 14,7.8954305 14,9
-  C14,10.1045695 14.8954305,11 16,11 C17.1045695,11 18,10.1045695 18,9 C18,7.8954305 17.1045695,7 16,7 Z
-  M7.38851434,1.64019979 L18.3598002,21.3885143 L16.6114857,22.3598002 L5.64019979,2.61148566
-  L7.38851434,1.64019979 Z"></path>
-    </svg>
-  </div>
   `;
 
   /** MAIN **/
@@ -6967,17 +7100,15 @@
     { selector: 'a[href*="collections/"]', regex: /collections\/(\d+)/, type: 'collections' }
   ];
 
-  const findItemSource = (element, type) => {
+  const findItemSource = element => {
     for (const source of ITEM_SOURCES) {
-      if (type && source.type !== type) continue;
       const node = element.querySelector(source.selector);
       if (!node) continue;
 
       const match = node.href.match(source.regex);
       return {
         id: match?.[1] ?? null,
-        type: source.type,
-        link: node
+        type: source.type
       };
     }
     return null;
@@ -7272,8 +7403,6 @@
 
     pixivData.id = id;
     pixivData.type = type;
-    let link = fallback?.link ?? null;
-    if (!link) link = findItemSource(fallbackElement, type)?.link ?? null;
 
     return {
       pixivData,
@@ -7281,8 +7410,7 @@
         id,
         type,
         novel: type === 'novel',
-        collections: type === 'collections',
-        link
+        collections: type === 'collections'
       }
     };
   };
@@ -7600,8 +7728,8 @@
   // see why an item was blocked.
   //
   // Three hiding mechanisms are in use:
-  //   - overlay: the original thumbnail is hidden by a CSS sibling rule and a
-  //     placeholder is inserted after it.
+  //   - overlay: the original thumbnail is hidden and a CSS placeholder is drawn
+  //     on the marked element, keyed off `data-pixiv_utils_blocked`.
   //   - inline:  the element is hidden with an inline `display: none !important`.
   //   - blur:    the element is marked so CSS blurs the artwork.
   //
@@ -7649,15 +7777,6 @@
     });
   };
 
-  const createBlockedOverlay = link => {
-    const blockedThumb = document.createElement('a');
-    blockedThumb.className = 'pixiv_utils_blocked_image_container';
-    blockedThumb.href = link.href;
-    blockedThumb.innerHTML = BLOCKED_IMAGE_HTML;
-    addSpaNavigation(blockedThumb);
-    return blockedThumb;
-  };
-
   // Undo the visual hiding of a blocked target. The moderation marker stays so
   // the target can be found again and re-blocked later.
   const revealModerationBlock = element => {
@@ -7665,7 +7784,6 @@
     if (!record) return false;
 
     if (record.mode === 'overlay') {
-      element.querySelector('.pixiv_utils_blocked_image_container')?.remove();
       delete element.dataset.pixiv_utils_blocked;
     } else if (record.mode === 'inline') {
       restoreModerationDisplay(element, record);
@@ -7684,14 +7802,6 @@
 
     if (record.mode === 'overlay') {
       element.dataset.pixiv_utils_blocked = true;
-      if (!element.querySelector('.pixiv_utils_blocked_image_container')) {
-        // The original link may have been replaced by Pixiv in the meantime.
-        const link = record.link?.isConnected
-          ? record.link
-          : Array.from(element.querySelectorAll('a[href]'))
-            .find(anchor => anchor.href === record.href);
-        if (link) link.after(createBlockedOverlay(link));
-      }
     } else if (record.mode === 'inline') {
       element.style.setProperty('display', 'none', 'important');
     } else if (record.mode === 'blur') {
@@ -7711,7 +7821,6 @@
     delete element.dataset.pixiv_utils_moderation_blocked;
     delete element.dataset.pixiv_utils_blocked;
     delete element.dataset.pixiv_utils_expanded_view_blocked;
-    element.querySelector('.pixiv_utils_blocked_image_container')?.remove();
   };
 
   const setBlockedItemsRevealed = revealed => {
@@ -7754,8 +7863,10 @@
   updateToggleBlockedMenuCommand();
 
   const setImageBlocked = (element, options = {}) => {
-    // Skip if already blocked (check for element due to possibility of dynamic update).
-    const alreadyBlocked = element.querySelector('.pixiv_utils_blocked_image_container');
+    // Skip if already blocked (the element carries the marker, which survives
+    // re-renders; the visual is pure CSS keyed off data-pixiv_utils_blocked).
+    const alreadyBlocked = element.dataset.pixiv_utils_blocked === 'true' ||
+      isModerationBlocked(element);
     if (!options.priority && alreadyBlocked) {
       return false;
     }
@@ -7776,19 +7887,11 @@
     if (existing?.mode === 'inline' && !useInline) {
       restoreModerationDisplay(element, existing);
     }
-    if (existing?.mode === 'overlay' && useInline) {
-      element.querySelector('.pixiv_utils_blocked_image_container')?.remove();
-    }
 
     if (useInline) {
       hideElementByModeration(element);
     } else {
-      markModerationBlocked(element, { mode: 'overlay', link: options.link, href: options.link?.href });
-
-      // The placeholder is not needed while blocked items are revealed.
-      if (!alreadyBlocked && !blockedItemsRevealed) {
-        options.link.after(createBlockedOverlay(options.link));
-      }
+      markModerationBlocked(element, { mode: 'overlay' });
     }
 
     // Reveal immediately when blocked items are currently shown.
@@ -7806,19 +7909,18 @@
     }
 
     if (obj.skipReason) {
-      logDebug(`Image is blockable, but skipped (reason: ${obj.skipReason})`, element);
+      logDebug(`Image is blockable, but skipped (reason: ${obj.skipReason})`, { element });
       return false;
     }
 
     const status = setImageBlocked(element, {
       mobile: Boolean(element.__vue__),
-      remove,
-      link: obj.data.link
+      remove
     });
 
     if (status) {
       setModerationTooltip(element, obj.evaluation, true);
-      logDebug(`Image blocked (${obj.options.hint.replace('\n', ', ')})`, element);
+      logDebug(`Image blocked (${obj.options.hint.replace('\n', ', ')})`, { element });
     }
 
     return true;
@@ -7859,7 +7961,7 @@
 
   const doImage = async (element, options = {}) => {
     const { pixivData, data } = await getImageData(element);
-    if (!element.isConnected || data.id === null || !data.link) return false;
+    if (!element.isConnected || data.id === null) return false;
 
     // Re-apply UTags blocks that may have been detected before this image
     // was initialized (e.g. on Rankings pages where artist links carry UTags
@@ -8441,7 +8543,7 @@
     const image = options.image || element.closest(CONFIG.SELECTORS_IMAGE);
     if (image) {
       const { pixivData, data } = await getImageData(image);
-      if (!image.isConnected || data.id === null || !data.link) return false;
+      if (!image.isConnected || data.id === null) return false;
 
       // Only block images if not in own profile, and not bookmarked.
       const skipReason = getImageBlockSkipReason({
@@ -8460,13 +8562,12 @@
             createTooltipFooter(tr('tooltip.skippedDueTo'), skipReason.join('\n'))
           ]
         });
-        logDebug(`Image is blockable, but skipped (reason: ${skipReason.join(', ')})`, image);
+        logDebug(`Image is blockable, but skipped (reason: ${skipReason.join(', ')})`, { element: image, utag: element });
         return false;
       } else {
         const status = setImageBlocked(image, {
           mobile: Boolean(image.__vue__),
           remove: false,
-          link: data.link,
           priority: true
         });
         if (status) {
@@ -8475,7 +8576,7 @@
             moderation: { ...moderation, actuallyBlocked: true },
             footer: [createTooltipFooter(tr('tooltip.blockedBy'), tr('tooltip.utag', { tag: utag }))]
           });
-          logDebug(`Image blocked (UTag: ${utag})`, image);
+          logDebug(`Image blocked (UTag: ${utag})`, { element: image, utag: element });
         }
         return status;
       }
