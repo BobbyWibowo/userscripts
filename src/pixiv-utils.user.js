@@ -364,7 +364,9 @@
       /* artist page */
       div > div:has(> a[href*="users/"] div[title^="#"]),
       /* home page's trending tags */
-      [data-ga4-label="tags_carousel"] div[style*="gap:"] > div.snap-center
+      [data-ga4-label="tags_carousel"] div[style*="gap:"] > div.snap-center,
+      /* novel page's popular tags */
+      ul > li:has(a.gtm-novel-toppage-tag-list)
     `,
 
     SELECTORS_COMMENT: /*css*/`
@@ -8309,6 +8311,10 @@
     }
 
     if (!tag) {
+      tag = element.querySelector('a[href*="/tags/"]')?.textContent;
+    }
+
+    if (!tag) {
       return false;
     }
 
@@ -8320,7 +8326,7 @@
 
     if (blocked) {
       element.style.setProperty('display', 'none', 'important');
-      logDebug(`Tag button blocked (${tag})`);
+      logDebug(`Tag button blocked (${tag})`, { element });
     }
 
     return blocked;
