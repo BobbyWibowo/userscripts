@@ -8184,6 +8184,26 @@
     button.replaceChildren(document.createTextNode(CONFIG.TEXT_TOGGLE_BOOKMARKED), span);
   };
 
+  // Apply a toggle-bookmarked mode to every card currently in the section.
+  // Reads all bookmark states first, then writes the hide attributes, to avoid
+  // alternating computed-style reads and DOM writes across cards. Reused by the
+  // button handler and by the navigation-time re-apply (see below).
+  const applyToggleBookmarkedFilter = (imagesContainer, mode) => {
+    if (!Number.isInteger(mode)) return;
+    const visibility = [];
+    for (const image of imagesContainer.querySelectorAll(CONFIG.SELECTORS_IMAGE)) {
+      const hide = mode !== 0 &&
+        (Boolean(image.dataset.pixiv_utils_blocked) ||
+          (mode === 1 ? isImageBookmarked(image) : !isImageBookmarked(image)));
+      visibility.push([image, hide]);
+    }
+    for (const [image, hide] of visibility) {
+      const hidden = image.hasAttribute('data-pixiv_utils_toggle_bookmarked_hide');
+      if (hide && !hidden) image.dataset.pixiv_utils_toggle_bookmarked_hide = true;
+      else if (!hide && hidden) delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
+    }
+  };
+
   let toggling = false;
   const toggleBookmarked = (section, button, imagesContainer, options = {}) => {
     if (toggling) return false;
@@ -8199,22 +8219,7 @@
     setToggleBookmarkedMode(section, imagesContainer, mode);
     updateToggleBookmarkedButton(button, mode);
 
-    // Read all bookmark states before writing visibility attributes, avoiding
-    // alternating computed-style reads and DOM changes across artwork cards.
-    if (Number.isInteger(mode)) {
-      const visibility = [];
-      for (const image of imagesContainer.querySelectorAll(CONFIG.SELECTORS_IMAGE)) {
-        const hide = mode !== 0 &&
-          (Boolean(image.dataset.pixiv_utils_blocked) ||
-            (mode === 1 ? isImageBookmarked(image) : !isImageBookmarked(image)));
-        visibility.push([image, hide]);
-      }
-      for (const [image, hide] of visibility) {
-        const hidden = image.hasAttribute('data-pixiv_utils_toggle_bookmarked_hide');
-        if (hide && !hidden) image.dataset.pixiv_utils_toggle_bookmarked_hide = true;
-        else if (!hide && hidden) delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
-      }
-    }
+    applyToggleBookmarkedFilter(imagesContainer, mode);
 
     // The most recently selected mode is still the default for new sections.
     GM_setValue('PREF_TOGGLE_BOOKMARKED_MODE', mode);
@@ -8244,7 +8249,7 @@
         imagesContainer.dataset.pixiv_utils_toggle_bookmarked_section) {
         return false;
       }
-      logDebug('Refreshing toggle bookmarked section due to images container update', element);
+      logDebug('Refreshing toggle bookmarked section due to images container update', { element });
     }
 
     // Keep the section's temporary mode when its image container is replaced.
@@ -8294,7 +8299,60 @@
 
     buttonContainer.append(button);
     header.append(buttonContainer);
+    toggleSectionsActive = true;
     return true;
+  };
+
+  // Re-apply each initialized toggle-bookmarked section's current mode to the
+  // cards already in view. Needed after SPA navigation (e.g. into an expanded
+  // view and back): the section keeps its marker so doToggleBookmarkedSection
+  // early-returns, and in-viewport cards keep their processed signature so
+  // doImage skips them, so neither re-runs the filter. Off-screen cards still
+  // filter when scrolled in, and page navigation re-initializes new containers.
+  const reapplyToggleBookmarkedSections = () => {
+    if (!CONFIG.ENABLE_TOGGLE_BOOKMARKED) return;
+    for (const sectionConfig of CONFIG.SECTIONS_TOGGLE_BOOKMARKED) {
+      let sections;
+      try {
+        sections = document.querySelectorAll(sectionConfig.selectorParent);
+      } catch {
+        continue;
+      }
+      for (const section of sections) {
+        const modeValue = section.dataset.pixiv_utils_toggle_bookmarked_mode;
+        if (modeValue === undefined) continue;
+        const imagesContainer = section.querySelector(sectionConfig.selectorImagesContainer);
+        if (!imagesContainer) continue;
+        applyToggleBookmarkedFilter(imagesContainer, Number(modeValue));
+      }
+    }
+  };
+
+  // After SPA navigation the grid settles over several frames (cache restore,
+  // re-render, bookmark-state hydration) and that timing depends on the network.
+  // Rather than guess with a delay, re-apply whenever a mutation lands inside an
+  // initialized toggle section: that is exactly when Pixiv renders cards or
+  // hydrates their bookmark state, so the filter is recomputed against the real
+  // state no matter how late it arrives. A navigation also triggers one immediate
+  // pass (for the case where the grid was restored without any mutation). The
+  // re-apply only writes the hide attribute, which the observer ignores, so it
+  // cannot feed back into itself.
+  let toggleSectionsActive = false;
+  let toggleSectionMutated = false;
+  let toggleReapplyTimer = null;
+  const isInToggleSection = node => Boolean(node) &&
+    node.nodeType === 1 &&
+    Boolean(node.closest?.('[data-pixiv_utils_toggle_bookmarked_section]'));
+  const scheduleToggleReapply = () => {
+    if (toggleReapplyTimer !== null) return;
+    toggleReapplyTimer = setTimeout(() => {
+      toggleReapplyTimer = null;
+      reapplyToggleBookmarkedSections();
+    }, 150);
+  };
+  const onToggleNavigate = () => {
+    requestAnimationFrame(() => reapplyToggleBookmarkedSections());
+    scheduleToggleReapply();
   };
 
   const doTagButton = element => {
@@ -9079,6 +9137,11 @@
           }
         });
       }
+      // After SPA navigation, re-filter the visible cards of sections that were
+      // already initialized (their markers/processed signatures otherwise suppress
+      // re-running the filter on return from the expanded view). Re-applies again
+      // while the grid settles for a short window (see onToggleNavigate).
+      window.addEventListener('detectnavigate', onToggleNavigate);
     }
 
     // Tag Buttons
