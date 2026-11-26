@@ -15,12 +15,13 @@ const STARTED_MESSAGE = `[Pixiv Utils]: ${STARTED_LOG}`;
 
 // The six unconditional registrations, each identified by a fragment unique to
 // its normalized `PRESETS` selector.
+// The four unconditional sentinel registrations. Image cards and the artist
+// bottom bar are handled by the script's shared MutationObserver instead of
+// Sentinel, so their selectors are deliberately absent from this list.
 const BASE_SELECTORS = [
   '[data-ga4-label="page_root"]:not([data-ga4-entity-id])',
   'a[href*="settings/profile"], .ui-button[href*="setting_profile.php"]',
   'main div[style*="translateY"] section, .work-interactions',
-  'div[data-ga4-label="thumbnail"]',
-  'main > section:has(figure) > :nth-child(2 of div) nav[style] > div > div:has(a[href])',
   '[data-ga4-label="scroll_loader"] [data-ga4-label="work_content"]:has(a[href])'
 ];
 

@@ -36,10 +36,7 @@ describe('pixiv-utils edit bookmark', () => {
     const vueProps = { id: '16112932', userId: '1111', tags: [] };
     card.__vue__ = { _props: { item: vueProps } };
 
-    const imageListener = pixiv.listeners.find(entry =>
-      String(entry.selector).includes('data-ga4-label="thumbnail"')
-    );
-    await pixiv.fireListener(imageListener, card);
+    await pixiv.observeImageCard(card);
     await flush(4);
 
     const button = card.querySelector('.pixiv_utils_edit_bookmark');
@@ -83,10 +80,7 @@ describe('pixiv-utils edit bookmark', () => {
     const vueProps = { id: '16112932', userId: '1111', tags: [] };
     card.__vue__ = { _props: { item: vueProps } };
 
-    const imageListener = pixiv.listeners.find(entry =>
-      String(entry.selector).includes('data-ga4-label="thumbnail"')
-    );
-    await pixiv.fireListener(imageListener, card);
+    await pixiv.observeImageCard(card);
     await flush(6);
 
     const button = card.querySelector('.pixiv_utils_edit_bookmark');
@@ -120,10 +114,7 @@ describe('pixiv-utils edit bookmark', () => {
     const vueProps = { id: '16112932', userId: '1111', tags: [] };
     card.__vue__ = { _props: { item: vueProps } };
 
-    const imageListener = pixiv.listeners.find(entry =>
-      String(entry.selector).includes('data-ga4-label="thumbnail"')
-    );
-    await pixiv.fireListener(imageListener, card);
+    await pixiv.observeImageCard(card);
     await flush(6);
 
     expect(card.querySelector('.pixiv_utils_edit_bookmark')).toBeNull();
@@ -146,10 +137,7 @@ describe('pixiv-utils edit bookmark', () => {
     const vueProps = { id: '16112932', userId: '1111', tags: [] };
     card.__vue__ = { _props: { item: vueProps } };
 
-    const imageListener = pixiv.listeners.find(entry =>
-      String(entry.selector).includes('data-ga4-label="thumbnail"')
-    );
-    await pixiv.fireListener(imageListener, card);
+    await pixiv.observeImageCard(card);
     await flush(6);
 
     const button = card.querySelector('.pixiv_utils_edit_bookmark');
@@ -173,10 +161,7 @@ describe('pixiv-utils edit bookmark', () => {
     const vueProps = { id: '16112932', userId: '1111', tags: [] };
     card.__vue__ = { _props: { item: vueProps } };
 
-    const imageListener = pixiv.listeners.find(entry =>
-      String(entry.selector).includes('data-ga4-label="thumbnail"')
-    );
-    await pixiv.fireListener(imageListener, card);
+    await pixiv.observeImageCard(card);
     await flush(4);
 
     card.querySelector('.pixiv_utils_edit_bookmark').click();
@@ -495,10 +480,7 @@ describe('pixiv-utils edit bookmark', () => {
     const vueProps = { id: '16112932', userId: '1111', tags: [] };
     card.__vue__ = { _props: { item: vueProps } };
 
-    const imageListener = pixiv.listeners.find(entry =>
-      String(entry.selector).includes('data-ga4-label="thumbnail"')
-    );
-    await pixiv.fireListener(imageListener, card);
+    await pixiv.observeImageCard(card);
     await flush(4);
 
     card.querySelector('.pixiv_utils_edit_bookmark').click();

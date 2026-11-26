@@ -61,8 +61,8 @@ export const ONURLCHANGE_NATIVE_LOG = 'Using window.onurlchange.';
  */
 export const TOGGLE_SECTION_COUNT = SCRIPT_SOURCE.match(/selectorParent:\s*\/\*css\*\//g)?.length ?? 0;
 
-/** Sentinel callback count registered by default (`6` base + `2` per toggle section + dates + UTags + comments). */
-export const BASE_LISTENER_COUNT = 6;
+/** Sentinel callback count registered by default (`4` base + `2` per toggle section + dates + UTags + comments). Image cards use the shared MutationObserver, not Sentinel. */
+export const BASE_LISTENER_COUNT = 4;
 
 export const DEFAULT_LISTENER_COUNT = BASE_LISTENER_COUNT + (TOGGLE_SECTION_COUNT * 2) + 3;
 
@@ -450,6 +450,10 @@ export const loadPixivUtils = async (options = {}) => {
     browser.restore();
     removeGmApis();
 
+    // Disconnect the script's shared card observer so a later module import
+    // cannot be affected by this instance still observing the document.
+    (globalThis.unsafeWindow ?? globalThis).__pixivUtilsObserved?.disconnect?.();
+
     for (const restore of restoreConsole) restore();
   };
 
@@ -494,7 +498,30 @@ export const loadPixivUtils = async (options = {}) => {
     return result;
   };
 
+  /**
+   * Drive an artwork card through the script's shared MutationObserver, the
+   * replacement for the old Sentinel image registration. The script exposes a
+   * deterministic delivery hook (jsdom's :has() and MutationObserver staging are
+   * unreliable), so the same processing path a real insertion takes is used.
+   */
+  const observeImageCard = async card => {
+    const pageWorld = globalThis.unsafeWindow ?? globalThis;
+    const observed = pageWorld.__pixivUtilsObserved;
+
+    if (!observed) throw new Error('The script did not expose its shared observer hook.');
+
+    observed.deliver({ type: 'childList', target: card.parentNode ?? document.body, addedNodes: [card] });
+    await flush(5);
+
+    return card;
+  };
+
+  /** Selectors currently registered with the script's shared observer. */
+  const observedSelectors = () => (globalThis.unsafeWindow ?? globalThis).__pixivUtilsObserved?.selectors() ?? [];
+
   return {
+    observeImageCard,
+    observedSelectors,
     sentinel,
     listeners,
     selectors,

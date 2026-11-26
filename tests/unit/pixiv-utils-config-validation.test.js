@@ -26,21 +26,11 @@ const isBlocked = card => card.hasAttribute('data-pixiv_utils_blocked');
 const logMessages = pixiv => pixiv.console.log.map(args => args.map(String).join(' '));
 const errorMessages = pixiv => pixiv.console.error.map(args => args.map(String).join(' '));
 
-const imageListener = pixiv => {
-  const entry = pixiv.listeners.find(candidate =>
-    String(candidate.selector).includes('data-ga4-label="thumbnail"')
-  );
-
-  if (!entry) throw new Error('No image sentinel callback registered.');
-
-  return entry;
-};
-
 /** Attach Vue-style page metadata and run the image pipeline on one card. */
 const processCard = async (pixiv, card, props) => {
   card.__vue__ = { _props: { item: { id: '9001', tags: [], ...props } } };
 
-  await pixiv.fireListener(imageListener(pixiv), card);
+  await pixiv.observeImageCard(card);
   await flush(4);
 
   return card;
@@ -72,7 +62,7 @@ describe('pixiv-utils configuration error isolation', () => {
     }
 
     // ...and the built-in image selectors remain active.
-    const imageSelector = pixiv.selectors().find(selector => String(selector).includes('data-ga4-label="thumbnail"'));
+    const imageSelector = pixiv.observedSelectors().find(selector => String(selector).includes('data-ga4-label="thumbnail"'));
     expect(imageSelector).toBeDefined();
 
     // Unrelated features are untouched: the default listener set registered.
@@ -198,7 +188,7 @@ describe('pixiv-utils configuration error isolation', () => {
     expect(second.console.error).toEqual([]);
 
     // The cached selectors are the ones registered with sentinel.
-    expect(second.selectors().some(selector => String(selector).includes('data-ga4-label="thumbnail"'))).toBe(true);
+    expect(second.observedSelectors().some(selector => String(selector).includes('data-ga4-label="thumbnail"'))).toBe(true);
     expect(second.listeners).toHaveLength(DEFAULT_LISTENER_COUNT);
   });
 
@@ -220,7 +210,7 @@ describe('pixiv-utils configuration error isolation', () => {
     }
 
     // ...and the built-in image selectors remain active.
-    expect(pixiv.selectors().some(selector => String(selector).includes('data-ga4-label="thumbnail"'))).toBe(true);
+    expect(pixiv.observedSelectors().some(selector => String(selector).includes('data-ga4-label="thumbnail"'))).toBe(true);
     expect(pixiv.listeners).toHaveLength(DEFAULT_LISTENER_COUNT);
   });
 });
