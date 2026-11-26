@@ -8073,12 +8073,14 @@
 
     const doNotWaitControls = element.matches(SELECTORS_IMAGE_NO_CONTROLS);
 
-    let imageControls = element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
+    const imageControls = element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS);
     if (!imageControls && !data.novel && !doNotWaitControls) {
-      imageControls = await waitFor(() =>
-        element.querySelector(CONFIG.SELECTORS_IMAGE_CONTROLS), element);
-      if (!element.isConnected) return false;
+      // Pause instead of polling: the shared observer force-retries this card in
+      // the same batch when the controls are inserted (pendingControlRetries).
+      element.dataset.pixiv_utils_controls_pending = 'true';
+      return false;
     }
+    delete element.dataset.pixiv_utils_controls_pending;
 
     if (!imageControls && !doNotWaitControls) {
       return false;
@@ -8333,6 +8335,10 @@
     updateToggleBookmarkedButton(button, mode);
 
     applyToggleBookmarkedFilter(imagesContainer, mode);
+    // Only an interaction enables re-applying the filter later (navigation or
+    // bookmark-state hydration). A freshly initialized section adopts the saved
+    // mode but must stay unfiltered until the user acts.
+    toggleSectionFiltered.add(imagesContainer);
 
     // The most recently selected mode is still the default for new sections.
     GM_setValue('PREF_TOGGLE_BOOKMARKED_MODE', mode);
@@ -8412,6 +8418,7 @@
 
     buttonContainer.append(button);
     header.append(buttonContainer);
+    observeToggleSection(imagesContainer);
     toggleSectionsActive = true;
     return true;
   };
@@ -8423,6 +8430,7 @@
   // doImage skips them, so neither re-runs the filter. Off-screen cards still
   // filter when scrolled in, and page navigation re-initializes new containers.
   const reapplyToggleBookmarkedSections = () => {
+    pruneToggleSectionObservers();
     if (!CONFIG.ENABLE_TOGGLE_BOOKMARKED) return;
     for (const sectionConfig of CONFIG.SECTIONS_TOGGLE_BOOKMARKED) {
       let sections;
@@ -8436,6 +8444,8 @@
         if (modeValue === undefined) continue;
         const imagesContainer = section.querySelector(sectionConfig.selectorImagesContainer);
         if (!imagesContainer) continue;
+        observeToggleSection(imagesContainer);
+        if (!toggleSectionFiltered.has(imagesContainer)) continue;
         applyToggleBookmarkedFilter(imagesContainer, Number(modeValue));
       }
     }
@@ -8444,28 +8454,55 @@
   // After SPA navigation the grid settles over several frames (cache restore,
   // re-render, bookmark-state hydration) and that timing depends on the network.
   // Rather than guess with a delay, re-apply whenever a mutation lands inside an
-  // initialized toggle section: that is exactly when Pixiv renders cards or
-  // hydrates their bookmark state, so the filter is recomputed against the real
-  // state no matter how late it arrives. A navigation also triggers one immediate
-  // pass (for the case where the grid was restored without any mutation). The
-  // re-apply only writes the hide attribute, which the observer ignores, so it
-  // cannot feed back into itself.
+  // initialized toggle section. Bookmark state can also hydrate by changing a
+  // path fill (mobile) which the shared observer does not watch, so each
+  // initialized section gets a scoped fill observer. Both paths coalesce into one
+  // microtask re-apply; there is no settling timer.
   let toggleSectionsActive = false;
   let toggleSectionMutated = false;
-  let toggleReapplyTimer = null;
+  let toggleFlushScheduled = false;
+  const toggleSectionObservers = new Map();
+  const toggleSectionFiltered = new WeakSet();
   const isInToggleSection = node => Boolean(node) &&
     node.nodeType === 1 &&
     Boolean(node.closest?.('[data-pixiv_utils_toggle_bookmarked_section]'));
-  const scheduleToggleReapply = () => {
-    if (toggleReapplyTimer !== null) return;
-    toggleReapplyTimer = setTimeout(() => {
-      toggleReapplyTimer = null;
+  const isBookmarkStateNode = node => Boolean(node) &&
+    node.nodeType === 1 &&
+    (node.matches?.('svg, path[fill], [data-ga4-label="bookmark_button"], .bookmark') ||
+      Boolean(node.closest?.('[data-ga4-label="bookmark_button"], .bookmark')));
+  const scheduleToggleFlush = () => {
+    if (toggleFlushScheduled) return;
+    toggleFlushScheduled = true;
+    queueMicrotask(() => {
+      toggleFlushScheduled = false;
+      if (!toggleSectionMutated) return;
+      toggleSectionMutated = false;
       reapplyToggleBookmarkedSections();
-    }, 150);
+    });
   };
-  const onToggleNavigate = () => {
-    requestAnimationFrame(() => reapplyToggleBookmarkedSections());
-    scheduleToggleReapply();
+  const pruneToggleSectionObservers = () => {
+    for (const [container, observer] of toggleSectionObservers) {
+      if (container.isConnected) continue;
+      observer.disconnect();
+      toggleSectionObservers.delete(container);
+    }
+  };
+  const observeToggleSection = imagesContainer => {
+    if (!imagesContainer || toggleSectionObservers.has(imagesContainer)) return;
+    const observer = new MutationObserver(records => {
+      for (const record of records) {
+        if (record.type !== 'attributes' || !isBookmarkStateNode(record.target)) continue;
+        toggleSectionMutated = true;
+        break;
+      }
+      if (toggleSectionMutated) scheduleToggleFlush();
+    });
+    observer.observe(imagesContainer, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['fill']
+    });
+    toggleSectionObservers.set(imagesContainer, observer);
   };
 
   const doTagButton = element => {
@@ -8674,6 +8711,9 @@
   const observedRegistrations = [];
   const observedRescans = [];
   const observedElements = new WeakSet();
+  // Cards waiting for their bookmark controls to render. When the controls are
+  // inserted, the card is force-reprocessed in the same batch instead of polling.
+  const pendingControlRetries = new Set();
   let observedRecords = [];
   let observedFlushScheduled = false;
   let observedActive = false;
@@ -8750,14 +8790,18 @@
       for (const node of record.addedNodes) {
         if (node.nodeType !== 1) continue;
         addedElement = true;
-        if (!isObservedSkipNode(node)) { outsidePanel = true; break; }
+        // Controls appearing inside a card that paused on a missing control
+        // retry immediately, in this same batch.
+        const pendingCard = node.closest?.('[data-pixiv_utils_controls_pending]');
+        if (pendingCard) pendingControlRetries.add(pendingCard);
+        if (!outsidePanel && !isObservedSkipNode(node)) outsidePanel = true;
       }
       if (addedElement && !outsidePanel) return;
     }
 
     // A mutation inside an initialized toggle-bookmarked section means Pixiv is
     // rendering its cards or hydrating their bookmark state; re-apply the filter
-    // once the batch settles (see scheduleToggleReapply). Gated by
+    // in the batch's microtask (see scheduleToggleFlush). Gated by
     // toggleSectionsActive so pages without such sections pay nothing.
     if (toggleSectionsActive && !toggleSectionMutated && isInToggleSection(record.target)) {
       toggleSectionMutated = true;
@@ -8781,7 +8825,13 @@
       for (const registration of observedRegistrations) {
         const directMatches = collectObservedMatches(node, registration.selector, false);
         for (const element of directMatches) {
-          if (!force && observedElements.has(element)) continue;
+          if (!force && observedElements.has(element)) {
+            // A node adopted/reinserted after an earlier dispatch can still have
+            // no processed signature (its data was not ready then). Re-run it now
+            // instead of waiting for a scroll rescan.
+            if (!element.dataset.pixiv_utils_processed) dispatchObservedMatch(registration, element);
+            continue;
+          }
           observedElements.add(element);
           dispatchObservedMatch(registration, element);
         }
@@ -8796,7 +8846,14 @@
         if (!registration.ancestors) continue;
         let ancestor = node.parentElement;
         for (let depth = 0; ancestor && depth < registration.ancestors; depth++, ancestor = ancestor.parentElement) {
-          if (!force && observedElements.has(ancestor)) break;
+          if (!force && observedElements.has(ancestor)) {
+            // Same adopted/unprocessed case as above, one level up.
+            if (!ancestor.dataset.pixiv_utils_processed &&
+              collectObservedMatches(ancestor, registration.selector, true).length) {
+              dispatchObservedMatch(registration, ancestor);
+            }
+            break;
+          }
           if (!collectObservedMatches(ancestor, registration.selector, true).length) continue;
           observedElements.add(ancestor);
           dispatchObservedMatch(registration, ancestor);
@@ -8811,14 +8868,22 @@
     observedRecords = [];
     observedFlushScheduled = false;
     for (const record of records) processObservedMutation(record);
-    // Re-apply the toggle filter after a batch that touched an initialized toggle
-    // section (card render / bookmark-state hydration). Event-driven, so it keeps
-    // working however late the network-delayed re-render arrives; idle pages with
-    // no toggle section or no mutations never trigger it.
-    if (toggleSectionMutated) {
-      toggleSectionMutated = false;
-      scheduleToggleReapply();
+    // Controls that appeared for a paused card retry in the same microtask; the
+    // forced run bypasses the processed signature so the button step can finish.
+    if (pendingControlRetries.size) {
+      const cards = [...pendingControlRetries];
+      pendingControlRetries.clear();
+      for (const card of cards) {
+        if (!card.isConnected) continue;
+        doImage(card, { isHome, isOwnProfile, forced: true })
+          .catch(error => console.warn('[Pixiv Utils]: control retry failed:', error));
+      }
     }
+    // Re-apply the toggle filter after a batch that touched an initialized toggle
+    // section (card render / bookmark-state hydration). Event-driven and coalesced
+    // into the next microtask, so it keeps working however late the delayed
+    // re-render arrives; idle pages never trigger it.
+    if (toggleSectionMutated) scheduleToggleFlush();
   };
 
   const scheduleObservedFlush = () => {
@@ -9035,6 +9100,35 @@
       pendingImageCleanupTimer = setInterval(cleanupPendingImageIntersections, 10000);
     }
   };
+
+  // A fast scroll jump can move a deferred card from below the viewport to above
+  // it without an IntersectionObserver entry ever reporting it as intersecting,
+  // so it would stay pending forever. Flush pending cards that are now passed or
+  // visible, coalesced to one frame per scroll burst. This is scoped to the
+  // deferred set (not a document rescan) and is driven by the scroll event.
+  let deferredImageFlushFrame = null;
+  const flushDeferredImageProcessing = () => {
+    deferredImageFlushFrame = null;
+    if (!pendingImageIntersections.size) return;
+    for (const [element, pending] of [...pendingImageIntersections]) {
+      if (!element.isConnected) {
+        pendingImageIntersections.delete(element);
+        imagesIntersectionObserver?.unobserve(element);
+        delete element.pixiv_utils_intersection_observer;
+        continue;
+      }
+      if (!isElementPassedOrVisible(element)) continue;
+      pendingImageIntersections.delete(element);
+      imagesIntersectionObserver?.unobserve(element);
+      delete element.pixiv_utils_intersection_observer;
+      if (typeof pending.func === 'function') pending.func(element, pending.options);
+    }
+    cleanupPendingImageIntersections();
+  };
+  window.addEventListener('scroll', () => {
+    if (deferredImageFlushFrame !== null) return;
+    deferredImageFlushFrame = requestAnimationFrame(flushDeferredImageProcessing);
+  }, { passive: true });
 
   /** FLOATING UI TOOLTIPS (one delegated, reusable instance) **/
 
@@ -9513,26 +9607,13 @@
     // After a route change, re-scan the current cards: route-adopted cards may
     // have existed before the observer saw them, and the artist bar is rebuilt as
     // a whole. Handlers run after detectnavigate, so a frame is allowed for them.
-    window.addEventListener('detectnavigate', () => requestAnimationFrame(() => activateObservedImages()));
-
-    // SPA pages lazily mount off-screen home sections (ranking, contests, newest
-    // by all, recommended users) while scrolling, and those nodes can be adopted
-    // without a matching insertion record (React reuses the container), so the
-    // observer never dispatches them. A rescan catches them the same way a route
-    // change does. It runs trailing: the first scroll event schedules a single
-    // timer that fires once the page has been idle for 300ms, and further events
-    // do not restart it, so one continuous scroll produces at most a handful of
-    // scans instead of one per throttle interval. The rescan itself is aligned to
-    // an animation frame so its DOM reads do not land mid-layout. Idempotent:
-    // doImage skips processed cards.
-    let scrollRescanTimer = null;
-    window.addEventListener('scroll', () => {
-      if (scrollRescanTimer !== null) return;
-      scrollRescanTimer = setTimeout(() => {
-        scrollRescanTimer = null;
-        requestAnimationFrame(() => rescanObservedElements());
-      }, 300);
-    }, { passive: true });
+    // Sections initialized before this route keep their mode marker and their
+    // cards keep processed signatures, so re-filter them explicitly (a fresh page
+    // load must not filter until the user interacts, hence navigation-only).
+    window.addEventListener('detectnavigate', () => requestAnimationFrame(() => {
+      activateObservedImages();
+      if (CONFIG.ENABLE_TOGGLE_BOOKMARKED) reapplyToggleBookmarkedSections();
+    }));
 
     // Multi View Entries
     sentinel.on(CONFIG.SELECTORS_MULTI_VIEW, element => {
@@ -9559,11 +9640,6 @@
           }
         });
       }
-      // After SPA navigation, re-filter the visible cards of sections that were
-      // already initialized (their markers/processed signatures otherwise suppress
-      // re-running the filter on return from the expanded view). Re-applies again
-      // while the grid settles for a short window (see onToggleNavigate).
-      window.addEventListener('detectnavigate', onToggleNavigate);
     }
 
     // Tag Buttons
