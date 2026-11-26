@@ -6971,7 +6971,7 @@
   };
 
   const MUST_COMPUTE_BOOKMARK_BUTTONS = normalizeSelectorList(/*css*/`
-    button:not([aria-haspopup="true"]) > svg:has(path),
+    button:not([aria-haspopup="true"]) > svg:not(.bi):not([class*="text-\\["]):has(path),
     a[href*="bookmark_add.php"] > svg:has(path)
   `);
 
