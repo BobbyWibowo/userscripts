@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   cleanupPixivUtils,
   createStorage,
+  flush,
   loadFixture,
   loadPixivUtils
 } from '../helpers/pixiv-utils-harness.js';
@@ -182,5 +183,35 @@ describe('pixiv-utils toggle bookmarked', () => {
     expect(element.querySelector('.pixiv_utils_toggle_bookmarked')).not.toBeNull();
     expect(element.dataset[MARKER_KEY]).toBeTruthy();
     expect(element.dataset[MODE_KEY]).toBe('0');
+  });
+
+  it('re-applies the active filter to in-viewport cards after SPA navigation', async () => {
+    // jsdom only provides requestAnimationFrame with pretendToBeVisual; the
+    // navigation re-apply schedules through it.
+    if (typeof globalThis.requestAnimationFrame !== 'function') {
+      globalThis.requestAnimationFrame = callback => setTimeout(callback, 0);
+    }
+
+    const pixiv = await load();
+    await openSection(pixiv);
+
+    // Cycle to "show not bookmarked": the bookmarked card is hidden.
+    press(button());
+    expect(section().dataset[MODE_KEY]).toBe('1');
+    expect(hiddenStates()).toEqual([true, false]);
+
+    // Simulate React re-rendering the in-viewport cards on return from the
+    // expanded view: the hide attribute is gone but the section stays initialized,
+    // and the cards keep their processed identity so doImage will not re-run.
+    for (const id of TRACKED_CARDS) document.querySelector(id).removeAttribute(HIDE_ATTRIBUTE);
+    expect(hiddenStates()).toEqual([false, false]);
+
+    const currentUrl = new URL(window.location.href);
+    window.dispatchEvent(new CustomEvent('detectnavigate', { detail: { currentUrl, newUrl: currentUrl } }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await flush();
+
+    // The navigation handler restores the filter for the already-visible cards.
+    expect(hiddenStates()).toEqual([true, false]);
   });
 });
