@@ -5081,7 +5081,8 @@
   ].join(', ');
 
   const SELECTORS_IMAGE_NO_CONTROLS = [
-    'aside:has(iframe[src*="premium_lp"]) > ul > li' // tags page's popular works
+    'aside:has(iframe[src*="premium_lp"]) > ul > li', // tags page's popular works
+    'ul > div:has(a[data-gtm-value][href*="/requests/"])' // requested illust/manga
   ].join(', ');
 
   // Both rule types compile literal tags and regexes identically. Keep one
