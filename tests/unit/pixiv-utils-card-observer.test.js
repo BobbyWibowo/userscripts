@@ -128,4 +128,26 @@ describe('pixiv-utils shared card observer', () => {
     // The ancestor walk reaches the wrapper seven levels up and runs doImage on it.
     expect(wrapper.dataset.pixiv_utils_processed).toContain('16112933');
   });
+
+  it('processes a first-paint card after Pixiv swaps in the loaded Vue item', async () => {
+    await loadPixivUtils({ settings: { ENABLE_EDIT_BOOKMARK: true, WAIT_FOR_POLL: 5 } });
+    const card = cardFor('16112933');
+
+    // At insertion Pixiv exposes a placeholder object. It is later replaced, not
+    // mutated, so a wait bound to this object would never settle.
+    setVueItem(card, { notLoaded: true });
+
+    const observed = (globalThis.unsafeWindow ?? globalThis).__pixivUtilsObserved;
+    observed.deliver({ type: 'childList', target: card.parentNode ?? document.body, addedNodes: [card] });
+    await flush(2);
+
+    // Pixiv swaps in a fresh loaded prop object.
+    setVueItem(card, { id: '16112933', userId: '7777', tags: [], notLoaded: false });
+    await new Promise(resolve => setTimeout(resolve, 40));
+    await flush(6);
+
+    // The card is processed from the live prop instead of hanging on the stale one.
+    expect(card.dataset.pixiv_utils_processed).toContain('16112933');
+    expect(card.querySelector('.pixiv_utils_edit_bookmark')).not.toBeNull();
+  });
 });
