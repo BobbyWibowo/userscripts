@@ -9017,7 +9017,11 @@
     }
 
     if (!tag) {
-      tag = element.querySelector('a[href*="/tags/"]')?.textContent;
+      // Replace whitespaces in fallback string, so that regular filters
+      // that assume whitespace is always underscore are applied correctly.
+      tag = element.querySelector('a[href*="/tags/"]')
+        ?.textContent
+        ?.replace(/\s/g, '_');
     }
 
     if (!tag) {
