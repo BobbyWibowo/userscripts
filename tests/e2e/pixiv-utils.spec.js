@@ -174,6 +174,43 @@ test('filters the grid by bookmark state, including browser-detected bookmarks',
   await expect(page.locator('#card-color')).toBeVisible();
 });
 
+test('keeps artist bottom carousel cards positioned when blocked', async ({ page }) => {
+  await openFixture(page);
+
+  const result = await page.evaluate(() => {
+    // The expanded view's artist bottom bar is a carousel whose cards rely on
+    // absolute positioning and their static positions. A blocked card must not
+    // fall back to relative positioning, which would push later cards down.
+    const host = document.createElement('div');
+    host.innerHTML = `
+      <main>
+        <section>
+          <figure></figure>
+          <div></div>
+          <div>
+            <nav style="display: block; width: 600px; height: 120px">
+              <div>
+                <div class="carousel-card" style="position: absolute; width: 100px; height: 100px" data-pixiv_utils_blocked="true">
+                  <a data-ga4-label="thumbnail_link" href="/artworks/1"><img alt=""></a>
+                </div>
+                <div class="carousel-card" style="position: absolute; width: 100px; height: 100px">
+                  <a data-ga4-label="thumbnail_link" href="/artworks/2"><img alt=""></a>
+                </div>
+              </div>
+            </nav>
+          </div>
+        </section>
+      </main>`;
+    document.body.append(host);
+    const blocked = host.querySelector('.carousel-card[data-pixiv_utils_blocked]');
+    const computed = getComputedStyle(blocked);
+    return { position: computed.position, overflow: computed.overflow };
+  });
+
+  expect(result.position).toBe('absolute');
+  expect(result.overflow).toBe('visible');
+});
+
 test('renders the edit bookmark panel controls at their designed box sizes', async ({ page }) => {
   await openEditBookmarkPanel(page);
 
