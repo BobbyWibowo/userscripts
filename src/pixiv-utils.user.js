@@ -6016,6 +6016,16 @@
     }
   }
 
+  /* Expanded view artist bottom bar: Pixiv's carousel absolutely positions
+     every card and relies on their static positions. A relative marked card
+     enters flow and pushes every later card down a row, so restore the card's
+     original positioning. The placeholder is drawn on the thumbnail link. */
+  :is(${CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE})[data-pixiv_utils_blocked] {
+    position: absolute;
+    overflow: visible;
+    border-radius: 0;
+  }
+
   /* Popular Projects (illustration top page, desktop): the artwork is an inline
      anchor with an absolutely positioned thumbnail (lazy figure, then an img).
      Keep the anchor rendered (the generic title rule would hide it) and keep the
