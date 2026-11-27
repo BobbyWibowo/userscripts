@@ -8346,6 +8346,45 @@
     return true;
   };
 
+  // Reading offsetParent forces layout. Doing it inline after each card's DOM
+  // writes caused a layout per card. Collect the cards, read visibility in one
+  // pass, then write the labels in a second pass.
+  const pendingArtistChecks = new Map();
+  let artistChecksScheduled = false;
+  const flushArtistChecks = () => {
+    artistChecksScheduled = false;
+    const checks = [...pendingArtistChecks];
+    pendingArtistChecks.clear();
+    const actions = [];
+    for (const [element, pixivData] of checks) {
+      if (!element.isConnected) continue;
+      const eligible = CONFIG.ADD_IMAGE_ARTIST &&
+        !element.closest('.user-details-card ~ div .works-horizontal-list') &&
+        (currentUrl.pathname.includes('/users/') === false || currentUrl.pathname.includes('/bookmarks/'));
+      const artistTag = element.querySelector('a[href*="users/"]:not(.pixiv_utils_image_artist)');
+      let hasVisibleArtistTag = Boolean(artistTag);
+      if (eligible && hasVisibleArtistTag && element.offsetParent !== null) {
+        hasVisibleArtistTag = artistTag.offsetParent !== null;
+      }
+      const needsArtist = eligible && !hasVisibleArtistTag;
+      actions.push([element, pixivData, needsArtist]);
+    }
+    for (const [element, pixivData, needsArtist] of actions) {
+      if (needsArtist) {
+        addImageArtist(element, pixivData);
+      } else {
+        element.querySelector('.pixiv_utils_image_artist_container')?.remove();
+        delete element.dataset.pixiv_utils_artist_added;
+      }
+    }
+  };
+  const scheduleArtistCheck = (element, pixivData) => {
+    pendingArtistChecks.set(element, pixivData);
+    if (artistChecksScheduled) return;
+    artistChecksScheduled = true;
+    queueMicrotask(flushArtistChecks);
+  };
+
   const doImage = async (element, options = {}) => {
     const { pixivData, data } = await getImageData(element);
     if (!element.isConnected || data.id === null) return false;
@@ -8471,26 +8510,7 @@
       return false;
     }
 
-    if (!options.skipArtistTag) {
-      const artistTag = element.querySelector('a[href*="users/"]:not(.pixiv_utils_image_artist)');
-
-      let hasVisibleArtistTag = Boolean(artistTag);
-      // If the image itself is visible, but its built-in artist tag is not.
-      if (hasVisibleArtistTag && element.offsetParent !== null) {
-        hasVisibleArtistTag = artistTag.offsetParent !== null;
-      }
-
-      // Add artist tag if necessary.
-      const needsArtist = CONFIG.ADD_IMAGE_ARTIST &&
-        !hasVisibleArtistTag &&
-        !element.closest('.user-details-card ~ div .works-horizontal-list') &&
-        (currentUrl.pathname.includes('/users/') === false || currentUrl.pathname.includes('/bookmarks/'));
-      if (needsArtist) addImageArtist(element, pixivData);
-      else {
-        element.querySelector('.pixiv_utils_image_artist_container')?.remove();
-        delete element.dataset.pixiv_utils_artist_added;
-      }
-    }
+    if (!options.skipArtistTag) scheduleArtistCheck(element, pixivData);
 
     if (imageControls) ensureEditBookmarkButton(imageControls, data.id, data.novel);
 
