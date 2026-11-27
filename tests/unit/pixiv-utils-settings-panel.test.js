@@ -342,8 +342,49 @@ describe('settings panel session view memory', () => {
     await instance.save();
 
     expect(pixiv.storage.values.get('SELECTORS_TAG_BUTTON')).toEqual(['div.custom-a', 'div.custom-b']);
-    expect(pixiv.storage.values.get(PREBUILT_KEY)).toBeNull();
+    const cached = pixiv.storage.values.get(PREBUILT_KEY);
+    expect(cached).toBeTruthy();
+    expect(cached.selectors).not.toHaveProperty('SELECTORS_TAG_BUTTON');
+    expect(cached.selectors.SELECTORS_IMAGE).toBeTruthy();
+    expect(cached.selectors._SELECTORS_IMAGE_GATE).toEqual(expect.any(Object));
+    expect(cached.selectors._SECTIONS_TOGGLE_BOOKMARKED_GATE).toEqual(expect.any(Object));
     expect(pixiv.console.error).toEqual([]);
+  });
+
+  it('leaves the selector cache intact when only a non-selector setting changes', async () => {
+    const { FakeGmConfig, instances } = createFakeGmConfig();
+    globalThis.gmConfig = FakeGmConfig;
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const before = JSON.parse(JSON.stringify(pixiv.storage.values.get(PREBUILT_KEY)));
+    await openSettings(pixiv);
+    const instance = instances.at(-1);
+    instance._fields.SETTINGS_LANGUAGE.value = 'ja';
+    await instance.save();
+
+    expect(pixiv.storage.values.get(PREBUILT_KEY)).toEqual(before);
+  });
+
+  it('invalidates only the image selector and its gate group when it changes', async () => {
+    const { FakeGmConfig, instances } = createFakeGmConfig();
+    globalThis.gmConfig = FakeGmConfig;
+
+    const pixiv = await loadPixivUtils({ settings: { SETTINGS_LANGUAGE: 'en' } });
+    const before = pixiv.storage.values.get(PREBUILT_KEY);
+    const artistGate = before.selectors._SELECTORS_IMAGE_GATE.artist;
+    const sectionGate = before.selectors._SECTIONS_TOGGLE_BOOKMARKED_GATE;
+    await openSettings(pixiv);
+    const instance = instances.at(-1);
+    instance._fields.SELECTORS_IMAGE.value = 'div.custom-image';
+    await instance.save();
+
+    const cached = pixiv.storage.values.get(PREBUILT_KEY);
+    expect(cached).not.toBeNull();
+    expect(cached.selectors).not.toHaveProperty('SELECTORS_IMAGE');
+    expect(cached.selectors._SELECTORS_IMAGE_GATE.image).toBeUndefined();
+    expect(cached.selectors._SELECTORS_IMAGE_GATE.artist).toEqual(artistGate);
+    expect(cached.selectors._SECTIONS_TOGGLE_BOOKMARKED_GATE).toEqual(sectionGate);
+    expect(cached.selectors.SELECTORS_TAG_BUTTON).toBeTruthy();
   });
 
   it('places the image-artist and clickable-username switches above the blocked-users list', async () => {

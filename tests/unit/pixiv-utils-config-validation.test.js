@@ -226,6 +226,28 @@ describe('pixiv-utils configuration error isolation', () => {
     expect(second.listeners).toHaveLength(DEFAULT_LISTENER_COUNT);
   });
 
+  it('rebuilds only the invalidated image gate group on the next load', async () => {
+    const storage = createStorage();
+    await loadPixivUtils({ storage });
+    const cached = storage.values.get(PREBUILT_KEY);
+    const artistGate = cached.selectors[IMAGE_GATE_KEY].artist;
+    const sectionGate = cached.selectors[SECTION_GATE_KEY];
+    const untouchedSelector = cached.selectors.SELECTORS_TAG_BUTTON;
+
+    delete cached.selectors.SELECTORS_IMAGE;
+    delete cached.selectors[IMAGE_GATE_KEY].image;
+
+    const pixiv = await loadPixivUtils({ storage });
+    const rebuilt = storage.values.get(PREBUILT_KEY);
+    expect(logMessages(pixiv)).toContain('[Pixiv Utils]: CSS selectors have been pre-built and cached for future runs.');
+    expect(rebuilt.selectors.SELECTORS_IMAGE).toBeTruthy();
+    expect(rebuilt.selectors[IMAGE_GATE_KEY].image).toEqual(expect.any(Array));
+    expect(rebuilt.selectors[IMAGE_GATE_KEY].image.length).toBeGreaterThan(0);
+    expect(rebuilt.selectors[IMAGE_GATE_KEY].artist).toEqual(artistGate);
+    expect(rebuilt.selectors[SECTION_GATE_KEY]).toEqual(sectionGate);
+    expect(rebuilt.selectors.SELECTORS_TAG_BUTTON).toEqual(untouchedSelector);
+  });
+
   it('rejects a pre-built selector cache without the section gate and rebuilds', async () => {
     const storage = createStorage();
     await loadPixivUtils({ storage });
