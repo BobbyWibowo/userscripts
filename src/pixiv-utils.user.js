@@ -2436,12 +2436,6 @@
     return chunkGateSelectors(gates);
   };
 
-  const buildImageGateGroups = (imageSelector, artistSelector) => ({
-    version: GATE_CACHE_VERSION,
-    image: buildImageGateSelectors(imageSelector),
-    artist: buildImageGateSelectors(artistSelector)
-  });
-
   // Valid CSS that matches nothing. Used to disable a single feature whose
   // selectors are unusable without affecting any other feature.
   const NEVER_MATCH_SELECTOR = '[data-pixiv_utils_disabled]';
@@ -2450,8 +2444,6 @@
 
   // Reuse pre-built selectors from GM storage when they satisfy the integrity check.
   const _PREBUILT_KEY = '_PREBUILT';
-  const _selectorKeys = Object.keys(ENV).filter(key =>
-    key.startsWith('SELECTORS_') || key === 'SECTIONS_TOGGLE_BOOKMARKED');
 
   // Debug mode always bypasses and invalidates the pre-built selector cache.
   if (_debugMode) GM_setValue(_PREBUILT_KEY, null);
@@ -2487,60 +2479,72 @@
   // Cache probe: normalize first so hand-edited multi-line or commented
   // selectors are judged on their parsed form.
   const isValidSection = section => normalizeSection(section) !== null;
-  const _prebuiltValid = !_debugMode && Boolean(_prebuilt) && typeof _prebuilt === 'object' && !Array.isArray(_prebuilt) &&
+  const _prebuiltBaseValid = !_debugMode && Boolean(_prebuilt) && typeof _prebuilt === 'object' && !Array.isArray(_prebuilt) &&
     _prebuilt.version === GM_info.script.version &&
-    _prebuilt.selectors && typeof _prebuilt.selectors === 'object' && !Array.isArray(_prebuilt.selectors) &&
-    _selectorKeys.every(key => Object.prototype.hasOwnProperty.call(_prebuilt.selectors, key)) &&
-    _selectorKeys.every(key => key === 'SECTIONS_TOGGLE_BOOKMARKED'
-      ? Array.isArray(_prebuilt.selectors[key]) && _prebuilt.selectors[key].every(isValidSection)
-      : typeof _prebuilt.selectors[key] === 'string' && isSelectorValid(_prebuilt.selectors[key])) &&
-    _prebuilt.selectors[SECTION_GATE_CACHE_KEY] &&
-    typeof _prebuilt.selectors[SECTION_GATE_CACHE_KEY] === 'object' &&
-    !Array.isArray(_prebuilt.selectors[SECTION_GATE_CACHE_KEY]) &&
-    _prebuilt.selectors[SECTION_GATE_CACHE_KEY].version === GATE_CACHE_VERSION &&
-    Array.isArray(_prebuilt.selectors[SECTION_GATE_CACHE_KEY].targets) &&
-    _prebuilt.selectors[SECTION_GATE_CACHE_KEY].targets.every(entry =>
-      typeof entry === 'string' && entry !== '' && isSelectorValid(entry)) &&
-    _prebuilt.selectors[IMAGE_GATE_CACHE_KEY] &&
-    typeof _prebuilt.selectors[IMAGE_GATE_CACHE_KEY] === 'object' &&
-    !Array.isArray(_prebuilt.selectors[IMAGE_GATE_CACHE_KEY]) &&
-    _prebuilt.selectors[IMAGE_GATE_CACHE_KEY].version === GATE_CACHE_VERSION &&
-    ['image', 'artist'].every(group =>
-      Array.isArray(_prebuilt.selectors[IMAGE_GATE_CACHE_KEY][group]) &&
-      _prebuilt.selectors[IMAGE_GATE_CACHE_KEY][group].length > 0 &&
-      _prebuilt.selectors[IMAGE_GATE_CACHE_KEY][group].every(entry =>
-        typeof entry === 'string' && entry !== '' && isSelectorValid(entry))) &&
-    ((Array.isArray(_prebuilt.selectors.SECTIONS_TOGGLE_BOOKMARKED) &&
-      _prebuilt.selectors.SECTIONS_TOGGLE_BOOKMARKED.length === 0) ||
-      _prebuilt.selectors[SECTION_GATE_CACHE_KEY].targets.length > 0);
-  const _prebuiltSelectors = _prebuiltValid ? _prebuilt.selectors : null;
+    _prebuilt.selectors && typeof _prebuilt.selectors === 'object' && !Array.isArray(_prebuilt.selectors);
+  const _prebuiltSelectors = _prebuiltBaseValid ? _prebuilt.selectors : null;
+  const _builtSelectors = {};
+  const _rebuiltSelectorKeys = new Set();
+  const _isSelectorStorageKey = key =>
+    key.startsWith('SELECTORS_') || key === 'SECTIONS_TOGGLE_BOOKMARKED';
+  const _isValidGateChunkList = (value, allowEmpty) =>
+    Array.isArray(value) &&
+    (allowEmpty || value.length > 0) &&
+    value.every(entry => typeof entry === 'string' && entry !== '' && isSelectorValid(entry));
+  const _cachedSelectorValue = key => {
+    if (!_prebuiltSelectors || !Object.prototype.hasOwnProperty.call(_prebuiltSelectors, key)) return undefined;
+    const value = _prebuiltSelectors[key];
+    if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
+      return Array.isArray(value) && value.every(isValidSection) ? value : undefined;
+    }
+    return typeof value === 'string' && isSelectorValid(value) ? value : undefined;
+  };
+  const _sectionsFromCache = storedSections => Array.isArray(storedSections)
+    ? storedSections.map(storedSection => {
+      const result = { ...storedSection };
+      if (Array.isArray(PRESETS.SECTIONS_TOGGLE_BOOKMARKED)) {
+        const normalizedPresets = PRESETS.SECTIONS_TOGGLE_BOOKMARKED.map(normalizeSectionFields);
+        const match = normalizedPresets.find(presetSection =>
+          presetSection && typeof presetSection === 'object' && !Array.isArray(presetSection) &&
+          presetSection.selectorParent === result.selectorParent &&
+          presetSection.selectorHeader === result.selectorHeader &&
+          presetSection.selectorImagesContainer === result.selectorImagesContainer);
+        if (match && typeof match.sanityCheck === 'function') {
+          result.sanityCheck = match.sanityCheck;
+        }
+      }
+      return result;
+    })
+    : storedSections;
+  const _serializeSelectorForCache = (key, value) => {
+    if (key !== 'SECTIONS_TOGGLE_BOOKMARKED' || !Array.isArray(value)) return value;
+    return value.map(section => {
+      const result = {};
+      if (section && typeof section === 'object' && !Array.isArray(section)) {
+        for (const selectorKey of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
+          if (Object.prototype.hasOwnProperty.call(section, selectorKey)) {
+            result[selectorKey] = section[selectorKey];
+          }
+        }
+      }
+      return Object.keys(result).length ? result : section;
+    });
+  };
+  const _storeSelectorValue = key => {
+    _builtSelectors[key] = _serializeSelectorForCache(key, CONFIG[key]);
+  };
 
   for (const key of Object.keys(ENV)) {
-    const isSelectorKey = key.startsWith('SELECTORS_') || key === 'SECTIONS_TOGGLE_BOOKMARKED';
-    if (isSelectorKey && _prebuiltSelectors) {
-      if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
-        const storedSections = _prebuiltSelectors[key];
-        CONFIG[key] = Array.isArray(storedSections)
-          ? storedSections.map(storedSection => {
-            const result = { ...storedSection };
-            if (Array.isArray(PRESETS[key])) {
-              const normalizedPresets = PRESETS[key].map(normalizeSectionFields);
-              const match = normalizedPresets.find(presetSection =>
-                presetSection && typeof presetSection === 'object' && !Array.isArray(presetSection) &&
-                presetSection.selectorParent === result.selectorParent &&
-                presetSection.selectorHeader === result.selectorHeader &&
-                presetSection.selectorImagesContainer === result.selectorImagesContainer);
-              if (match && typeof match.sanityCheck === 'function') {
-                result.sanityCheck = match.sanityCheck;
-              }
-            }
-            return result;
-          })
-          : storedSections;
-      } else {
-        CONFIG[key] = _prebuiltSelectors[key];
+    const isSelectorKey = _isSelectorStorageKey(key);
+    if (isSelectorKey) {
+      const cachedSelector = _cachedSelectorValue(key);
+      if (cachedSelector !== undefined) {
+        CONFIG[key] = key === 'SECTIONS_TOGGLE_BOOKMARKED'
+          ? _sectionsFromCache(cachedSelector)
+          : cachedSelector;
+        _builtSelectors[key] = cachedSelector;
+        continue;
       }
-      continue;
     }
 
     // Extend hard-coded preset values with user-defined custom values, if applicable.
@@ -2608,48 +2612,62 @@
         CONFIG[key] = ENV[key];
       }
     }
+    if (isSelectorKey) {
+      _rebuiltSelectorKeys.add(key);
+      _storeSelectorValue(key);
+    }
   }
 
-  // Store freshly built selectors for future runs when no valid pre-built cache was found.
-  const sectionGateGroups = _prebuiltSelectors
-    ? _prebuiltSelectors[SECTION_GATE_CACHE_KEY]
+  // Rebuild only the cache entries that were not reusable. This lets a settings
+  // save remove a single selector (and its dependent gate) without discarding
+  // the rest of the selector cache.
+  const sectionsEmpty = Array.isArray(CONFIG.SECTIONS_TOGGLE_BOOKMARKED) &&
+    CONFIG.SECTIONS_TOGGLE_BOOKMARKED.length === 0;
+  const cachedSectionGate = _prebuiltSelectors?.[SECTION_GATE_CACHE_KEY];
+  const cachedSectionGateValid = Boolean(cachedSectionGate) &&
+    typeof cachedSectionGate === 'object' && !Array.isArray(cachedSectionGate) &&
+    cachedSectionGate.version === GATE_CACHE_VERSION &&
+    Array.isArray(cachedSectionGate.targets) &&
+    cachedSectionGate.targets.every(entry =>
+      typeof entry === 'string' && entry !== '' && isSelectorValid(entry)) &&
+    (sectionsEmpty ? cachedSectionGate.targets.length === 0 : cachedSectionGate.targets.length > 0);
+  const sectionGateGroups = cachedSectionGateValid &&
+    !_rebuiltSelectorKeys.has('SECTIONS_TOGGLE_BOOKMARKED')
+    ? cachedSectionGate
     : buildSectionGateGroups(CONFIG.SECTIONS_TOGGLE_BOOKMARKED);
-  const imageGateGroups = _prebuiltSelectors
-    ? _prebuiltSelectors[IMAGE_GATE_CACHE_KEY]
-    : buildImageGateGroups(
-      CONFIG.SELECTORS_IMAGE,
-      CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE
-    );
-  if (_prebuiltSelectors) {
-    log('Reusing cached pre-built CSS selectors.');
-  } else {
-    const _builtSelectors = {};
-    for (const key of _selectorKeys) {
-      if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
-        const sections = CONFIG[key];
-        _builtSelectors[key] = Array.isArray(sections)
-          ? sections.map(section => {
-            const result = {};
-            if (section && typeof section === 'object' && !Array.isArray(section)) {
-              for (const selectorKey of ['selectorParent', 'selectorHeader', 'selectorImagesContainer']) {
-                if (Object.prototype.hasOwnProperty.call(section, selectorKey)) {
-                  result[selectorKey] = section[selectorKey];
-                }
-              }
-            }
-            return Object.keys(result).length ? result : section;
-          })
-          : sections;
-      } else {
-        _builtSelectors[key] = CONFIG[key];
-      }
-    }
+  const sectionGateRebuilt = sectionGateGroups !== cachedSectionGate;
+
+  const cachedImageGate = _prebuiltSelectors?.[IMAGE_GATE_CACHE_KEY];
+  const cachedImageGateValid = Boolean(cachedImageGate) &&
+    typeof cachedImageGate === 'object' && !Array.isArray(cachedImageGate) &&
+    cachedImageGate.version === GATE_CACHE_VERSION;
+  const imageGateImageValid = cachedImageGateValid &&
+    _isValidGateChunkList(cachedImageGate.image, false) &&
+    !_rebuiltSelectorKeys.has('SELECTORS_IMAGE');
+  const imageGateArtistValid = cachedImageGateValid &&
+    _isValidGateChunkList(cachedImageGate.artist, false) &&
+    !_rebuiltSelectorKeys.has('SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE');
+  const imageGateGroups = {
+    version: GATE_CACHE_VERSION,
+    image: imageGateImageValid
+      ? cachedImageGate.image
+      : buildImageGateSelectors(CONFIG.SELECTORS_IMAGE),
+    artist: imageGateArtistValid
+      ? cachedImageGate.artist
+      : buildImageGateSelectors(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE)
+  };
+  const imageGateRebuilt = !(imageGateImageValid && imageGateArtistValid);
+  const rebuiltCachedSelectors = _rebuiltSelectorKeys.size > 0 ||
+    sectionGateRebuilt ||
+    imageGateRebuilt;
+
+  if (!_debugMode && (!_prebuiltSelectors || rebuiltCachedSelectors)) {
     _builtSelectors[SECTION_GATE_CACHE_KEY] = sectionGateGroups;
     _builtSelectors[IMAGE_GATE_CACHE_KEY] = imageGateGroups;
-    if (!_debugMode) {
-      GM_setValue(_PREBUILT_KEY, { version: GM_info.script.version, selectors: _builtSelectors });
-      log('CSS selectors have been pre-built and cached for future runs.');
-    }
+    GM_setValue(_PREBUILT_KEY, { version: GM_info.script.version, selectors: _builtSelectors });
+    log('CSS selectors have been pre-built and cached for future runs.');
+  } else if (_prebuiltSelectors) {
+    log('Reusing cached pre-built CSS selectors.');
   }
 
   // Empty highlight-color overrides use the built-in default at runtime.
@@ -4015,6 +4033,41 @@
     if (panel) panel._pixivListOrderState = null;
   };
 
+  const invalidatePrebuiltForChangedSelectors = changedKeys => {
+    if (!changedKeys || changedKeys.size === 0) return false;
+    const cached = GM_getValue(_PREBUILT_KEY, null);
+    if (!cached || typeof cached !== 'object' || Array.isArray(cached) ||
+      cached.version !== GM_info.script.version ||
+      !cached.selectors || typeof cached.selectors !== 'object' || Array.isArray(cached.selectors)) {
+      return false;
+    }
+    const selectors = cached.selectors;
+    let changed = false;
+    const deleteCached = key => {
+      if (!Object.prototype.hasOwnProperty.call(selectors, key)) return;
+      delete selectors[key];
+      changed = true;
+    };
+    for (const key of changedKeys) {
+      if (!key.startsWith('SELECTORS_') && key !== 'SECTIONS_TOGGLE_BOOKMARKED') continue;
+      deleteCached(key);
+      if (key === 'SECTIONS_TOGGLE_BOOKMARKED') {
+        deleteCached(SECTION_GATE_CACHE_KEY);
+      } else if (key === 'SELECTORS_IMAGE' || key === 'SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE') {
+        const gate = selectors[IMAGE_GATE_CACHE_KEY];
+        if (gate && typeof gate === 'object' && !Array.isArray(gate)) {
+          const group = key === 'SELECTORS_IMAGE' ? 'image' : 'artist';
+          if (Object.prototype.hasOwnProperty.call(gate, group)) {
+            delete gate[group];
+            changed = true;
+          }
+        }
+      }
+    }
+    if (changed) GM_setValue(_PREBUILT_KEY, cached);
+    return changed;
+  };
+
   const createPixivUtilsConfig = BaseConfig => class PixivUtilsConfig extends BaseConfig {
     async _load () {
       // gmConfig 1.0.0 originally loads a single JSON string. Directly read the
@@ -4040,6 +4093,7 @@
 
     async save () {
       const current = this._vals();
+      const changedKeys = new Set();
       for (const [key, fallback] of Object.entries(ENV_DEFAULTS)) {
         if (!(key in current)) continue;
         const currentJson = JSON.stringify(current[key]);
@@ -4050,12 +4104,15 @@
         GM_setValue(key, stored);
         this._storedOriginals[key] = stored;
         this._initialEditorValues[key] = currentJson;
+        changedKeys.add(key);
       }
 
-      // Always invalidate pre-built selectors on save, so they are rebuilt on
-      // the next page load even when no SELECTORS_* setting was changed.
-      GM_setValue(_PREBUILT_KEY, null);
-      log('Invalidated cached pre-built CSS selectors.');
+      if (this._resetting) {
+        GM_setValue(_PREBUILT_KEY, null);
+        log('Invalidated cached pre-built CSS selectors.');
+      } else if (invalidatePrebuiltForChangedSelectors(changedKeys)) {
+        log('Invalidated affected cached pre-built CSS selectors.');
+      }
 
       this._mark();
       this._clean = this._json();
