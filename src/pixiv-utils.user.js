@@ -2149,6 +2149,7 @@
   // lets a single observer find every bookmark-filter section without
   // registering each full :has() parent selector separately.
   const SECTION_GATE_CACHE_KEY = '_SECTIONS_TOGGLE_BOOKMARKED_GATE';
+  const SECTION_GATE_VERSION = 2;
   const SECTION_GATE_MAX_LENGTH = 1800;
 
   const findMatchingParen = (text, openIndex) => {
@@ -2309,13 +2310,13 @@
     return chunks;
   };
 
-  // Target gates match the section itself or an anchor inside it. Ancestor
-  // gates are elements that must match before the section can (e.g. the
-  // rankings root, which is complete before its section children exist), so
-  // only those registrations walk ancestors on insertion.
+  // Target gates match a section, a header anchor inside it, or a concrete
+  // descendant of a required ancestor. Scoping the descendant to the ancestor
+  // keeps every gate concrete, so no registration needs to walk ancestors and
+  // an ancestor that happens to exist without a section cannot cause repeated
+  // unresolved lookups.
   const buildSectionGateGroups = sections => {
     const targets = new Set();
-    const ancestors = new Set();
     for (const section of Array.isArray(sections) ? sections : []) {
       const parent = typeof section?.selectorParent === 'string' ? section.selectorParent : '';
       if (!parent) continue;
@@ -2326,12 +2327,6 @@
         addedForSection = true;
         return true;
       };
-      const addAncestor = selector => {
-        if (!isSelectorValid(selector)) return false;
-        ancestors.add(selector);
-        addedForSection = true;
-        return true;
-      };
       for (const part of splitSelectorList(parent)) {
         if (!part.includes(':has(')) {
           addTarget(part);
@@ -2339,21 +2334,24 @@
         }
         const outsideCompounds = splitCompounds(stripHasPseudos(part));
         const lastIndex = outsideCompounds.length - 1;
+        const ancestorPrefix = outsideCompounds
+          .slice(0, lastIndex)
+          .filter(isSpecificCompound)
+          .at(-1);
         let addedForPart = false;
         outsideCompounds.forEach((compound, index) => {
-          if (!isSpecificCompound(compound)) return;
-          if (index === lastIndex) {
-            if (addTarget(compound)) addedForPart = true;
-          } else if (addAncestor(compound)) {
-            addedForPart = true;
-          }
+          if (index !== lastIndex || !isSpecificCompound(compound)) return;
+          if (addTarget(compound)) addedForPart = true;
         });
         for (const arg of extractHasArguments(part)) {
           for (const argPart of splitSelectorList(arg)) {
-            const cleaned = argPart.replace(/^[\s>+~]+/, '');
-            for (const compound of splitCompounds(cleaned)) {
-              if (!isSpecificCompound(compound)) continue;
-              if (addTarget(compound)) addedForPart = true;
+            const compounds = splitCompounds(argPart.replace(/^[\s>+~]+/, ''));
+            const candidate = compounds.at(-1);
+            if (!candidate) continue;
+            if (ancestorPrefix) {
+              if (addTarget(`${ancestorPrefix} ${candidate}`)) addedForPart = true;
+            } else if (isSpecificCompound(candidate) && addTarget(candidate)) {
+              addedForPart = true;
             }
           }
         }
@@ -2365,8 +2363,8 @@
       if (!addedForSection) addTarget(parent);
     }
     return {
-      targets: chunkGateSelectors(targets),
-      ancestors: chunkGateSelectors(ancestors)
+      version: SECTION_GATE_VERSION,
+      targets: chunkGateSelectors(targets)
     };
   };
 
@@ -2425,14 +2423,13 @@
     _prebuilt.selectors[SECTION_GATE_CACHE_KEY] &&
     typeof _prebuilt.selectors[SECTION_GATE_CACHE_KEY] === 'object' &&
     !Array.isArray(_prebuilt.selectors[SECTION_GATE_CACHE_KEY]) &&
-    ['targets', 'ancestors'].every(group =>
-      Array.isArray(_prebuilt.selectors[SECTION_GATE_CACHE_KEY][group]) &&
-      _prebuilt.selectors[SECTION_GATE_CACHE_KEY][group].every(entry =>
-        typeof entry === 'string' && entry !== '' && isSelectorValid(entry))) &&
+    _prebuilt.selectors[SECTION_GATE_CACHE_KEY].version === SECTION_GATE_VERSION &&
+    Array.isArray(_prebuilt.selectors[SECTION_GATE_CACHE_KEY].targets) &&
+    _prebuilt.selectors[SECTION_GATE_CACHE_KEY].targets.every(entry =>
+      typeof entry === 'string' && entry !== '' && isSelectorValid(entry)) &&
     ((Array.isArray(_prebuilt.selectors.SECTIONS_TOGGLE_BOOKMARKED) &&
       _prebuilt.selectors.SECTIONS_TOGGLE_BOOKMARKED.length === 0) ||
-      _prebuilt.selectors[SECTION_GATE_CACHE_KEY].targets.length +
-        _prebuilt.selectors[SECTION_GATE_CACHE_KEY].ancestors.length > 0);
+      _prebuilt.selectors[SECTION_GATE_CACHE_KEY].targets.length > 0);
   const _prebuiltSelectors = _prebuiltValid ? _prebuilt.selectors : null;
 
   for (const key of Object.keys(ENV)) {
@@ -9316,11 +9313,10 @@
   };
 
   // Toggle-bookmarked sections use the shared observer (not Sentinel): gate
-  // selectors derived once from the configured sections (header anchors and
-  // containers) find a section with a couple of registrations instead of one
-  // per full :has() parent selector. Ancestor gates (e.g. the rankings root)
-  // walk a few ancestors because they can exist before their section children.
-  // A resolved gate is cached so card insertions do not repeat the lookup.
+  // selectors derived once from the configured sections (headers, containers,
+  // and concrete descendants of required ancestors) find a section with a
+  // couple of registrations instead of one per full :has() parent selector.
+  // A resolved gate is cached so repeated insertions do not repeat the lookup.
   const toggleSectionGateResolutions = new WeakMap();
   const isToggleSectionCurrent = (section, sectionConfig) => {
     const marker = section.dataset.pixiv_utils_toggle_bookmarked_section;
@@ -9340,23 +9336,10 @@
     }
 
     const matches = [];
-    let matched = false;
     for (const sectionConfig of CONFIG.SECTIONS_TOGGLE_BOOKMARKED) {
       const parent = element.closest(sectionConfig.selectorParent);
       if (!parent) continue;
-      matched = true;
       matches.push({ section: parent, sectionConfig });
-    }
-    if (!matched) {
-      for (const sectionConfig of CONFIG.SECTIONS_TOGGLE_BOOKMARKED) {
-        let sections;
-        try {
-          sections = element.querySelectorAll(sectionConfig.selectorParent);
-        } catch {
-          continue;
-        }
-        for (const parent of sections) matches.push({ section: parent, sectionConfig });
-      }
     }
     for (const match of matches) handleToggleSection(match.section, match.sectionConfig);
     if (matches.length) {
@@ -9371,9 +9354,6 @@
     if (!CONFIG.ENABLE_TOGGLE_BOOKMARKED) return;
     for (const gateSelector of sectionGateGroups.targets) {
       observeElements(gateSelector, resolveToggleSectionFromGate, { rescan: true });
-    }
-    for (const gateSelector of sectionGateGroups.ancestors) {
-      observeElements(gateSelector, resolveToggleSectionFromGate, { rescan: true, ancestors: 4 });
     }
   };
 
@@ -10019,6 +9999,17 @@
     // rescans) instead of Sentinel. This also runs the initial scan for cards
     // that were rendered before the script booted.
     activateObservedImages();
+
+    // Initial hydration can finish after DOMContentLoaded (notably the rankings
+    // page, whose section wrapper becomes matchable late). Rescan once on load
+    // and once on the next rendered frame; this is an initialization signal, not
+    // a polling loop, and route changes still use detectnavigate.
+    const rescanAfterInitialLoad = () => {
+      rescanObservedElements();
+      requestAnimationFrame(() => rescanObservedElements());
+    };
+    if (document.readyState === 'complete') rescanAfterInitialLoad();
+    else window.addEventListener('load', rescanAfterInitialLoad, { once: true });
 
     // After a route change, re-scan the current cards: route-adopted cards may
     // have existed before the observer saw them, and the artist bar is rebuilt as
