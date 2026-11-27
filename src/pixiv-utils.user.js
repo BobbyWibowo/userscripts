@@ -8299,6 +8299,21 @@
     button.replaceChildren(document.createTextNode(CONFIG.TEXT_TOGGLE_BOOKMARKED), span);
   };
 
+  const HIDE_BY_TOGGLE = 'data-pixiv_utils_toggle_bookmarked_hide';
+  const shouldHideByToggle = (image, mode) => mode !== 0 &&
+    (Boolean(image.dataset.pixiv_utils_blocked) ||
+      (mode === 1 ? isImageBookmarked(image) : !isImageBookmarked(image)));
+
+  // Apply a toggle-bookmarked mode to a single card. Used by the bookmark-state
+  // mutation path, where re-evaluating the whole section would be wasteful.
+  const applyToggleBookmarkedFilterToCard = (image, mode) => {
+    if (!Number.isInteger(mode)) return;
+    const hide = shouldHideByToggle(image, mode);
+    const hidden = image.hasAttribute(HIDE_BY_TOGGLE);
+    if (hide && !hidden) image.dataset.pixiv_utils_toggle_bookmarked_hide = true;
+    else if (!hide && hidden) delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
+  };
+
   // Apply a toggle-bookmarked mode to every card currently in the section.
   // Reads all bookmark states first, then writes the hide attributes, to avoid
   // alternating computed-style reads and DOM writes across cards. Reused by the
@@ -8307,13 +8322,10 @@
     if (!Number.isInteger(mode)) return;
     const visibility = [];
     for (const image of imagesContainer.querySelectorAll(CONFIG.SELECTORS_IMAGE)) {
-      const hide = mode !== 0 &&
-        (Boolean(image.dataset.pixiv_utils_blocked) ||
-          (mode === 1 ? isImageBookmarked(image) : !isImageBookmarked(image)));
-      visibility.push([image, hide]);
+      visibility.push([image, shouldHideByToggle(image, mode)]);
     }
     for (const [image, hide] of visibility) {
-      const hidden = image.hasAttribute('data-pixiv_utils_toggle_bookmarked_hide');
+      const hidden = image.hasAttribute(HIDE_BY_TOGGLE);
       if (hide && !hidden) image.dataset.pixiv_utils_toggle_bookmarked_hide = true;
       else if (!hide && hidden) delete image.dataset.pixiv_utils_toggle_bookmarked_hide;
     }
@@ -8335,10 +8347,6 @@
     updateToggleBookmarkedButton(button, mode);
 
     applyToggleBookmarkedFilter(imagesContainer, mode);
-    // Only an interaction enables re-applying the filter later (navigation or
-    // bookmark-state hydration). A freshly initialized section adopts the saved
-    // mode but must stay unfiltered until the user acts.
-    toggleSectionFiltered.add(imagesContainer);
 
     // The most recently selected mode is still the default for new sections.
     GM_setValue('PREF_TOGGLE_BOOKMARKED_MODE', mode);
@@ -8419,6 +8427,9 @@
     buttonContainer.append(button);
     header.append(buttonContainer);
     observeToggleSection(imagesContainer);
+    // Apply the persisted mode as soon as the section exists. Bookmark state may
+    // still be hydrating, so the section observer re-applies when it changes.
+    applyToggleBookmarkedFilter(imagesContainer, mode);
     toggleSectionsActive = true;
     return true;
   };
@@ -8445,24 +8456,21 @@
         const imagesContainer = section.querySelector(sectionConfig.selectorImagesContainer);
         if (!imagesContainer) continue;
         observeToggleSection(imagesContainer);
-        if (!toggleSectionFiltered.has(imagesContainer)) continue;
         applyToggleBookmarkedFilter(imagesContainer, Number(modeValue));
       }
     }
   };
 
-  // After SPA navigation the grid settles over several frames (cache restore,
-  // re-render, bookmark-state hydration) and that timing depends on the network.
-  // Rather than guess with a delay, re-apply whenever a mutation lands inside an
-  // initialized toggle section. Bookmark state can also hydrate by changing a
-  // path fill (mobile) which the shared observer does not watch, so each
-  // initialized section gets a scoped fill observer. Both paths coalesce into one
-  // microtask re-apply; there is no settling timer.
+  // Bookmark state hydrates after the cards render, sometimes without a change
+  // to the card itself. Re-evaluate only the affected card (cheap, no full-section
+  // scan) when a class/fill signal lands inside an initialized toggle section.
+  // Mobile reports the state as a path fill, which the shared observer does not
+  // watch, so each initialized section gets a scoped fill observer.
   let toggleSectionsActive = false;
-  let toggleSectionMutated = false;
   let toggleFlushScheduled = false;
+  let toggleSectionReapplyPending = false;
+  const pendingToggleCardFilters = new Set();
   const toggleSectionObservers = new Map();
-  const toggleSectionFiltered = new WeakSet();
   const isInToggleSection = node => Boolean(node) &&
     node.nodeType === 1 &&
     Boolean(node.closest?.('[data-pixiv_utils_toggle_bookmarked_section]'));
@@ -8475,10 +8483,68 @@
     toggleFlushScheduled = true;
     queueMicrotask(() => {
       toggleFlushScheduled = false;
-      if (!toggleSectionMutated) return;
-      toggleSectionMutated = false;
-      reapplyToggleBookmarkedSections();
+      if (pendingToggleCardFilters.size) {
+        const cards = [...pendingToggleCardFilters];
+        pendingToggleCardFilters.clear();
+        for (const card of cards) {
+          if (!card.isConnected) continue;
+          const section = card.closest('[data-pixiv_utils_toggle_bookmarked_section]');
+          if (!section) continue;
+          applyToggleBookmarkedFilterToCard(card, Number(section.dataset.pixiv_utils_toggle_bookmarked_mode));
+        }
+      }
+      // A container/section-level change (e.g. a class that restyles descendant
+      // bookmark icons) can affect many cards, so re-filter the section once.
+      if (toggleSectionReapplyPending) {
+        toggleSectionReapplyPending = false;
+        reapplyToggleBookmarkedSections();
+      }
     });
+  };
+  const scheduleToggleCardFilter = card => {
+    if (!card) return;
+    pendingToggleCardFilters.add(card);
+    scheduleToggleFlush();
+  };
+  const scheduleToggleSectionReapply = () => {
+    toggleSectionReapplyPending = true;
+    scheduleToggleFlush();
+  };
+  // A section parent can be inserted before its header/images-container. Retry
+  // only the sections that are still incomplete (bounded), instead of scanning
+  // every configured parent on each batch.
+  const TOGGLE_SECTION_RETRY_LIMIT = 20;
+  let toggleSectionRetryPending = false;
+  let toggleSectionRetryBudget = 0;
+  const pendingToggleSections = new Map();
+  const scheduleToggleSectionRetry = () => {
+    if (toggleSectionRetryPending) return;
+    toggleSectionRetryBudget = TOGGLE_SECTION_RETRY_LIMIT;
+    toggleSectionRetryPending = true;
+  };
+  const retryIncompleteToggleSections = () => {
+    if (!CONFIG.ENABLE_TOGGLE_BOOKMARKED || toggleSectionRetryBudget <= 0) {
+      toggleSectionRetryPending = false;
+      pendingToggleSections.clear();
+      return;
+    }
+    toggleSectionRetryBudget -= 1;
+    for (const [section, sectionConfig] of [...pendingToggleSections]) {
+      if (!section.isConnected || section.dataset.pixiv_utils_toggle_bookmarked_section) {
+        pendingToggleSections.delete(section);
+        continue;
+      }
+      doToggleBookmarkedSection(section, sectionConfig);
+      if (section.dataset.pixiv_utils_toggle_bookmarked_section) {
+        pendingToggleSections.delete(section);
+        continue;
+      }
+      const header = section.querySelector(sectionConfig.selectorHeader);
+      const container = section.querySelector(sectionConfig.selectorImagesContainer);
+      if (header && container) pendingToggleSections.delete(section);
+    }
+    toggleSectionRetryPending = pendingToggleSections.size > 0 && toggleSectionRetryBudget > 0;
+    if (!toggleSectionRetryPending) pendingToggleSections.clear();
   };
   const pruneToggleSectionObservers = () => {
     for (const [container, observer] of toggleSectionObservers) {
@@ -8492,10 +8558,8 @@
     const observer = new MutationObserver(records => {
       for (const record of records) {
         if (record.type !== 'attributes' || !isBookmarkStateNode(record.target)) continue;
-        toggleSectionMutated = true;
-        break;
+        scheduleToggleCardFilter(record.target.closest(CONFIG.SELECTORS_IMAGE));
       }
-      if (toggleSectionMutated) scheduleToggleFlush();
     });
     observer.observe(imagesContainer, {
       subtree: true,
@@ -8799,12 +8863,17 @@
       if (addedElement && !outsidePanel) return;
     }
 
-    // A mutation inside an initialized toggle-bookmarked section means Pixiv is
-    // rendering its cards or hydrating their bookmark state; re-apply the filter
-    // in the batch's microtask (see scheduleToggleFlush). Gated by
-    // toggleSectionsActive so pages without such sections pay nothing.
-    if (toggleSectionsActive && !toggleSectionMutated && isInToggleSection(record.target)) {
-      toggleSectionMutated = true;
+    // Any mutation inside an initialized toggle-bookmarked section can be the
+    // bookmark state settling (class, fill, or a replaced SVG path). Re-evaluate
+    // only the card that contains it; a container-level attribute change can
+    // restyle many cards, so it re-filters the section once. `data-tx` identity
+    // changes are already handled by doImage (which applies the mode). New cards
+    // are filtered by doImage anyway. Gated by toggleSectionsActive.
+    const identityChange = record.type === 'attributes' && record.attributeName === 'data-tx';
+    if (toggleSectionsActive && !identityChange && isInToggleSection(record.target)) {
+      const card = record.target.closest(CONFIG.SELECTORS_IMAGE);
+      if (card) scheduleToggleCardFilter(card);
+      else if (record.type === 'attributes') scheduleToggleSectionReapply();
     }
 
     if (record.type === 'attributes') {
@@ -8879,11 +8948,7 @@
           .catch(error => console.warn('[Pixiv Utils]: control retry failed:', error));
       }
     }
-    // Re-apply the toggle filter after a batch that touched an initialized toggle
-    // section (card render / bookmark-state hydration). Event-driven and coalesced
-    // into the next microtask, so it keeps working however late the delayed
-    // re-render arrives; idle pages never trigger it.
-    if (toggleSectionMutated) scheduleToggleFlush();
+    if (toggleSectionRetryPending) retryIncompleteToggleSections();
   };
 
   const scheduleObservedFlush = () => {
@@ -8963,6 +9028,11 @@
     // The same registration also carries the recycled-card attribute handler so
     // SELECTORS_IMAGE is scanned once per inserted node instead of twice.
     observeElements(CONFIG.SELECTORS_IMAGE, element => {
+      // Apply the section's bookmark mode here, before any visibility deferral:
+      // a card inserted into an active toggle section must be hidden/shown on
+      // frame-1 even while it is still off-screen.
+      const toggleMode = getToggleBookmarkedMode(element);
+      if (toggleMode !== null) applyToggleBookmarkedFilterToCard(element, toggleMode);
       processNewElement(doImage, element, { isHome, isOwnProfile });
       rememberObservedIdentity(element);
     }, {
@@ -8980,6 +9050,38 @@
       processNewElement(doImage, element, { isHome, isOwnProfile, skipArtistTag: true });
       rememberObservedIdentity(element);
     }, { rescan: true, ancestors: 8 });
+  };
+
+  // Toggle-bookmarked sections use the shared observer (not Sentinel): one
+  // registration per section covers both the section wrapper and its derived
+  // images-container selector, so a section is initialized in the same batch its
+  // cards are inserted. No ancestor walk is needed; sections are inserted whole
+  // or their container is replaced.
+  const observeToggleSections = () => {
+    if (!CONFIG.ENABLE_TOGGLE_BOOKMARKED) return;
+    // A section parent can match before its header/images-container children are
+    // inserted, so a failed init schedules a bounded retry (see
+    // retryIncompleteToggleSections). One registration per section keeps each
+    // selector under the browser's selector-length limit.
+    for (const sectionConfig of CONFIG.SECTIONS_TOGGLE_BOOKMARKED) {
+      const parentSelector = sectionConfig.selectorParent;
+      const containerSelector = formatChildSelector(parentSelector, sectionConfig.selectorImagesContainer);
+      observeElements(`${parentSelector}, ${containerSelector}`, element => {
+        const parent = element.closest(parentSelector);
+        if (parent) handleToggleSection(parent, sectionConfig);
+      }, { rescan: true });
+    }
+  };
+
+  const handleToggleSection = (section, sectionConfig) => {
+    doToggleBookmarkedSection(section, sectionConfig);
+    if (section.dataset.pixiv_utils_toggle_bookmarked_section) return;
+    const header = section.querySelector(sectionConfig.selectorHeader);
+    const container = section.querySelector(sectionConfig.selectorImagesContainer);
+    if (!header || !container) {
+      pendingToggleSections.set(section, sectionConfig);
+      scheduleToggleSectionRetry();
+    }
   };
 
   // Binds the observer and registers the card callbacks exactly once, then
@@ -9104,8 +9206,8 @@
   // A fast scroll jump can move a deferred card from below the viewport to above
   // it without an IntersectionObserver entry ever reporting it as intersecting,
   // so it would stay pending forever. Flush pending cards that are now passed or
-  // visible, coalesced to one frame per scroll burst. This is scoped to the
-  // deferred set (not a document rescan) and is driven by the scroll event.
+  // visible. This is scoped to the deferred set (not a document rescan) and is
+  // driven by the scroll-end event.
   let deferredImageFlushFrame = null;
   const flushDeferredImageProcessing = () => {
     deferredImageFlushFrame = null;
@@ -9125,7 +9227,12 @@
     }
     cleanupPendingImageIntersections();
   };
-  window.addEventListener('scroll', () => {
+  // Prefer the scroll-end signal so the deferred set is scanned once after the
+  // scroll stops, not on every frame. Browsers without scrollend fall back to the
+  // rAF-coalesced scroll path. Cards that become visible during the scroll are
+  // still handled by the IntersectionObserver.
+  const deferredFlushEvent = 'onscrollend' in window ? 'scrollend' : 'scroll';
+  window.addEventListener(deferredFlushEvent, () => {
     if (deferredImageFlushFrame !== null) return;
     deferredImageFlushFrame = requestAnimationFrame(flushDeferredImageProcessing);
   }, { passive: true });
@@ -9598,6 +9705,11 @@
       doExpandedViewControls(element);
     });
 
+    // Toggle sections are registered first so a section is initialized in the
+    // same batch its cards are inserted. Image cards then process with the
+    // section's mode already available (frame-1 filtering for active sections).
+    observeToggleSections();
+
     // Images and the expanded view's artist bottom images go through the shared
     // MutationObserver (frame-1 matching, recycled-card re-checks, and route
     // rescans) instead of Sentinel. This also runs the initial scan for cards
@@ -9620,27 +9732,8 @@
       processNewElement(doMultiView, element, { isHome });
     });
 
-    // Toggle Bookmarked Sections. Their selectors were normalized and validated
-    // once at boot (cache check or build path), so registration trusts CONFIG.
-    if (CONFIG.ENABLE_TOGGLE_BOOKMARKED) {
-      for (const sectionConfig of CONFIG.SECTIONS_TOGGLE_BOOKMARKED) {
-        sentinel.on(sectionConfig.selectorParent, element => {
-          doToggleBookmarkedSection(element, sectionConfig);
-        });
-
-        const formattedSelector = formatChildSelector(
-          sectionConfig.selectorParent,
-          sectionConfig.selectorImagesContainer
-        );
-
-        sentinel.on(formattedSelector, element => {
-          const parent = element.closest(sectionConfig.selectorParent);
-          if (parent && !element.dataset.pixiv_utils_toggle_bookmarked_section) {
-            doToggleBookmarkedSection(parent, sectionConfig);
-          }
-        });
-      }
-    }
+    // Toggle Bookmarked Sections are registered with the shared observer in
+    // observeToggleSections() above, so no Sentinel registration is needed.
 
     // Tag Buttons
     if (PIXIV_BLOCKED_TAGS_STRING.size || PIXIV_BLOCKED_TAGS_REGEXP.length) {
