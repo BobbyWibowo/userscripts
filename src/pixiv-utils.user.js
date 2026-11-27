@@ -5,7 +5,7 @@
 // @name:zh-HK         Bobby's Pixiv Utils（pixiv 實用工具）
 // @name:zh-TW         Bobby's Pixiv Utils（pixiv 實用工具）
 // @namespace          https://github.com/BobbyWibowo
-// @version            1.9.0
+// @version            1.9.1
 // @description        Mobile-friendly. "Edit bookmark" button, bookmark state filter, dates conversion, block AI-generated works, block by Pixiv tags, block by user IDs, UTags integration, and more!
 // @description:ja     PC・スマホ対応。ブックマーク編集ボタン、ブックマーク表示フィルター、日付表示の変換、AI生成作品・タグ・ユーザーIDによるブロック、UTags連携など。
 // @description:zh-CN  兼容电脑和手机。支持编辑收藏、按收藏状态筛选作品、转换日期格式，以及屏蔽 AI 生成作品、指定标签和用户 ID；还支持 UTags 集成等功能。
@@ -8418,15 +8418,19 @@
     // Process new entries using their own section's current filter mode.
     const bookmarked = isImageBookmarked(element);
     const sectionMode = getToggleBookmarkedMode(element);
-    if (sectionMode !== null) {
-      if (sectionMode === 1 && bookmarked) {
-        element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
-      } else if (sectionMode === 2 && !bookmarked) {
-        element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
-      } else {
-        delete element.dataset.pixiv_utils_toggle_bookmarked_hide;
-      }
-    }
+    // Keep this in sync with shouldHideByToggle(): a blocked card stays hidden
+    // under an active bookmark filter even when its bookmark state alone would
+    // show it.
+    const applyToggleFilter = () => {
+      if (sectionMode === null) return;
+      const hide = sectionMode !== 0 && (
+        Boolean(element.dataset.pixiv_utils_blocked) ||
+        (sectionMode === 1 ? bookmarked : !bookmarked)
+      );
+      if (hide) element.dataset.pixiv_utils_toggle_bookmarked_hide = true;
+      else delete element.dataset.pixiv_utils_toggle_bookmarked_hide;
+    };
+    applyToggleFilter();
 
     // Skip only when this card was already fully processed for the same artwork
     // and the extracted data was complete. A card first seen before its fiber /
@@ -8461,6 +8465,9 @@
       element.removeAttribute('title');
       delete element.dataset.pixiv_utils_highlight;
       element.style.removeProperty('--pixiv_utils_highlight_color');
+      // The old block marker may have just been cleared; recompute from the
+      // bookmark state before evaluating this artwork.
+      applyToggleFilter();
     }
 
     const evaluation = evaluateArtworkModeration(pixivData, { isOwnProfile, bookmarked });
@@ -8478,6 +8485,9 @@
       if (blocked) return true;
     }
 
+    // The card is not blocked (or blocking was skipped); drop any hide left by
+    // a previous identity's block marker.
+    applyToggleFilter();
     setModerationTooltip(element, evaluation);
 
     // Exit early if collections, because they do not have independent bookmark edit page.
