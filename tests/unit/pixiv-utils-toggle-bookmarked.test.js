@@ -204,6 +204,46 @@ describe('pixiv-utils toggle bookmarked', () => {
     expect(plain.hasAttribute(HIDE_ATTRIBUTE)).toBe(false);
   });
 
+  it('keeps a blocked card hidden when doImage re-runs under an active filter', async () => {
+    const pixiv = await load({
+      settings: {
+        SETTINGS_LANGUAGE: 'en',
+        PIXIV_BLOCKED_TAGS: ['blocked-tag']
+      }
+    });
+
+    const card = document.querySelector('#card-plain');
+    card.__reactFiber$fixture = {
+      memoizedProps: { id: '16112933', type: 'illust', tags: ['blocked-tag'], aiType: 1 },
+      child: null,
+      return: null
+    };
+
+    await openSection(pixiv);
+    await flush(4);
+    expect(card.dataset.pixiv_utils_processed).toBe('16112933:i:c');
+    expect(card.dataset.pixiv_utils_blocked).toBe('true');
+
+    // "Show not bookmarked": the blocked card is not bookmarked, so only the
+    // blocked state keeps it hidden.
+    press(button());
+    expect(card.hasAttribute(HIDE_ATTRIBUTE)).toBe(true);
+
+    // React reuses a card node on SPA back-navigation. The processed signature
+    // is unchanged, so doImage returns early after the bookmark-only check; that
+    // early return must not drop the blocked-card hide.
+    const reused = card.cloneNode(true);
+    reused.removeAttribute('id');
+    reused.removeAttribute(HIDE_ATTRIBUTE);
+    reused.__reactFiber$fixture = card.__reactFiber$fixture;
+    imagesContainer().querySelector('ul').append(reused);
+
+    await pixiv.observeImageCard(reused);
+    expect(reused.dataset.pixiv_utils_processed).toBe('16112933:i:c');
+    expect(reused.dataset.pixiv_utils_blocked).toBe('true');
+    expect(reused.hasAttribute(HIDE_ATTRIBUTE)).toBe(true);
+  });
+
   it('filters a section re-created after SPA navigation', async () => {
     // jsdom only provides requestAnimationFrame with pretendToBeVisual; the
     // navigation rescan schedules through it.
