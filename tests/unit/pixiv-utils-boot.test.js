@@ -104,8 +104,20 @@ describe('pixiv-utils boot', () => {
     const pixiv = await loadPixivUtils();
 
     expect(TOGGLE_SECTION_COUNT).toBeGreaterThan(0);
-    // Image + artist-bar registrations, then one per toggle section.
-    expect(pixiv.observedSelectors()).toHaveLength(2 + TOGGLE_SECTION_COUNT);
+    // Target and ancestor gate chunks register before the image and artist
+    // observers.
+    const observed = pixiv.observedSelectors();
+    expect(observed).toHaveLength(4);
+    const targetGate = observed.find(selector => String(selector).includes('data-ga4-label="works_content"'));
+    expect(targetGate).toBeDefined();
+    expect(targetGate).toContain('section');
+    expect(targetGate).toContain('div[data-ga4-label="works_content"]');
+    expect(targetGate).toContain('h2[font-size][color="text2"]');
+    expect(targetGate).toContain('.gtm-illust-recommend-zone');
+    expect(targetGate).not.toContain('h3[font-size]');
+    expect(targetGate).not.toContain('div[style*="--street-main-ranking-height"]');
+    const ancestorGate = observed.find(selector => String(selector).includes('--street-main-ranking-height'));
+    expect(ancestorGate).toBe('div[style*="--street-main-ranking-height"]');
     // No Sentinel callbacks are added for the sections.
     expect(pixiv.listeners).toHaveLength(DEFAULT_LISTENER_COUNT);
   });

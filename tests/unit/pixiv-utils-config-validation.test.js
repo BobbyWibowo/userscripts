@@ -14,6 +14,8 @@ const STARTED_MESSAGE = `[Pixiv Utils]: ${STARTED_LOG}`;
 
 const CARD_SELECTOR = '[data-ga4-label="thumbnail"]';
 
+const SECTION_GATE_KEY = '_SECTIONS_TOGGLE_BOOKMARKED_GATE';
+
 const cards = () => Array.from(document.querySelectorAll(CARD_SELECTOR));
 
 const cardWithArtwork = id => cards().find(card => card.querySelector(`a[href*="${id}"]`));
@@ -159,7 +161,7 @@ describe('pixiv-utils configuration error isolation', () => {
     const pixiv = await loadPixivUtils({
       settings: {
         SECTIONS_TOGGLE_BOOKMARKED: [
-          { selectorParent: 'section', selectorHeader: 'h2', selectorImagesContainer: 'ul' },
+          { selectorParent: 'article', selectorHeader: 'h2', selectorImagesContainer: 'ul' },
           { selectorParent: 'div[', selectorHeader: 'h2', selectorImagesContainer: 'ul' }
         ]
       }
@@ -173,10 +175,10 @@ describe('pixiv-utils configuration error isolation', () => {
     )).toBe(true);
 
     // The valid custom section is registered with the shared observer, not
-    // Sentinel, so the Sentinel listener count is unchanged. The combined
-    // section selector keeps the custom parent as a standalone entry.
+    // Sentinel, so the Sentinel listener count is unchanged. The gate is built
+    // dynamically from the configured sections and includes the custom parent.
     expect(pixiv.listeners).toHaveLength(DEFAULT_LISTENER_COUNT);
-    expect(pixiv.observedSelectors().some(selector => String(selector).startsWith('section,'))).toBe(true);
+    expect(pixiv.observedSelectors().some(selector => String(selector).includes('article'))).toBe(true);
   });
 
   it('reuses a valid pre-built selector cache without rebuilding', async () => {
@@ -184,14 +186,57 @@ describe('pixiv-utils configuration error isolation', () => {
     const first = await loadPixivUtils({ storage });
     expect(logMessages(first)).toContain('[Pixiv Utils]: CSS selectors have been pre-built and cached for future runs.');
 
+    const cached = storage.values.get(PREBUILT_KEY);
+    const cachedGate = cached.selectors[SECTION_GATE_KEY];
+    expect(Array.isArray(cachedGate.targets)).toBe(true);
+    expect(Array.isArray(cachedGate.ancestors)).toBe(true);
+    expect(cachedGate.targets.length).toBeGreaterThan(0);
+    expect(cachedGate.targets.join(', ')).toContain('div[data-ga4-label="works_content"]');
+    expect(cachedGate.ancestors).toEqual(['div[style*="--street-main-ranking-height"]']);
+
     const second = await loadPixivUtils({ storage });
     expect(logMessages(second)).toContain('[Pixiv Utils]: Reusing cached pre-built CSS selectors.');
     expect(logMessages(second)).not.toContain('[Pixiv Utils]: CSS selectors have been pre-built and cached for future runs.');
     expect(second.console.error).toEqual([]);
 
-    // The cached selectors are the ones registered with sentinel.
+    // The cached selectors are the ones registered with the shared observer.
     expect(second.observedSelectors().some(selector => String(selector).includes('data-ga4-label="thumbnail"'))).toBe(true);
+    expect(second.observedSelectors()).toHaveLength(2 + cachedGate.targets.length + cachedGate.ancestors.length);
+    for (const gateSelector of [...cachedGate.targets, ...cachedGate.ancestors]) {
+      expect(second.observedSelectors()).toContain(gateSelector);
+    }
     expect(second.listeners).toHaveLength(DEFAULT_LISTENER_COUNT);
+  });
+
+  it('rejects a pre-built selector cache without the section gate and rebuilds', async () => {
+    const storage = createStorage();
+    await loadPixivUtils({ storage });
+
+    const cached = storage.values.get(PREBUILT_KEY);
+    delete cached.selectors[SECTION_GATE_KEY];
+
+    const pixiv = await loadPixivUtils({ storage });
+    expect(logMessages(pixiv)).not.toContain('[Pixiv Utils]: Reusing cached pre-built CSS selectors.');
+    expect(logMessages(pixiv)).toContain('[Pixiv Utils]: CSS selectors have been pre-built and cached for future runs.');
+    expect(pixiv.console.error).toEqual([]);
+    expect(storage.values.get(PREBUILT_KEY).selectors[SECTION_GATE_KEY]).toEqual({
+      targets: expect.any(Array),
+      ancestors: expect.any(Array)
+    });
+  });
+
+  it('rejects an empty section gate cache when sections exist', async () => {
+    const storage = createStorage();
+    await loadPixivUtils({ storage });
+
+    const cached = storage.values.get(PREBUILT_KEY);
+    cached.selectors[SECTION_GATE_KEY] = { targets: [], ancestors: [] };
+
+    const pixiv = await loadPixivUtils({ storage });
+    expect(logMessages(pixiv)).not.toContain('[Pixiv Utils]: Reusing cached pre-built CSS selectors.');
+    expect(logMessages(pixiv)).toContain('[Pixiv Utils]: CSS selectors have been pre-built and cached for future runs.');
+    expect(pixiv.console.error).toEqual([]);
+    expect(storage.values.get(PREBUILT_KEY).selectors[SECTION_GATE_KEY].targets.length).toBeGreaterThan(0);
   });
 
   it('rejects a tampered pre-built selector cache and rebuilds', async () => {
@@ -214,5 +259,34 @@ describe('pixiv-utils configuration error isolation', () => {
     // ...and the built-in image selectors remain active.
     expect(pixiv.observedSelectors().some(selector => String(selector).includes('data-ga4-label="thumbnail"'))).toBe(true);
     expect(pixiv.listeners).toHaveLength(DEFAULT_LISTENER_COUNT);
+  });
+
+  it('rejects a tampered section gate cache and rebuilds', async () => {
+    const storage = createStorage();
+    await loadPixivUtils({ storage });
+
+    const cached = storage.values.get(PREBUILT_KEY);
+    cached.selectors[SECTION_GATE_KEY] = { targets: ['div>>'], ancestors: [] };
+
+    const pixiv = await loadPixivUtils({ storage });
+    expect(logMessages(pixiv)).not.toContain('[Pixiv Utils]: Reusing cached pre-built CSS selectors.');
+    expect(logMessages(pixiv)).toContain('[Pixiv Utils]: CSS selectors have been pre-built and cached for future runs.');
+    expect(pixiv.console.error).toEqual([]);
+    for (const selector of pixiv.observedSelectors()) {
+      expect(String(selector)).not.toContain('div>>');
+    }
+  });
+
+  it('never writes the pre-built cache in debug mode', async () => {
+    const storage = createStorage();
+    const first = await loadPixivUtils({ storage, settings: { MODE: 'DEBUG' } });
+    const second = await loadPixivUtils({ storage, settings: { MODE: 'DEBUG' } });
+
+    for (const pixiv of [first, second]) {
+      expect(logMessages(pixiv)).not.toContain('[Pixiv Utils]: CSS selectors have been pre-built and cached for future runs.');
+      expect(logMessages(pixiv)).not.toContain('[Pixiv Utils]: Reusing cached pre-built CSS selectors.');
+      expect(pixiv.observedSelectors()).toHaveLength(4);
+    }
+    expect(storage.values.get(PREBUILT_KEY)).toBeNull();
   });
 });
