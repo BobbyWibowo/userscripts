@@ -2149,8 +2149,9 @@
   // lets a single observer find every bookmark-filter section without
   // registering each full :has() parent selector separately.
   const SECTION_GATE_CACHE_KEY = '_SECTIONS_TOGGLE_BOOKMARKED_GATE';
-  const SECTION_GATE_VERSION = 2;
-  const SECTION_GATE_MAX_LENGTH = 1800;
+  const IMAGE_GATE_CACHE_KEY = '_SELECTORS_IMAGE_GATE';
+  const GATE_CACHE_VERSION = 2;
+  const GATE_MAX_LENGTH = 1800;
 
   const findMatchingParen = (text, openIndex) => {
     let depth = 0;
@@ -2219,9 +2220,11 @@
     return args;
   };
 
-  const splitCompounds = selector => {
+  const splitCompoundsDetailed = selector => {
     const compounds = [];
+    const combinators = [];
     let current = '';
+    let pendingCombinator = null;
     let parenDepth = 0;
     let bracketDepth = 0;
     let quote = null;
@@ -2270,8 +2273,11 @@
       }
       if (parenDepth === 0 && bracketDepth === 0) {
         if (char === '|' && selector[i + 1] === '|') {
-          if (current.trim()) compounds.push(current.trim());
-          current = '';
+          if (current.trim()) {
+            compounds.push(current.trim());
+            current = '';
+          }
+          pendingCombinator = '||';
           i += 1;
           continue;
         }
@@ -2280,13 +2286,43 @@
             compounds.push(current.trim());
             current = '';
           }
+          if (char === ' ' || char === '\t' || char === '\n' || char === '\r') {
+            if (pendingCombinator === null) pendingCombinator = ' ';
+          } else {
+            pendingCombinator = char;
+          }
           continue;
+        }
+        if (!current && pendingCombinator !== null && compounds.length) {
+          combinators.push(pendingCombinator);
+          pendingCombinator = null;
         }
       }
       current += char;
     }
     if (current.trim()) compounds.push(current.trim());
-    return compounds;
+    return { compounds, combinators };
+  };
+
+  const splitCompounds = selector => splitCompoundsDetailed(selector).compounds;
+
+  // The nearest specific compound that is still an ancestor of the subject.
+  // Sibling combinators (+ or ~) make earlier compounds unsuitable as a prefix.
+  const getAncestorPrefix = selector => {
+    const { compounds, combinators } = splitCompoundsDetailed(selector);
+    const lastIndex = compounds.length - 1;
+    for (let index = lastIndex - 1; index >= 0; index--) {
+      if (!isSpecificCompound(compounds[index])) continue;
+      let isAncestor = true;
+      for (let position = index; position < lastIndex; position++) {
+        if (combinators[position] === '+' || combinators[position] === '~') {
+          isAncestor = false;
+          break;
+        }
+      }
+      if (isAncestor) return compounds[index];
+    }
+    return null;
   };
 
   const isSpecificCompound = compound =>
@@ -2299,7 +2335,7 @@
     let chunk = '';
     for (const selector of selectors) {
       const candidate = chunk ? `${chunk}, ${selector}` : selector;
-      if (chunk && candidate.length > SECTION_GATE_MAX_LENGTH) {
+      if (chunk && candidate.length > GATE_MAX_LENGTH) {
         chunks.push(chunk);
         chunk = selector;
       } else {
@@ -2334,10 +2370,7 @@
         }
         const outsideCompounds = splitCompounds(stripHasPseudos(part));
         const lastIndex = outsideCompounds.length - 1;
-        const ancestorPrefix = outsideCompounds
-          .slice(0, lastIndex)
-          .filter(isSpecificCompound)
-          .at(-1);
+        const ancestorPrefix = getAncestorPrefix(stripHasPseudos(part));
         let addedForPart = false;
         outsideCompounds.forEach((compound, index) => {
           if (index !== lastIndex || !isSpecificCompound(compound)) return;
@@ -2363,10 +2396,51 @@
       if (!addedForSection) addTarget(parent);
     }
     return {
-      version: SECTION_GATE_VERSION,
+      version: GATE_CACHE_VERSION,
       targets: chunkGateSelectors(targets)
     };
   };
+
+  // Image gates match a concrete anchor or card inside each image selector.
+  // The resolver then uses the full image selector once per gate hit, which is
+  // much less frequent than checking the full selector on every mutation.
+  const buildImageGatePart = part => {
+    const compounds = splitCompounds(part);
+    const last = compounds.at(-1);
+    if (!last) return [];
+    // A specific subject is already a cheap card selector.
+    if (isSpecificCompound(last)) return [last];
+    if (!last.includes(':has(')) return [part];
+    const ancestorPrefix = getAncestorPrefix(part);
+    const candidates = [];
+    for (const arg of extractHasArguments(last)) {
+      for (const argPart of splitSelectorList(arg)) {
+        const inside = splitCompounds(argPart.replace(/^[\s>+~]+/, ''));
+        if (!inside.length) continue;
+        const specific = inside.filter(isSpecificCompound);
+        const candidate = specific.at(-1) || inside.at(-1);
+        if (!candidate) continue;
+        candidates.push(ancestorPrefix ? `${ancestorPrefix} ${candidate}` : candidate);
+      }
+    }
+    return candidates.length ? candidates : [part];
+  };
+
+  const buildImageGateSelectors = selector => {
+    const gates = new Set();
+    for (const part of splitSelectorList(selector)) {
+      for (const gate of buildImageGatePart(part)) {
+        if (isSelectorValid(gate)) gates.add(gate);
+      }
+    }
+    return chunkGateSelectors(gates);
+  };
+
+  const buildImageGateGroups = (imageSelector, artistSelector) => ({
+    version: GATE_CACHE_VERSION,
+    image: buildImageGateSelectors(imageSelector),
+    artist: buildImageGateSelectors(artistSelector)
+  });
 
   // Valid CSS that matches nothing. Used to disable a single feature whose
   // selectors are unusable without affecting any other feature.
@@ -2423,10 +2497,19 @@
     _prebuilt.selectors[SECTION_GATE_CACHE_KEY] &&
     typeof _prebuilt.selectors[SECTION_GATE_CACHE_KEY] === 'object' &&
     !Array.isArray(_prebuilt.selectors[SECTION_GATE_CACHE_KEY]) &&
-    _prebuilt.selectors[SECTION_GATE_CACHE_KEY].version === SECTION_GATE_VERSION &&
+    _prebuilt.selectors[SECTION_GATE_CACHE_KEY].version === GATE_CACHE_VERSION &&
     Array.isArray(_prebuilt.selectors[SECTION_GATE_CACHE_KEY].targets) &&
     _prebuilt.selectors[SECTION_GATE_CACHE_KEY].targets.every(entry =>
       typeof entry === 'string' && entry !== '' && isSelectorValid(entry)) &&
+    _prebuilt.selectors[IMAGE_GATE_CACHE_KEY] &&
+    typeof _prebuilt.selectors[IMAGE_GATE_CACHE_KEY] === 'object' &&
+    !Array.isArray(_prebuilt.selectors[IMAGE_GATE_CACHE_KEY]) &&
+    _prebuilt.selectors[IMAGE_GATE_CACHE_KEY].version === GATE_CACHE_VERSION &&
+    ['image', 'artist'].every(group =>
+      Array.isArray(_prebuilt.selectors[IMAGE_GATE_CACHE_KEY][group]) &&
+      _prebuilt.selectors[IMAGE_GATE_CACHE_KEY][group].length > 0 &&
+      _prebuilt.selectors[IMAGE_GATE_CACHE_KEY][group].every(entry =>
+        typeof entry === 'string' && entry !== '' && isSelectorValid(entry))) &&
     ((Array.isArray(_prebuilt.selectors.SECTIONS_TOGGLE_BOOKMARKED) &&
       _prebuilt.selectors.SECTIONS_TOGGLE_BOOKMARKED.length === 0) ||
       _prebuilt.selectors[SECTION_GATE_CACHE_KEY].targets.length > 0);
@@ -2531,6 +2614,12 @@
   const sectionGateGroups = _prebuiltSelectors
     ? _prebuiltSelectors[SECTION_GATE_CACHE_KEY]
     : buildSectionGateGroups(CONFIG.SECTIONS_TOGGLE_BOOKMARKED);
+  const imageGateGroups = _prebuiltSelectors
+    ? _prebuiltSelectors[IMAGE_GATE_CACHE_KEY]
+    : buildImageGateGroups(
+      CONFIG.SELECTORS_IMAGE,
+      CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE
+    );
   if (_prebuiltSelectors) {
     log('Reusing cached pre-built CSS selectors.');
   } else {
@@ -2556,6 +2645,7 @@
       }
     }
     _builtSelectors[SECTION_GATE_CACHE_KEY] = sectionGateGroups;
+    _builtSelectors[IMAGE_GATE_CACHE_KEY] = imageGateGroups;
     if (!_debugMode) {
       GM_setValue(_PREBUILT_KEY, { version: GM_info.script.version, selectors: _builtSelectors });
       log('CSS selectors have been pre-built and cached for future runs.');
@@ -5949,8 +6039,10 @@
     .pqkmS, /* desktop: show more creator works button */
     ._illust-series-title-text,
     /* The following page's title link shares the thumbnail-link class, so never
-       hide the thumbnail anchor itself: it is what draws the placeholder. */
-    :is(${CONFIG.SELECTORS_IMAGE_TITLE}):not([data-ga4-label="thumbnail_link"]),
+       hide the thumbnail anchor itself: it is what draws the placeholder. Mobile
+       thumbnail anchors also have no data-ga4-label, so keep any title-shaped
+       anchor that still contains an image (the mobile thumbnail link). */
+    :is(${CONFIG.SELECTORS_IMAGE_TITLE}):not([data-ga4-label="thumbnail_link"]):not(:has(img)),
     :is(${CONFIG.SELECTORS_IMAGE_ARTIST_AVATAR}),
     :is(${CONFIG.SELECTORS_IMAGE_AUXILIARY_ELEMENTS}),
     :is(${CONFIG.SELECTORS_IMAGE_CONTROLS}) {
@@ -8245,7 +8337,10 @@
     // Vue data hydrated (incomplete) is re-run once the real data arrives, so a
     // moderation verdict is never frozen on URL-only fallback data.
     const processedSignature = `${data.id}:${data.novel ? 'n' : 'i'}:${pixivData.complete ? 'c' : 'x'}`;
-    if (!options.forced && element.dataset.pixiv_utils_processed === processedSignature) {
+    const previousProcessedSignature = element.dataset.pixiv_utils_processed;
+    const identityChanged = Boolean(previousProcessedSignature) &&
+      previousProcessedSignature !== processedSignature;
+    if (!options.forced && previousProcessedSignature === processedSignature) {
       return false;
     }
     element.dataset.pixiv_utils_processed = processedSignature;
@@ -8253,19 +8348,20 @@
     // Recycled Vue cards keep one node for another artwork. The shared observer
     // (see the card-level registration in the boot section) re-runs doImage with
     // `forced` when their identity or layout changes, so no per-card observer is
-    // created here.
+    // created here. A recycled blocked node must also drop the previous block
+    // and tooltip, because this artwork may not be blocked.
 
-    // Skip if already blocked, unless forced.
+    // Skip if already blocked, unless forced or the node now shows another work.
     if (element.dataset.pixiv_utils_blocked || isModerationBlocked(element)) {
-      if (options.forced) {
+      if (options.forced || identityChanged) {
         clearModerationBlock(element);
       } else {
         return false;
       }
     }
 
-    // Reset other statuses if forced.
-    if (options.forced) {
+    // Reset other statuses if forced or if the node now shows another work.
+    if (options.forced || identityChanged) {
       element.removeAttribute('title');
       delete element.dataset.pixiv_utils_highlight;
       element.style.removeProperty('--pixiv_utils_highlight_color');
@@ -9068,6 +9164,8 @@
       // still reacting to attribute changes in their own context.
       attributeCallback: typeof options.attributeCallback === 'function' ? options.attributeCallback : null,
       attributes: Array.isArray(options.attributes) ? options.attributes : null,
+      // Attribute-only registrations stay out of the child-list hot path.
+      insertions: options.insertions !== false,
       // When set, an inserted child also re-checks this many ancestor levels so a
       // wrapper that only becomes matching once its content is added is handled.
       ancestors: Number.isInteger(options.ancestors) ? options.ancestors : 0
@@ -9152,6 +9250,7 @@
     for (const node of record.addedNodes) {
       if (node.nodeType !== 1 || !node.isConnected) continue;
       for (const registration of observedRegistrations) {
+        if (!registration.insertions) continue;
         const directMatches = collectObservedMatches(node, registration.selector, false);
         for (const element of directMatches) {
           if (!force && observedElements.has(element)) {
@@ -9227,6 +9326,7 @@
   // after navigation handlers have run.
   const rescanObservedElements = () => {
     for (const registration of observedRescans) {
+      if (!registration.insertions) continue;
       let matches;
       try {
         matches = document.querySelectorAll(registration.selector);
@@ -9282,34 +9382,53 @@
   // the rescans are idempotent because doImage skips a card that already has
   // the button for its artwork.
   const observeImages = () => {
-    // Rescan so cards rendered before boot (or adopted by a route change) are
-    // processed without waiting for a mutation. The ancestor walk handles cards
-    // whose wrapper is inserted empty and populated afterwards (hover popups).
-    // The same registration also carries the recycled-card attribute handler so
-    // SELECTORS_IMAGE is scanned once per inserted node instead of twice.
-    observeElements(CONFIG.SELECTORS_IMAGE, element => {
-      // Apply the section's bookmark mode here, before any visibility deferral:
-      // a card inserted into an active toggle section must be hidden/shown on
-      // frame-1 even while it is still off-screen.
-      const toggleMode = getToggleBookmarkedMode(element);
-      if (toggleMode !== null) applyToggleBookmarkedFilterToCard(element, toggleMode);
-      processNewElement(doImage, element, { isHome, isOwnProfile });
-      rememberObservedIdentity(element);
-    }, {
-      rescan: true,
-      ancestors: 8,
+    // Keep the full image selector only for class/data-tx identity changes
+    // (recycled cards). It never participates in child-list matching.
+    observeElements(CONFIG.SELECTORS_IMAGE, () => {}, {
+      insertions: false,
       attributes: ['class', 'data-tx'],
       attributeCallback: element => {
         recycledCandidates.add(element);
         scheduleRecycledCheck();
       }
     });
-    // The artist bar only changes as a whole (navigation), so it is re-scanned
-    // rather than tracked by attribute changes.
-    observeElements(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE, element => {
-      processNewElement(doImage, element, { isHome, isOwnProfile, skipArtistTag: true });
-      rememberObservedIdentity(element);
-    }, { rescan: true, ancestors: 8 });
+    // The artist bar gate is registered first so its scoped anchors are claimed
+    // before the broader image gates. Then the image gates resolve the image
+    // card from whichever concrete anchor matched.
+    for (const gateSelector of imageGateGroups.artist) {
+      observeElements(gateSelector, element => {
+        const artistImage = element.closest(CONFIG.SELECTORS_EXPANDED_VIEW_ARTIST_BOTTOM_IMAGE);
+        if (!artistImage) return;
+        // Pixiv reuses the artist-bar cards on artwork navigation and removes
+        // the injected buttons while keeping the processed signature. Force the
+        // card through doImage when an expected button disappeared.
+        const needsButtonRefresh = CONFIG.ENABLE_EDIT_BOOKMARK &&
+          artistImage.dataset.pixiv_utils_processed &&
+          !artistImage.querySelector('.pixiv_utils_edit_bookmark') &&
+          !artistImage.closest(SELECTORS_IMAGE_CONTAINER_SIMPLIFIED) &&
+          !(isOwnProfile && currentUrl.pathname.includes('/bookmarks/') === false);
+        processNewElement(doImage, artistImage, {
+          isHome,
+          isOwnProfile,
+          skipArtistTag: true,
+          forced: Boolean(needsButtonRefresh)
+        });
+        rememberObservedIdentity(artistImage);
+      }, { rescan: true, ancestors: 8 });
+    }
+    for (const gateSelector of imageGateGroups.image) {
+      observeElements(gateSelector, element => {
+        const image = element.closest(CONFIG.SELECTORS_IMAGE);
+        if (!image) return;
+        // Apply the section's bookmark mode here, before any visibility
+        // deferral: a card inserted into an active toggle section must be
+        // hidden/shown on frame-1 even while it is still off-screen.
+        const toggleMode = getToggleBookmarkedMode(image);
+        if (toggleMode !== null) applyToggleBookmarkedFilterToCard(image, toggleMode);
+        processNewElement(doImage, image, { isHome, isOwnProfile });
+        rememberObservedIdentity(image);
+      }, { rescan: true, ancestors: 8 });
+    }
   };
 
   // Toggle-bookmarked sections use the shared observer (not Sentinel): gate
