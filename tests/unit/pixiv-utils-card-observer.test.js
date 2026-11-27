@@ -74,6 +74,27 @@ describe('pixiv-utils shared card observer', () => {
     expect(isBlocked(card)).toBe(true);
   });
 
+  it('clears a stale block when a reused card shows another artwork', async () => {
+    const pixiv = await loadPixivUtils({ settings: { PIXIV_BLOCKED_USERS: ['8888'] } });
+    const card = cardFor('16112933');
+
+    card.dataset.tx = '111';
+    setVueItem(card, { id: '16112935', userId: '8888', tags: [] });
+    await pixiv.observeImageCard(card);
+    expect(isBlocked(card)).toBe(true);
+
+    // The same node is reused for a non-blocked artwork. This arrives through
+    // the normal card path, not the forced recycled-card attribute path.
+    card.dataset.tx = '222';
+    setVueItem(card, { id: '16112936', userId: '2222', tags: [] });
+    await pixiv.observeImageCard(card);
+    await flush(6);
+
+    expect(isBlocked(card)).toBe(false);
+    expect(card.dataset.pixiv_utils_moderation_blocked).toBeUndefined();
+    expect(card.dataset.pixiv_utils_processed).toContain('16112936');
+  });
+
   it('ignores an attribute change that leaves the artwork identity unchanged', async () => {
     const pixiv = await loadPixivUtils({ settings: { PIXIV_BLOCKED_USERS: ['8888'] } });
     const card = cardFor('16112933');
@@ -126,6 +147,44 @@ describe('pixiv-utils shared card observer', () => {
     await flush(6);
 
     // The ancestor walk reaches the wrapper seven levels up and runs doImage on it.
+    expect(wrapper.dataset.pixiv_utils_processed).toContain('16112933');
+  });
+
+  it('processes an artist-popup card when its thumbnail arrives after the anchor', async () => {
+    await loadPixivUtils({ settings: { ENABLE_EDIT_BOOKMARK: true } });
+
+    const root = document.createElement('div');
+    root.innerHTML = '<div open><a href="/users/11"></a><div><div></div></div></div>';
+    document.body.append(root);
+    const wrapper = root.querySelector('div[open] a[href*="users/"] ~ div > div');
+    setVueItem(wrapper, { id: '16112933', userId: '7777', tags: [], notLoaded: false });
+
+    const deepHost = document.createElement('div');
+    let cursor = deepHost;
+    for (let i = 0; i < 6; i += 1) {
+      const next = document.createElement('div');
+      cursor.append(next);
+      cursor = next;
+    }
+    wrapper.append(deepHost);
+
+    const observed = (globalThis.unsafeWindow ?? globalThis).__pixivUtilsObserved;
+    const anchor = document.createElement('a');
+    anchor.href = '/artworks/16112933';
+    cursor.append(anchor);
+    observed.deliver({ type: 'childList', target: cursor, addedNodes: [anchor] });
+    await flush(6);
+
+    // The card selector requires the image, so the anchor alone must not be
+    // marked as completed.
+    expect(wrapper.dataset.pixiv_utils_processed).toBeUndefined();
+
+    const img = document.createElement('img');
+    anchor.append(img);
+    observed.deliver({ type: 'childList', target: anchor, addedNodes: [img] });
+    await flush(6);
+
+    // The ancestor walk re-dispatches the gate anchor now that the card matches.
     expect(wrapper.dataset.pixiv_utils_processed).toContain('16112933');
   });
 

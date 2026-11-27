@@ -211,6 +211,84 @@ test('keeps artist bottom carousel cards positioned when blocked', async ({ page
   expect(result.overflow).toBe('visible');
 });
 
+test('re-adds edit bookmark buttons to reused artist bar cards', async ({ page }) => {
+  await openFixture(page);
+
+  const result = await page.evaluate(async () => {
+    const source = document.querySelector('#card-plain');
+    const clone = source.cloneNode(true);
+    const processed = source.dataset.pixiv_utils_processed;
+    clone.querySelector('.pixiv_utils_edit_bookmark')?.remove();
+    clone.dataset.pixiv_utils_processed = processed;
+    delete clone.id;
+
+    const host = document.createElement('div');
+    host.innerHTML = `
+      <main>
+        <section>
+          <figure></figure>
+          <div></div>
+          <div>
+            <nav style="display: block">
+              <div></div>
+            </nav>
+          </div>
+        </section>
+      </main>`;
+    host.querySelector('nav > div').append(clone);
+    document.body.append(host);
+
+    const anchor = clone.querySelector('a[href*="/artworks/"]');
+    window.__pixivUtilsObserved.deliver({
+      type: 'childList',
+      target: anchor.parentElement,
+      addedNodes: [anchor]
+    });
+    await new Promise(resolve => setTimeout(resolve, 800));
+    return {
+      processed,
+      button: Boolean(clone.querySelector('.pixiv_utils_edit_bookmark')),
+      processedAfter: clone.dataset.pixiv_utils_processed
+    };
+  });
+
+  expect(result.processed).toBeTruthy();
+  expect(result.button).toBe(true);
+});
+
+test('keeps mobile blocked cards sized by preserving the thumbnail link', async ({ page }) => {
+  await openFixture(page);
+
+  const result = await page.evaluate(() => {
+    const card = document.createElement('div');
+    card.className = 'works-item-illust works-item grid no-padding';
+    card.dataset.pixiv_utils_blocked = 'true';
+    card.innerHTML = `
+      <div>
+        <a class="thumbnail-link" href="/artworks/1">
+          <div class="square-thumbnail-container">
+            <img class="square-stretcher" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
+            <div class="thumbnail">
+              <img class="thumb" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
+            </div>
+          </div>
+        </a>
+      </div>`;
+    document.body.append(card);
+    const link = card.querySelector('.thumbnail-link');
+    const computed = getComputedStyle(link);
+    return {
+      display: computed.display,
+      cardHeight: card.getBoundingClientRect().height,
+      linkHeight: link.getBoundingClientRect().height
+    };
+  });
+
+  expect(result.display).not.toBe('none');
+  expect(result.cardHeight).toBeGreaterThan(0);
+  expect(result.linkHeight).toBeGreaterThan(0);
+});
+
 test('renders the edit bookmark panel controls at their designed box sizes', async ({ page }) => {
   await openEditBookmarkPanel(page);
 

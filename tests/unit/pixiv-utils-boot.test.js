@@ -104,9 +104,10 @@ describe('pixiv-utils boot', () => {
     const pixiv = await loadPixivUtils();
 
     expect(TOGGLE_SECTION_COUNT).toBeGreaterThan(0);
-    // The target gate chunk registers before the image and artist observers.
+    // The section gate chunk, image attribute-only registration, artist gate,
+    // and image gate all register with the shared observer.
     const observed = pixiv.observedSelectors();
-    expect(observed).toHaveLength(3);
+    expect(observed).toHaveLength(4);
     const targetGate = observed.find(selector => String(selector).includes('data-ga4-label="works_content"'));
     expect(targetGate).toBeDefined();
     expect(targetGate).toContain('section');
