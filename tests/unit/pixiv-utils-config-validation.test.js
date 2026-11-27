@@ -172,9 +172,11 @@ describe('pixiv-utils configuration error isolation', () => {
       message.includes('SECTIONS_TOGGLE_BOOKMARKED') && message.includes('section 1')
     )).toBe(true);
 
-    // The eleven built-in sections plus the one valid custom section register
-    // two callbacks each (parent and derived container).
-    expect(pixiv.listeners).toHaveLength(DEFAULT_LISTENER_COUNT + 2);
+    // The valid custom section is registered with the shared observer, not
+    // Sentinel, so the Sentinel listener count is unchanged. The combined
+    // section selector keeps the custom parent as a standalone entry.
+    expect(pixiv.listeners).toHaveLength(DEFAULT_LISTENER_COUNT);
+    expect(pixiv.observedSelectors().some(selector => String(selector).startsWith('section,'))).toBe(true);
   });
 
   it('reuses a valid pre-built selector cache without rebuilding', async () => {

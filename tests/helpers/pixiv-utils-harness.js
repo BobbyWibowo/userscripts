@@ -57,14 +57,14 @@ export const ONURLCHANGE_NATIVE_LOG = 'Using window.onurlchange.';
  * Every entry in that array declares its parent selector as a `css`-tagged
  * template literal, while the settings-panel field definitions declare an
  * object (`selectorParent: {`), so this pattern counts sections only. Each
- * entry registers two sentinel callbacks.
+ * entry registers one shared-observer callback (not two Sentinel callbacks).
  */
 export const TOGGLE_SECTION_COUNT = SCRIPT_SOURCE.match(/selectorParent:\s*\/\*css\*\//g)?.length ?? 0;
 
-/** Sentinel callback count registered by default (`4` base + `2` per toggle section + dates + UTags + comments). Image cards use the shared MutationObserver, not Sentinel. */
+/** Sentinel callback count registered by default (`4` base + dates + UTags + comments). Image cards and toggle sections use the shared MutationObserver, not Sentinel. */
 export const BASE_LISTENER_COUNT = 4;
 
-export const DEFAULT_LISTENER_COUNT = BASE_LISTENER_COUNT + (TOGGLE_SECTION_COUNT * 2) + 3;
+export const DEFAULT_LISTENER_COUNT = BASE_LISTENER_COUNT + 3;
 
 /** Flush pending microtasks and macrotasks, including deferred artwork work. */
 export const flush = async (turns = 3) => {
@@ -499,27 +499,31 @@ export const loadPixivUtils = async (options = {}) => {
   };
 
   /**
-   * Drive an artwork card through the script's shared MutationObserver, the
-   * replacement for the old Sentinel image registration. The script exposes a
-   * deterministic delivery hook (jsdom's :has() and MutationObserver staging are
-   * unreliable), so the same processing path a real insertion takes is used.
+   * Drive any element through the script's shared MutationObserver. The script
+   * exposes a deterministic delivery hook (jsdom's :has() and MutationObserver
+   * staging are unreliable), so the same processing path a real insertion takes
+   * is used.
    */
-  const observeImageCard = async card => {
+  const observeElement = async element => {
     const pageWorld = globalThis.unsafeWindow ?? globalThis;
     const observed = pageWorld.__pixivUtilsObserved;
 
     if (!observed) throw new Error('The script did not expose its shared observer hook.');
 
-    observed.deliver({ type: 'childList', target: card.parentNode ?? document.body, addedNodes: [card] });
+    observed.deliver({ type: 'childList', target: element.parentNode ?? document.body, addedNodes: [element] });
     await flush(5);
 
-    return card;
+    return element;
   };
+
+  /** Drive an artwork card through the script's shared MutationObserver. */
+  const observeImageCard = card => observeElement(card);
 
   /** Selectors currently registered with the script's shared observer. */
   const observedSelectors = () => (globalThis.unsafeWindow ?? globalThis).__pixivUtilsObserved?.selectors() ?? [];
 
   return {
+    observeElement,
     observeImageCard,
     observedSelectors,
     sentinel,

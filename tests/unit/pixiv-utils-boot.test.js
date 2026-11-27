@@ -100,24 +100,14 @@ describe('pixiv-utils boot', () => {
 
     expect(pixiv.console.error).toEqual([]);
   });
-  it('registers a parent and a derived container callback per toggle-bookmarked section', async () => {
+  it('registers toggle-bookmarked sections with the shared observer', async () => {
     const pixiv = await loadPixivUtils();
-    const toggleEntries = pixiv.listeners.slice(
-      BASE_LISTENER_COUNT,
-      BASE_LISTENER_COUNT + (TOGGLE_SECTION_COUNT * 2)
-    );
 
     expect(TOGGLE_SECTION_COUNT).toBeGreaterThan(0);
-    expect(toggleEntries).toHaveLength(TOGGLE_SECTION_COUNT * 2);
-
-    for (let index = 0; index < toggleEntries.length; index += 2) {
-      const parent = toggleEntries[index].selector;
-      const container = toggleEntries[index + 1].selector;
-
-      // `formatChildSelector()` wraps the parent selector in `:is(...)`, so the
-      // derived container selector must embed the exact parent selector.
-      expect(container).toContain(`:is(${parent})`);
-    }
+    // Image + artist-bar registrations, then one per toggle section.
+    expect(pixiv.observedSelectors()).toHaveLength(2 + TOGGLE_SECTION_COUNT);
+    // No Sentinel callbacks are added for the sections.
+    expect(pixiv.listeners).toHaveLength(DEFAULT_LISTENER_COUNT);
   });
 
   it('subscribes to both date selector alternates', async () => {
@@ -161,7 +151,7 @@ describe('pixiv-utils boot', () => {
     // selectors that differ are the two conditional registrations.
     const added = configured.selectors().filter(selector => !defaultSelectors.includes(selector));
 
-    expect(defaults.listeners).toHaveLength(BASE_LISTENER_COUNT + (TOGGLE_SECTION_COUNT * 2) + 3);
+    expect(defaults.listeners).toHaveLength(BASE_LISTENER_COUNT + 3);
     expect(configured.listeners).toHaveLength(DEFAULT_LISTENER_COUNT + 2);
     expect(added).toHaveLength(2);
     expect(added.some(selector => selector.includes(TAG_BUTTON_MARKER))).toBe(true);
